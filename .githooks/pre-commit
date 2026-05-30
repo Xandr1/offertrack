@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+STAGED_FILES_FILE="$(mktemp)"
+
+git diff --cached --name-only --diff-filter=ACMR -z > "$STAGED_FILES_FILE"
+
+./scripts/format.sh
+
+if [ -s "$STAGED_FILES_FILE" ]; then
+  while IFS= read -r -d '' file; do
+    if [ -e "$file" ]; then
+      git add "$file"
+    fi
+  done < "$STAGED_FILES_FILE"
+fi
+
+rm -f "$STAGED_FILES_FILE"
+
+./scripts/lint.sh

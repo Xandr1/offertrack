@@ -1,0 +1,28 @@
+package com.offertrack.applications;
+
+import com.offertrack.applications.dto.ApplicationResponse;
+import com.offertrack.applications.dto.NextInterviewResponse;
+
+public class ApplicationResponseMapper {
+  private ApplicationResponseMapper() {}
+
+  public static ApplicationResponse toResponse(
+      Application application, NextInterviewResponse nextInterview) {
+    return new ApplicationResponse(
+        application.id(),
+        application.companyName(),
+        application.positionTitle(),
+        application.location(),
+        application.workMode(),
+        application.stage(),
+        application.notes(),
+        application.appliedAt(),
+        application.createdAt(),
+        application.updatedAt(),
+        nextInterview);
+  }
+
+  public static ApplicationResponse toResponse(Application application) {
+    return toResponse(application, null);
+  }
+}

@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: core-api
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/offertrack
+    username: offertrack
+    password: offertrack
+
+  flyway:
+    enabled: true
+
+  jooq:
+    sql-dialect: POSTGRES
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  jwt:
+    secret: "change-me-change-me-change-me-change-me-change-me"
+    expiration-minutes: 60

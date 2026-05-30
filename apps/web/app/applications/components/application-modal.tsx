@@ -1,0 +1,72 @@
+"use client";
+
+import { ReactNode } from "react";
+import { buttonStyles, modalStyles, textStyles } from "@/lib/styles";
+import { IconClose } from "./ui-icons";
+
+type ApplicationModalProps = {
+  children: ReactNode;
+  description?: string;
+  headerControls?: ReactNode;
+  isCompact?: boolean;
+  isOpen: boolean;
+  isCloseDisabled?: boolean;
+  title: string;
+  onClose: () => void;
+};
+
+export const ApplicationModal = ({
+  children,
+  description,
+  headerControls,
+  isCompact = false,
+  isOpen,
+  isCloseDisabled = false,
+  title,
+  onClose,
+}: ApplicationModalProps) => {
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      className={modalStyles.softContainer}
+      onClick={() => {
+        if (!isCloseDisabled) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className={isCompact ? modalStyles.compactPanel : modalStyles.softPanel}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div className={modalStyles.softHeader}>
+          <div>
+            <h2 className={textStyles.sectionTitle}>{title}</h2>
+            {description && <p className={textStyles.subtitle}>{description}</p>}
+          </div>
+          <div className="flex shrink-0 items-center gap-4">
+            {headerControls}
+            <button
+              aria-label="Close modal"
+              className={buttonStyles.iconGhost}
+              disabled={isCloseDisabled}
+              onClick={onClose}
+              type="button"
+            >
+              <IconClose className="h-[18px] w-[18px]" />
+            </button>
+          </div>
+        </div>
+
+        <div className={isCompact ? modalStyles.compactBody : modalStyles.softBody}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};

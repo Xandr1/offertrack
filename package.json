@@ -1,0 +1,21 @@
+{
+  "name": "offertrack",
+  "private": true,
+  "scripts": {
+    "dev": "bash scripts/dev.sh",
+    "dev:infra": "docker compose up -d",
+    "dev:api": "bash scripts/dev-api.sh",
+    "dev:web": "bash scripts/dev-web.sh",
+    "format": "bash scripts/format.sh",
+    "lint": "bash scripts/lint.sh",
+    "test": "bash scripts/test.sh",
+    "test:web": "pnpm.cmd --dir apps/web run lint && pnpm.cmd --dir apps/web run typecheck && pnpm.cmd --dir apps/web run test",
+    "test:api": "bash -c 'cd apps/core-api && ./mvnw.cmd test'",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0"
+  }
+}

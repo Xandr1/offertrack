@@ -1,0 +1,33 @@
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  LucideIcon,
+  LucideProps,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+
+const withDefaults = (Icon: LucideIcon) => {
+  const WrappedIcon = ({ size = 16, strokeWidth = 2, ...props }: LucideProps) => (
+    <Icon aria-hidden size={size} strokeWidth={strokeWidth} {...props} />
+  );
+
+  WrappedIcon.displayName = `Icon${Icon.displayName ?? Icon.name}`;
+
+  return WrappedIcon;
+};
+
+export const IconPlus = withDefaults(Plus);
+export const IconSearch = withDefaults(Search);
+export const IconCalendar = withDefaults(Calendar);
+export const IconPencil = withDefaults(Pencil);
+export const IconTrash = withDefaults(Trash2);
+export const IconCheckCircle = withDefaults(CheckCircle2);
+export const IconUndoTimer = withDefaults(RotateCcw);
+export const IconClose = withDefaults(X);
+export const IconAlert = withDefaults(AlertCircle);
