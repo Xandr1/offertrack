@@ -1,7 +1,8 @@
 "use client";
 
 import { ApplicationStage } from "@/lib/api";
-import { formStyles, textStyles } from "@/lib/styles";
+import { Select } from "@/components/ui/input";
+import { textStyles } from "@/lib/styles";
 import { applicationStageLabels } from "../helpers/application-labels";
 import { applicationStages } from "../helpers/constants";
 
@@ -26,13 +27,7 @@ export const ApplicationStageSelect = ({
   wrapperClassName,
   onChange,
 }: ApplicationStageSelectProps) => {
-  const baseSelectClass = showLabel
-    ? formStyles.selectSoftSpaced
-    : formStyles.selectSoft;
-  const inputClassName = [
-    baseSelectClass,
-    selectClassName ?? "",
-  ]
+  const inputClassName = [showLabel ? "mt-1.5" : "", selectClassName ?? ""]
     .join(" ")
     .trim();
 
@@ -41,7 +36,7 @@ export const ApplicationStageSelect = ({
       {showLabel && (
         <label className={labelClassName ?? textStyles.label}>{label}</label>
       )}
-      <select
+      <Select
         className={inputClassName}
         disabled={disabled}
         value={stage}
@@ -52,7 +47,7 @@ export const ApplicationStageSelect = ({
             {applicationStageLabels[stageOption]}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 };

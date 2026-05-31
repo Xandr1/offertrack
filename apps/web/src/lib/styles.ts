@@ -32,7 +32,6 @@ export const layoutStyles = {
   metricsGrid: "mt-6 grid gap-4 md:grid-cols-5",
   actionRow: "flex items-center gap-3",
   stackMd: "space-y-4",
-  stackLg: "space-y-5",
 };
 
 export const homeStyles = {
@@ -89,18 +88,10 @@ export const formStyles = {
     "h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
   inputSoftWithIcon:
     "h-10 w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
-  inputSoftSpaced:
-    "mt-1.5 h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
-  textareaSoftSpaced:
-    "mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
+  textareaSoft:
+    "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
   selectSoft:
     "h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
-  selectSoftSpaced:
-    "mt-1.5 h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-100 disabled:bg-zinc-50 disabled:text-zinc-500",
-  stagePillSelectBase:
-    "h-9 w-auto rounded-full border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium focus:border-violet-600 focus:ring-2 focus:ring-violet-100",
-  stagePillSelectHeader:
-    "h-9 w-auto rounded-full !border-violet-200 !bg-violet-100 px-3.5 text-[15px] font-semibold shadow-sm disabled:!bg-violet-100/80 focus:border-violet-600 focus:ring-2 focus:ring-violet-100",
   interviewStatusSelect:
     "w-40 rounded-lg border border-zinc-300 bg-white pb-[5px] pl-3 pr-[5px] pt-[5px] text-sm font-medium text-zinc-900 shadow-sm outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-100",
   primaryButton:
@@ -114,14 +105,10 @@ export const formStyles = {
 export const buttonStyles = {
   secondary:
     "rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-50",
-  secondaryWithTopMargin:
-    "mt-4 rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-50",
   danger:
     "rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50",
   secondarySoft:
     "inline-flex h-10 items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60",
-  secondarySoftWithTopMargin:
-    "mt-2 inline-flex h-10 items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60",
   secondarySoftAccent:
     "inline-flex h-9 items-center justify-center rounded-lg border border-violet-300 bg-white px-3.5 text-sm font-medium text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60",
   ghost:

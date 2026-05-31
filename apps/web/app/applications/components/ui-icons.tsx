@@ -1,5 +1,4 @@
 import {
-  AlertCircle,
   Calendar,
   CheckCircle2,
   LucideIcon,
@@ -30,4 +29,3 @@ export const IconTrash = withDefaults(Trash2);
 export const IconCheckCircle = withDefaults(CheckCircle2);
 export const IconUndoTimer = withDefaults(RotateCcw);
 export const IconClose = withDefaults(X);
-export const IconAlert = withDefaults(AlertCircle);

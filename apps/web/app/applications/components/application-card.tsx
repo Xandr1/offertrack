@@ -1,11 +1,11 @@
 "use client";
 
 import { Application, ApplicationStage, InterviewStatus } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/date-format";
 import {
-  buttonStyles,
-  cardStyles,
-  formStyles,
   sectionStyles,
   textStyles,
 } from "@/lib/styles";
@@ -54,7 +54,7 @@ export const ApplicationCard = ({
     : "No upcoming interview";
 
   return (
-    <article className={cardStyles.application}>
+    <Card as="article" variant="application">
       <div className={sectionStyles.cardTopRow}>
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold text-zinc-950">
@@ -92,10 +92,10 @@ export const ApplicationCard = ({
         </div>
 
         {nextInterview && (
-          <select
-            className={formStyles.interviewStatusSelect}
+          <Select
             disabled={isBusy}
             value={nextInterview.status}
+            variant="interviewStatus"
             onChange={(event) => {
               onNextInterviewStatusChange(
                 application,
@@ -108,33 +108,33 @@ export const ApplicationCard = ({
                 {interviewStatusLabels[status]}
               </option>
             ))}
-          </select>
+          </Select>
         )}
       </div>
 
       <div className={sectionStyles.topBorderRow}>
         <p className={textStyles.tinyMuted}>{formatUpdatedAtRelative(application.updatedAt)}</p>
         <div className="flex items-center gap-2">
-          <button
-            className={buttonStyles.ghost}
+          <Button
             disabled={isBusy}
             onClick={() => onEdit(application)}
+            variant="ghost"
             type="button"
           >
             <IconPencil className="mr-1.5 h-4 w-4" />
             Edit application
-          </button>
-          <button
-            className={buttonStyles.ghostDanger}
+          </Button>
+          <Button
             disabled={isBusy}
             onClick={() => onDelete(application)}
+            variant="ghostDanger"
             type="button"
           >
             <IconTrash className="mr-1.5 h-4 w-4" />
             Delete
-          </button>
+          </Button>
         </div>
       </div>
-    </article>
+    </Card>
   );
 };

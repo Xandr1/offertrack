@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  buttonStyles,
-  sectionStyles,
-  textStyles,
-} from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { sectionStyles, textStyles } from "@/lib/styles";
 import {
   InterviewDraftRow,
   MAX_INTERVIEW_ROWS,
@@ -103,15 +100,15 @@ export const InterviewRows = ({
     <section className={sectionStyles.accentPanel}>
       <div className={sectionStyles.splitRow}>
         <h3 className={textStyles.sectionTitle}>Interview rounds</h3>
-        <button
-          className={buttonStyles.secondarySoftAccent}
+        <Button
           disabled={disabled || isAtLimit}
           onClick={onAddRow}
+          variant="secondarySoftAccent"
           type="button"
         >
           <IconPlus className="mr-1.5 h-4 w-4" />
           Add interview
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-2">
@@ -131,14 +128,14 @@ export const InterviewRows = ({
                 <span>Interview deleted · Undo (3s)</span>
               </div>
               <div className="flex h-10 items-center justify-end">
-                <button
-                  className={buttonStyles.textAccent}
+                <Button
                   disabled={disabled}
                   onClick={() => onUndoRemoval(item.undoId)}
+                  variant="textAccent"
                   type="button"
                 >
                   Undo
-                </button>
+                </Button>
               </div>
             </div>
           ),

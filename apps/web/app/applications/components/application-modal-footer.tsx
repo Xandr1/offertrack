@@ -1,6 +1,7 @@
 "use client";
 
-import { buttonStyles, formStyles, modalStyles } from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { formStyles, modalStyles } from "@/lib/styles";
 import { ApplicationFormMode } from "../models/application-form-model";
 
 export type ApplicationModalFooterProps = {
@@ -25,18 +26,17 @@ export const ApplicationModalFooter = ({
       {modalError && <div className={formStyles.error}>{modalError}</div>}
 
       <div className={modalStyles.softFooterBleed}>
-        <button
-          className={buttonStyles.secondarySoft}
+        <Button
           disabled={isSubmitting}
           onClick={onCancel}
-          type="button"
+          variant="secondarySoft"
         >
           Cancel
-        </button>
-        <button
-          className={formStyles.inlinePrimarySoftButton}
+        </Button>
+        <Button
           disabled={isSaveDisabled}
           type="submit"
+          variant="primarySoft"
         >
           {isSubmitting
             ? isCreateMode
@@ -45,7 +45,7 @@ export const ApplicationModalFooter = ({
             : isCreateMode
               ? "Create application"
               : "Save changes"}
-        </button>
+        </Button>
       </div>
     </>
   );

@@ -1,7 +1,9 @@
 "use client";
 
 import { InterviewStatus, InterviewType } from "@/lib/api";
-import { buttonStyles, formStyles, sectionStyles } from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/input";
+import { sectionStyles } from "@/lib/styles";
 import {
   interviewStatusLabels,
   interviewTypeLabels,
@@ -37,8 +39,7 @@ export const InterviewRow = ({
             <IconCheckCircle className={sectionStyles.interviewStatusIcon} />
           )}
         </span>
-        <select
-          className={formStyles.selectSoft}
+        <Select
           disabled={disabled || isPassed}
           value={row.type}
           onChange={(event) =>
@@ -51,12 +52,11 @@ export const InterviewRow = ({
               {interviewTypeLabels[type]}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div>
-        <select
-          className={formStyles.selectSoft}
+        <Select
           disabled={disabled}
           value={row.status}
           onChange={(event) =>
@@ -68,12 +68,11 @@ export const InterviewRow = ({
               {interviewStatusLabels[status]}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div>
-        <input
-          className={formStyles.inputSoft}
+        <Input
           disabled={disabled || isPassed}
           type="datetime-local"
           value={row.scheduledAt}
@@ -82,15 +81,15 @@ export const InterviewRow = ({
       </div>
 
       <div className="flex justify-end">
-        <button
+        <Button
           aria-label="Delete interview row"
-          className={buttonStyles.iconGhostDanger}
           disabled={disabled}
           onClick={() => onDelete(row.rowId)}
+          variant="iconGhostDanger"
           type="button"
         >
           <IconTrash className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );

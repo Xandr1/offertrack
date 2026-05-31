@@ -4,7 +4,10 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { register } from "@/lib/api";
 import { resolveRequestError } from "@/lib/request-errors";
-import { buttonStyles, cardStyles, formStyles, pageStyles, textStyles } from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { buttonStyles, formStyles, pageStyles, textStyles } from "@/lib/styles";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -33,7 +36,7 @@ export default function RegisterPage() {
 
   return (
     <main className={pageStyles.centered}>
-      <div className={cardStyles.auth}>
+      <Card variant="auth">
         <h1 className={textStyles.pageTitle}>Create account</h1>
         <p className={textStyles.description}>
           Start tracking job applications without building a spreadsheet
@@ -43,32 +46,32 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className={pageStyles.authForm}>
           <div>
             <label className={textStyles.label}>Name</label>
-            <input
-              className={formStyles.input}
+            <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               type="text"
+              variant="auth"
             />
           </div>
 
           <div>
             <label className={textStyles.label}>Email</label>
-            <input
-              className={formStyles.input}
+            <Input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
+              variant="auth"
               required
             />
           </div>
 
           <div>
             <label className={textStyles.label}>Password</label>
-            <input
-              className={formStyles.input}
+            <Input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
+              variant="auth"
               required
             />
             <p className={textStyles.helper}>
@@ -78,13 +81,9 @@ export default function RegisterPage() {
 
           {error && <div className={formStyles.error}>{error}</div>}
 
-          <button
-            className={formStyles.primaryButton}
-            disabled={isSubmitting}
-            type="submit"
-          >
+          <Button variant="primary" disabled={isSubmitting} type="submit">
             {isSubmitting ? "Creating account..." : "Create account"}
-          </button>
+          </Button>
         </form>
 
         <p className={pageStyles.authFooter}>
@@ -93,7 +92,7 @@ export default function RegisterPage() {
             Sign in
           </a>
         </p>
-      </div>
+      </Card>
     </main>
   );
 }

@@ -1,13 +1,11 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
+import { ShellLayout } from "@/components/layout/shell-layout";
+import { Button } from "@/components/ui/button";
 import {
-  formStyles,
   layoutStyles,
-  pageStyles,
-  shellStyles,
   textStyles,
+  formStyles,
 } from "@/lib/styles";
 import { ApplicationModal } from "./components/application-modal";
 import { ApplicationModalBody } from "./components/application-modal-body";
@@ -25,103 +23,72 @@ const ApplicationsPage = () => {
     (modalController.isEditMode && !modalController.interviewsLoadedForEdit);
 
   return (
-    <main className={pageStyles.appMain}>
-      <div className={shellStyles.grid}>
-        <aside className={shellStyles.sidebar}>
-          <div className={shellStyles.brand}>
-            <Image
-              alt="OfferTrack logo"
-              className={shellStyles.logo}
-              height={32}
-              priority
-              src="/offertrack-logo.png"
-              width={32}
-            />
-            <span>OfferTrack</span>
-          </div>
-          <nav className={shellStyles.nav}>
-            <Link className={shellStyles.navLink} href="/dashboard">
-              Dashboard
-            </Link>
-            <Link
-              aria-current="page"
-              className={shellStyles.navLinkActive}
-              href="/applications"
-            >
-              Applications
-            </Link>
-          </nav>
-        </aside>
+    <ShellLayout activeRoute="/applications">
+      <header className={layoutStyles.splitHeader}>
+        <div>
+          <h1 className={textStyles.pageHeadline}>Applications</h1>
+          <p className={textStyles.subtitle}>
+            Track roles and see what’s next.
+          </p>
+        </div>
 
-        <section className={shellStyles.panel}>
-          <header className={layoutStyles.splitHeader}>
-            <div>
-              <h1 className={textStyles.pageHeadline}>Applications</h1>
-              <p className={textStyles.subtitle}>
-                Track roles and see what’s next.
-              </p>
-            </div>
+        <Button
+          onClick={controller.openCreateApplicationModal}
+          variant="primarySoft"
+        >
+          <IconPlus className="mr-2 h-4 w-4" />
+          Add application
+        </Button>
+      </header>
 
-            <button
-              className={formStyles.inlinePrimarySoftButton}
-              onClick={controller.openCreateApplicationModal}
-              type="button"
-            >
-              <IconPlus className="mr-2 h-4 w-4" />
-              Add application
-            </button>
-          </header>
-
-          <div className={layoutStyles.section}>
-            <ApplicationToolbar
-              searchInput={controller.searchInput}
-              sort={controller.sort}
-              stageFilter={controller.stageFilter}
-              onSearchInputChange={controller.setSearchInput}
-              onSortChange={(value) => controller.setFilters({ sort: value })}
-              onStageChange={(value) => controller.setFilters({ stage: value })}
-            />
-          </div>
-
-          {controller.pageError && (
-            <section className="mt-5">
-              <div className={formStyles.error}>{controller.pageError}</div>
-            </section>
-          )}
-
-          <section className={layoutStyles.section}>
-            <ApplicationsList
-              applications={controller.filteredApplications}
-              deletingApplicationId={
-                controller.deleteApplicationMutation.isPending
-                  ? controller.deletingApplicationId
-                  : undefined
-              }
-              errorMessage={controller.listErrorMessage}
-              isLoading={controller.applicationsQuery.isPending}
-              nextInterviewStatusApplicationId={
-                controller.updateInterviewStatusMutation.isPending
-                  ? controller.nextInterviewStatusApplicationId
-                  : undefined
-              }
-              onDelete={controller.handleDeleteRequest}
-              onEdit={controller.openEditApplicationModal}
-              onNextInterviewStatusChange={
-                controller.handleNextInterviewStatusChange
-              }
-              onRetry={() => {
-                void controller.applicationsQuery.refetch();
-              }}
-              onStageChange={controller.handleStageChange}
-              stageUpdatingApplicationId={
-                controller.updateStageMutation.isPending
-                  ? controller.stageUpdatingApplicationId
-                  : undefined
-              }
-            />
-          </section>
-        </section>
+      <div className={layoutStyles.section}>
+        <ApplicationToolbar
+          searchInput={controller.searchInput}
+          sort={controller.sort}
+          stageFilter={controller.stageFilter}
+          onSearchInputChange={controller.setSearchInput}
+          onSortChange={(value) => controller.setFilters({ sort: value })}
+          onStageChange={(value) => controller.setFilters({ stage: value })}
+        />
       </div>
+
+      {controller.pageError && (
+        <section className="mt-5">
+          <div className={formStyles.error}>{controller.pageError}</div>
+        </section>
+      )}
+
+      <section className={layoutStyles.section}>
+        <ApplicationsList
+          applications={controller.filteredApplications}
+          deletingApplicationId={
+            controller.deleteApplicationMutation.isPending
+              ? controller.deletingApplicationId
+              : undefined
+          }
+          errorMessage={controller.listErrorMessage}
+          isLoading={controller.applicationsQuery.isPending}
+          nextInterviewStatusApplicationId={
+            controller.updateInterviewStatusMutation.isPending
+              ? controller.nextInterviewStatusApplicationId
+              : undefined
+          }
+          onDelete={controller.handleDeleteRequest}
+          onEdit={controller.openEditApplicationModal}
+          onNextInterviewStatusChange={
+            controller.handleNextInterviewStatusChange
+          }
+          onRetry={() => {
+            void controller.applicationsQuery.refetch();
+          }}
+          onStageChange={controller.handleStageChange}
+          stageUpdatingApplicationId={
+            controller.updateStageMutation.isPending
+              ? controller.stageUpdatingApplicationId
+              : undefined
+          }
+        />
+      </section>
 
       <ApplicationModal
         isCloseDisabled={modalController.isSaving}
@@ -179,7 +146,7 @@ const ApplicationsPage = () => {
         }}
         onConfirm={controller.handleDeleteConfirm}
       />
-    </main>
+    </ShellLayout>
   );
 };
 

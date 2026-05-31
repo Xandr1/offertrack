@@ -1,9 +1,9 @@
 "use client";
 
 import { Application, ApplicationStage, InterviewStatus } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
-  buttonStyles,
-  cardStyles,
   formStyles,
   layoutStyles,
   textStyles,
@@ -42,35 +42,31 @@ export const ApplicationsList = ({
 }: ApplicationsListProps) => {
   if (isLoading) {
     return (
-      <div className={cardStyles.soft}>
+      <Card variant="soft">
         <p className={textStyles.muted}>Loading applications...</p>
-      </div>
+      </Card>
     );
   }
 
   if (errorMessage) {
     return (
-      <div className={cardStyles.soft}>
+      <Card variant="soft">
         <div className={formStyles.error}>{errorMessage}</div>
-        <button
-          className={buttonStyles.secondarySoftWithTopMargin}
-          onClick={onRetry}
-          type="button"
-        >
+        <Button className="mt-2" onClick={onRetry} variant="secondarySoft">
           Retry
-        </button>
-      </div>
+        </Button>
+      </Card>
     );
   }
 
   if (applications.length === 0) {
     return (
-      <div className={cardStyles.dashed}>
+      <Card variant="dashed">
         <h2 className={textStyles.sectionTitle}>No matching applications</h2>
         <p className={textStyles.description}>
           Try changing filters or add a new application.
         </p>
-      </div>
+      </Card>
     );
   }
 

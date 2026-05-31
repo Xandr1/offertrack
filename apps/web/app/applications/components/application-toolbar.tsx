@@ -1,6 +1,7 @@
 "use client";
 
-import { formStyles, sectionStyles } from "@/lib/styles";
+import { Input, Select } from "@/components/ui/input";
+import { sectionStyles } from "@/lib/styles";
 import {
   ApplicationsSort,
   StageFilter,
@@ -29,8 +30,7 @@ export const ApplicationToolbar = ({
     <section className={sectionStyles.toolbar}>
       <div>
         <label className="sr-only">Stage</label>
-        <select
-          className={formStyles.selectSoft}
+        <Select
           value={stageFilter}
           onChange={(event) => onStageChange(event.target.value as StageFilter)}
         >
@@ -39,15 +39,15 @@ export const ApplicationToolbar = ({
               {option.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="relative">
         <label className="sr-only">Search</label>
         <IconSearch className={sectionStyles.searchIcon} />
-        <input
-          className={formStyles.inputSoftWithIcon}
+        <Input
           placeholder="Search company or position..."
+          variant="softWithIcon"
           value={searchInput}
           onChange={(event) => onSearchInputChange(event.target.value)}
         />
@@ -55,8 +55,7 @@ export const ApplicationToolbar = ({
 
       <div>
         <label className="sr-only">Sort</label>
-        <select
-          className={formStyles.selectSoft}
+        <Select
           value={sort}
           onChange={(event) => onSortChange(event.target.value as ApplicationsSort)}
         >
@@ -65,7 +64,7 @@ export const ApplicationToolbar = ({
               {option.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     </section>
   );

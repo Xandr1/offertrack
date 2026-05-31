@@ -1,6 +1,7 @@
 "use client";
 
-import { buttonStyles, formStyles, sectionStyles, textStyles } from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { formStyles, sectionStyles, textStyles } from "@/lib/styles";
 import { InterviewDraftRow } from "../models/interview-row-model";
 import { InterviewRows } from "./interview-rows";
 
@@ -51,13 +52,13 @@ export const ApplicationInterviewsSection = ({
       {isEditMode && interviewsErrorMessage && (
         <div className={sectionStyles.softPanel}>
           <div className={formStyles.error}>{interviewsErrorMessage}</div>
-          <button
-            className={buttonStyles.secondarySoftWithTopMargin}
+          <Button
+            className="mt-2"
             onClick={onRetryInterviews}
-            type="button"
+            variant="secondarySoft"
           >
             Retry interviews
-          </button>
+          </Button>
         </div>
       )}
 

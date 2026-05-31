@@ -1,6 +1,7 @@
 "use client";
 
-import { buttonStyles, modalStyles } from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { modalStyles } from "@/lib/styles";
 import { ApplicationModal } from "./application-modal";
 
 type DeleteApplicationConfirmModalProps = {
@@ -26,22 +27,20 @@ export const DeleteApplicationConfirmModal = ({
       onClose={onCancel}
     >
       <div className={modalStyles.softFooterBleedCompact}>
-        <button
-          className={buttonStyles.secondarySoft}
+        <Button
           disabled={isDeleting}
           onClick={onCancel}
-          type="button"
+          variant="secondarySoft"
         >
           Cancel
-        </button>
-        <button
-          className={buttonStyles.danger}
+        </Button>
+        <Button
           disabled={isDeleting}
           onClick={onConfirm}
-          type="button"
+          variant="danger"
         >
           {isDeleting ? "Deleting..." : "Delete application"}
-        </button>
+        </Button>
       </div>
     </ApplicationModal>
   );

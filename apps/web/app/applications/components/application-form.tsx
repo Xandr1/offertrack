@@ -1,7 +1,8 @@
 "use client";
 
 import { WorkMode } from "@/lib/api";
-import { formStyles, textStyles } from "@/lib/styles";
+import { Input, Select, Textarea } from "@/components/ui/input";
+import { textStyles } from "@/lib/styles";
 import { workModeOptions } from "../helpers/constants";
 import { ApplicationFormState } from "../models/application-form-model";
 
@@ -24,8 +25,8 @@ export const ApplicationForm = ({
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className={textStyles.label}>Company</label>
-          <input
-            className={formStyles.inputSoftSpaced}
+          <Input
+            className="mt-1.5"
             disabled={disabled}
             required
             value={form.companyName}
@@ -35,8 +36,8 @@ export const ApplicationForm = ({
 
         <div>
           <label className={textStyles.label}>Position</label>
-          <input
-            className={formStyles.inputSoftSpaced}
+          <Input
+            className="mt-1.5"
             disabled={disabled}
             required
             value={form.positionTitle}
@@ -50,8 +51,8 @@ export const ApplicationForm = ({
       <div className="grid gap-4 md:grid-cols-3">
         <div>
           <label className={textStyles.label}>Location</label>
-          <input
-            className={formStyles.inputSoftSpaced}
+          <Input
+            className="mt-1.5"
             disabled={disabled}
             value={form.location}
             onChange={(event) => onFieldChange("location", event.target.value)}
@@ -60,8 +61,8 @@ export const ApplicationForm = ({
 
         <div>
           <label className={textStyles.label}>Work mode</label>
-          <select
-            className={formStyles.selectSoftSpaced}
+          <Select
+            className="mt-1.5"
             disabled={disabled}
             value={form.workMode}
             onChange={(event) =>
@@ -73,13 +74,13 @@ export const ApplicationForm = ({
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div>
           <label className={textStyles.label}>Applied date</label>
-          <input
-            className={formStyles.inputSoftSpaced}
+          <Input
+            className="mt-1.5"
             disabled={disabled}
             type="date"
             value={form.appliedAt}
@@ -90,8 +91,8 @@ export const ApplicationForm = ({
 
       <div>
         <label className={textStyles.label}>Notes</label>
-        <textarea
-          className={formStyles.textareaSoftSpaced}
+        <Textarea
+          className="mt-1.5"
           disabled={disabled}
           rows={3}
           value={form.notes}

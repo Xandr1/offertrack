@@ -1,7 +1,8 @@
 "use client";
 
 import { ReactNode } from "react";
-import { buttonStyles, modalStyles, textStyles } from "@/lib/styles";
+import { Button } from "@/components/ui/button";
+import { modalStyles, textStyles } from "@/lib/styles";
 import { IconClose } from "./ui-icons";
 
 type ApplicationModalProps = {
@@ -51,15 +52,15 @@ export const ApplicationModal = ({
           </div>
           <div className="flex shrink-0 items-center gap-4">
             {headerControls}
-            <button
+            <Button
               aria-label="Close modal"
-              className={buttonStyles.iconGhost}
               disabled={isCloseDisabled}
               onClick={onClose}
+              variant="iconGhost"
               type="button"
             >
               <IconClose className="h-[18px] w-[18px]" />
-            </button>
+            </Button>
           </div>
         </div>
 

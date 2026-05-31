@@ -1,11 +1,12 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getDashboardSummary, getCurrentUser, logout } from "@/lib/api";
+import { ShellLayout } from "@/components/layout/shell-layout";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
 import {
   getRequestErrorMessage,
@@ -14,11 +15,9 @@ import {
 } from "@/lib/request-errors";
 import {
   buttonStyles,
-  cardStyles,
   formStyles,
   layoutStyles,
   pageStyles,
-  shellStyles,
   sectionStyles,
   textStyles,
 } from "@/lib/styles";
@@ -76,21 +75,21 @@ export default function DashboardPage() {
   if (userQuery.error) {
     return (
       <main className={pageStyles.centered}>
-        <div className={cardStyles.auth}>
+        <Card variant="auth">
           <h1 className={textStyles.pageTitle}>Dashboard unavailable</h1>
           <div className="mt-4">
             <div className={formStyles.error}>
               {getRequestErrorMessage(userQuery.error)}
             </div>
           </div>
-          <button
-            className={buttonStyles.secondaryWithTopMargin}
+          <Button
+            className="mt-4"
             onClick={() => userQuery.refetch()}
-            type="button"
+            variant="secondary"
           >
             Retry
-          </button>
-        </div>
+          </Button>
+        </Card>
       </main>
     );
   }
@@ -126,133 +125,103 @@ export default function DashboardPage() {
   ];
 
   return (
-    <main className={pageStyles.appMain}>
-      <div className={shellStyles.grid}>
-        <aside className={shellStyles.sidebar}>
-          <div className={shellStyles.brand}>
-            <Image
-              alt="OfferTrack logo"
-              className={shellStyles.logo}
-              height={32}
-              priority
-              src="/offertrack-logo.png"
-              width={32}
-            />
-            <span>OfferTrack</span>
+    <ShellLayout activeRoute="/dashboard">
+      <div className={layoutStyles.container}>
+        <header className={layoutStyles.header}>
+          <div>
+            <h1 className={textStyles.pageTitle}>Dashboard</h1>
+            <p className={textStyles.description}>Signed in as {user.email}</p>
           </div>
-          <nav className={shellStyles.nav}>
-            <Link
-              aria-current="page"
-              className={shellStyles.navLinkActive}
-              href="/dashboard"
-            >
-              Dashboard
-            </Link>
-            <Link className={shellStyles.navLink} href="/applications">
-              Applications
-            </Link>
-          </nav>
-        </aside>
 
-        <section className={shellStyles.panel}>
-          <div className={layoutStyles.container}>
-            <header className={layoutStyles.header}>
-              <div>
-                <h1 className={textStyles.pageTitle}>Dashboard</h1>
-                <p className={textStyles.description}>Signed in as {user.email}</p>
+          <div className={layoutStyles.actionRow}>
+            <Button onClick={handleLogout} variant="secondary">
+              Logout
+            </Button>
+          </div>
+        </header>
+
+        <section className={layoutStyles.metricsGrid}>
+          {metricCards.map((card) => (
+            <Card key={card.label}>
+              <div className={textStyles.label}>{card.label}</div>
+              <div className={textStyles.statValue}>
+                {summaryQuery.isPending ? "..." : card.value}
               </div>
+            </Card>
+          ))}
+        </section>
 
-              <div className={layoutStyles.actionRow}>
-                <button onClick={handleLogout} className={buttonStyles.secondary}>
-                  Logout
-                </button>
+        {summaryQuery.error && (
+          <section className={layoutStyles.section}>
+            <Card>
+              <h2 className={textStyles.sectionTitle}>Summary unavailable</h2>
+              <div className="mt-4">
+                <div className={formStyles.error}>
+                  {getRequestErrorMessage(summaryQuery.error)}
+                </div>
               </div>
-            </header>
+              <Button
+                className="mt-4"
+                onClick={() => summaryQuery.refetch()}
+                variant="secondary"
+              >
+                Retry
+              </Button>
+            </Card>
+          </section>
+        )}
 
-            <section className={layoutStyles.metricsGrid}>
-              {metricCards.map((card) => (
-                <div key={card.label} className={cardStyles.default}>
-                  <div className={textStyles.label}>{card.label}</div>
-                  <div className={textStyles.statValue}>
-                    {summaryQuery.isPending ? "..." : card.value}
-                  </div>
-                </div>
-              ))}
-            </section>
+        <section className={layoutStyles.section}>
+          <Card>
+            <h2 className={textStyles.sectionTitle}>Recent applications</h2>
+            <p className={textStyles.description}>Latest updates across your board.</p>
 
-            {summaryQuery.error && (
-              <section className={layoutStyles.section}>
-                <div className={cardStyles.default}>
-                  <h2 className={textStyles.sectionTitle}>Summary unavailable</h2>
-                  <div className="mt-4">
-                    <div className={formStyles.error}>
-                      {getRequestErrorMessage(summaryQuery.error)}
-                    </div>
-                  </div>
-                  <button
-                    className={buttonStyles.secondaryWithTopMargin}
-                    onClick={() => summaryQuery.refetch()}
-                    type="button"
-                  >
-                    Retry
-                  </button>
-                </div>
-              </section>
+            {summaryQuery.isPending && (
+              <p className="mt-4 text-sm text-zinc-700">Loading recent activity...</p>
             )}
 
-            <section className={layoutStyles.section}>
-              <div className={cardStyles.default}>
-                <h2 className={textStyles.sectionTitle}>Recent applications</h2>
-                <p className={textStyles.description}>Latest updates across your board.</p>
+            {!summaryQuery.isPending &&
+              !summaryQuery.error &&
+              summary &&
+              summary.recentApplications.length === 0 && (
+                <div className="mt-4">
+                  <div className={sectionStyles.dashedEmpty}>
+                    <p className={textStyles.muted}>No applications yet.</p>
+                  </div>
+                </div>
+              )}
 
-                {summaryQuery.isPending && (
-                  <p className="mt-4 text-sm text-zinc-700">Loading recent activity...</p>
-                )}
-
-                {!summaryQuery.isPending &&
-                  !summaryQuery.error &&
-                  summary &&
-                  summary.recentApplications.length === 0 && (
-                    <div className="mt-4">
-                      <div className={sectionStyles.dashedEmpty}>
-                        <p className={textStyles.muted}>No applications yet.</p>
+            {!summaryQuery.isPending &&
+              !summaryQuery.error &&
+              summary &&
+              summary.recentApplications.length > 0 && (
+                <ul className="mt-4 space-y-3">
+                  {summary.recentApplications.map((application) => (
+                    <li
+                      key={application.id}
+                      className={sectionStyles.listItem}
+                    >
+                      <div className={sectionStyles.splitRow}>
+                        <div>
+                          <p className={textStyles.strong}>{application.companyName}</p>
+                          <p className={textStyles.muted}>{application.positionTitle}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={buttonStyles.pill}>
+                            {applicationStageLabels[application.stage]}
+                          </span>
+                          <p className={textStyles.timestamp}>
+                            {formatUpdatedAtRelative(application.updatedAt)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                {!summaryQuery.isPending &&
-                  !summaryQuery.error &&
-                  summary &&
-                  summary.recentApplications.length > 0 && (
-                    <ul className="mt-4 space-y-3">
-                      {summary.recentApplications.map((application) => (
-                        <li
-                          key={application.id}
-                          className={sectionStyles.listItem}
-                        >
-                          <div className={sectionStyles.splitRow}>
-                            <div>
-                              <p className={textStyles.strong}>{application.companyName}</p>
-                              <p className={textStyles.muted}>{application.positionTitle}</p>
-                            </div>
-                            <div className="text-right">
-                              <span className={buttonStyles.pill}>
-                                {applicationStageLabels[application.stage]}
-                              </span>
-                              <p className={textStyles.timestamp}>
-                                {formatUpdatedAtRelative(application.updatedAt)}
-                              </p>
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-              </div>
-            </section>
-          </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </Card>
         </section>
       </div>
-    </main>
+    </ShellLayout>
   );
 }
