@@ -49,6 +49,7 @@ export type LoginRequest = {
 export type CreateApplicationRequest = {
   companyName: string;
   positionTitle: string;
+  jobUrl?: string | null;
   stage?: ApplicationStage;
   location?: string | null;
   workMode?: WorkMode | null;
@@ -60,6 +61,7 @@ export type CreateApplicationRequest = {
 export type ReplaceApplicationRequest = {
   companyName: string;
   positionTitle: string;
+  jobUrl: string | null;
   stage: ApplicationStage;
   location: string | null;
   workMode: WorkMode | null;

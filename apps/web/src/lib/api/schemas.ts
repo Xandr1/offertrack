@@ -73,6 +73,7 @@ export const applicationSchema = z.object({
   id: z.string(),
   companyName: z.string(),
   positionTitle: z.string(),
+  jobUrl: optionalNullableStringSchema,
   stage: applicationStageSchema,
   location: optionalNullableStringSchema,
   workMode: z.preprocess(

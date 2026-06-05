@@ -8,6 +8,7 @@ public record Application(
     UUID userId,
     String companyName,
     String positionTitle,
+    String jobUrl,
     String location,
     String workMode,
     ApplicationStage stage,

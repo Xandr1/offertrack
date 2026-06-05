@@ -11,6 +11,7 @@ const baseApplication = (overrides: Partial<Application>): Application => ({
   companyName: "Company",
   createdAt: "2026-01-01T00:00:00.000Z",
   id: "app",
+  jobUrl: null,
   location: null,
   nextInterview: null,
   notes: null,
@@ -55,6 +56,26 @@ describe("application-filters", () => {
     });
 
     expect(result.map((item) => item.id)).toEqual(["1"]);
+  });
+
+  it("does not include jobUrl in search matching", () => {
+    const applications = [
+      baseApplication({
+        companyName: "Acme",
+        id: "1",
+        jobUrl: "https://example.com/frontend-engineer",
+        positionTitle: "Backend Engineer",
+      }),
+    ];
+
+    const result = filterAndSortApplications({
+      applications,
+      searchQuery: "frontend",
+      sort: "updated_desc",
+      stageFilter: "all",
+    });
+
+    expect(result).toEqual([]);
   });
 
   it("sorts applications according to selected mode", () => {

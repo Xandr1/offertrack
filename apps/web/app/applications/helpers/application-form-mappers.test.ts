@@ -11,6 +11,7 @@ describe("application-form-mappers", () => {
     const form: ApplicationFormState = {
       appliedAt: "2026-03-12",
       companyName: "  Acme  ",
+      jobUrl: "  ",
       location: "  ",
       notes: "",
       positionTitle: "  Frontend Engineer ",
@@ -21,6 +22,7 @@ describe("application-form-mappers", () => {
     expect(toCreatePayload(form)).toEqual({
       appliedAt: "2026-03-12T00:00:00.000Z",
       companyName: "Acme",
+      jobUrl: null,
       location: null,
       notes: null,
       positionTitle: "Frontend Engineer",
@@ -33,6 +35,7 @@ describe("application-form-mappers", () => {
     const form: ApplicationFormState = {
       appliedAt: "",
       companyName: " Acme ",
+      jobUrl: " google.com/careers/job-00001 ",
       location: " Warsaw ",
       notes: "  ",
       positionTitle: " Engineer ",
@@ -43,6 +46,7 @@ describe("application-form-mappers", () => {
     expect(toReplacePayload(form)).toEqual({
       appliedAt: null,
       companyName: "Acme",
+      jobUrl: "https://google.com/careers/job-00001",
       location: "Warsaw",
       notes: null,
       positionTitle: "Engineer",
@@ -57,6 +61,7 @@ describe("application-form-mappers", () => {
       companyName: "Acme",
       createdAt: "2026-01-08T10:00:00.000Z",
       id: "app-1",
+      jobUrl: "https://example.com/jobs/1",
       location: null,
       nextInterview: null,
       notes: null,
@@ -69,6 +74,7 @@ describe("application-form-mappers", () => {
     expect(toFormState(application)).toEqual({
       appliedAt: "2026-01-08",
       companyName: "Acme",
+      jobUrl: "https://example.com/jobs/1",
       location: "",
       notes: "",
       positionTitle: "Engineer",

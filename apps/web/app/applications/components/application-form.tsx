@@ -22,7 +22,7 @@ export const ApplicationForm = ({
 }: ApplicationFormProps) => {
   return (
     <div className="space-y-3">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <div>
           <label className={textStyles.label}>Company</label>
           <Input
@@ -44,6 +44,20 @@ export const ApplicationForm = ({
             onChange={(event) =>
               onFieldChange("positionTitle", event.target.value)
             }
+          />
+        </div>
+
+        <div>
+          <label className={textStyles.label}>Job URL</label>
+          <Input
+            className="mt-1.5"
+            disabled={disabled}
+            inputMode="url"
+            maxLength={2048}
+            placeholder="google.com/careers/job-00001"
+            type="text"
+            value={form.jobUrl}
+            onChange={(event) => onFieldChange("jobUrl", event.target.value)}
           />
         </div>
       </div>

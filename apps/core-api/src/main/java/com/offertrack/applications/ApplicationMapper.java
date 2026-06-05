@@ -11,6 +11,7 @@ public class ApplicationMapper {
         record.getUserId(),
         record.getCompanyName(),
         record.getPositionTitle(),
+        record.getJobUrl(),
         record.getLocation(),
         record.getWorkMode(),
         ApplicationStage.fromValue(record.getStage()),

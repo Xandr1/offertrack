@@ -5,6 +5,7 @@ export type ApplicationFormMode = "create" | "edit";
 export type ApplicationFormState = {
   companyName: string;
   positionTitle: string;
+  jobUrl: string;
   location: string;
   workMode: WorkMode | "";
   appliedAt: string;
@@ -15,6 +16,7 @@ export type ApplicationFormState = {
 export const initialApplicationFormState: ApplicationFormState = {
   companyName: "",
   positionTitle: "",
+  jobUrl: "",
   location: "",
   workMode: "",
   appliedAt: "",

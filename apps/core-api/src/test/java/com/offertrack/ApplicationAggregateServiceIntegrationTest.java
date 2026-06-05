@@ -54,6 +54,7 @@ class ApplicationAggregateServiceIntegrationTest {
             new CreateApplicationRequest(
                 "Acme",
                 "Backend Engineer",
+                null,
                 "Warsaw",
                 "hybrid",
                 ApplicationStage.APPLIED,
@@ -67,6 +68,51 @@ class ApplicationAggregateServiceIntegrationTest {
   }
 
   @Test
+  void createListAndReplaceApplicationJobUrl() {
+    UUID userId = createUser("job-url@example.com");
+
+    var created =
+        applicationService.create(
+            userId,
+            new CreateApplicationRequest(
+                "Acme",
+                "Backend Engineer",
+                "  google.com/careers/backend-engineer  ",
+                null,
+                null,
+                ApplicationStage.APPLIED,
+                null,
+                null,
+                null));
+
+    UUID applicationId = created.application().id();
+
+    assertThat(created.application().jobUrl())
+        .isEqualTo("https://google.com/careers/backend-engineer");
+    assertThat(applicationRepository.listByUser(userId).getFirst().jobUrl())
+        .isEqualTo("https://google.com/careers/backend-engineer");
+
+    var replaced =
+        applicationService.replace(
+            userId,
+            applicationId,
+            new ReplaceApplicationRequest(
+                "Acme",
+                "Backend Engineer",
+                "  ",
+                null,
+                null,
+                ApplicationStage.APPLIED,
+                null,
+                null,
+                List.of()));
+
+    assertThat(replaced.application().jobUrl()).isNull();
+    assertThat(applicationRepository.findByIdForUser(applicationId, userId).orElseThrow().jobUrl())
+        .isNull();
+  }
+
+  @Test
   void createApplicationWithInterviewsAndDefaultStatus() {
     UUID userId = createUser("create-with-interviews@example.com");
 
@@ -76,6 +122,7 @@ class ApplicationAggregateServiceIntegrationTest {
             new CreateApplicationRequest(
                 "Acme",
                 "Backend Engineer",
+                null,
                 null,
                 null,
                 ApplicationStage.APPLIED,
@@ -103,6 +150,7 @@ class ApplicationAggregateServiceIntegrationTest {
                         "Backend Engineer",
                         null,
                         null,
+                        null,
                         ApplicationStage.APPLIED,
                         null,
                         null,
@@ -127,6 +175,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 "Backend Engineer",
                 null,
                 null,
+                null,
                 ApplicationStage.APPLIED,
                 null,
                 null,
@@ -146,6 +195,7 @@ class ApplicationAggregateServiceIntegrationTest {
             new ReplaceApplicationRequest(
                 "Updated Acme",
                 "Senior Backend Engineer",
+                null,
                 "Remote",
                 "remote",
                 ApplicationStage.INTERVIEWING,
@@ -182,6 +232,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 "Backend Engineer",
                 null,
                 null,
+                null,
                 ApplicationStage.APPLIED,
                 null,
                 null,
@@ -200,6 +251,7 @@ class ApplicationAggregateServiceIntegrationTest {
                     new ReplaceApplicationRequest(
                         "Changed Name",
                         "Changed Title",
+                        null,
                         null,
                         null,
                         ApplicationStage.OFFER,
@@ -238,6 +290,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 "Backend Engineer",
                 null,
                 null,
+                null,
                 ApplicationStage.APPLIED,
                 null,
                 null,
@@ -256,6 +309,7 @@ class ApplicationAggregateServiceIntegrationTest {
                     new ReplaceApplicationRequest(
                         "Acme",
                         "Backend Engineer",
+                        null,
                         null,
                         null,
                         ApplicationStage.APPLIED,
@@ -285,6 +339,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 "Backend Engineer",
                 null,
                 null,
+                null,
                 ApplicationStage.APPLIED,
                 null,
                 null,
@@ -297,6 +352,7 @@ class ApplicationAggregateServiceIntegrationTest {
             new CreateApplicationRequest(
                 "Acme 2",
                 "Backend Engineer",
+                null,
                 null,
                 null,
                 ApplicationStage.APPLIED,
@@ -316,6 +372,7 @@ class ApplicationAggregateServiceIntegrationTest {
                     new ReplaceApplicationRequest(
                         "Acme 1",
                         "Backend Engineer",
+                        null,
                         null,
                         null,
                         ApplicationStage.APPLIED,
@@ -343,6 +400,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 "Backend Engineer",
                 null,
                 null,
+                null,
                 ApplicationStage.APPLIED,
                 null,
                 null,
@@ -366,6 +424,7 @@ class ApplicationAggregateServiceIntegrationTest {
                         "Backend Engineer",
                         null,
                         null,
+                        null,
                         ApplicationStage.APPLIED,
                         null,
                         null,
@@ -387,6 +446,7 @@ class ApplicationAggregateServiceIntegrationTest {
             new CreateApplicationRequest(
                 "Acme",
                 "Backend Engineer",
+                null,
                 null,
                 null,
                 ApplicationStage.APPLIED,
@@ -416,6 +476,7 @@ class ApplicationAggregateServiceIntegrationTest {
             new ReplaceApplicationRequest(
                 "Acme",
                 "Backend Engineer",
+                null,
                 null,
                 null,
                 ApplicationStage.APPLIED,
