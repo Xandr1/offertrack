@@ -1,6 +1,7 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { modalStyles, textStyles } from "@/lib/styles";
 import { IconClose } from "./ui-icons";
@@ -26,11 +27,24 @@ export const ApplicationModal = ({
   title,
   onClose,
 }: ApplicationModalProps) => {
-  if (!isOpen) {
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  const modalContent = (
     <div
       className={modalStyles.softContainer}
       onClick={() => {
@@ -50,6 +64,7 @@ export const ApplicationModal = ({
             <h2 className={textStyles.sectionTitle}>{title}</h2>
             {description && <p className={textStyles.subtitle}>{description}</p>}
           </div>
+
           <div className="flex shrink-0 items-center gap-4">
             {headerControls}
             <Button
@@ -70,4 +85,6 @@ export const ApplicationModal = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
