@@ -12,6 +12,7 @@ public class ApplicationResponseMapper {
         application.id(),
         application.companyName(),
         application.positionTitle(),
+        application.jobUrl(),
         application.location(),
         application.workMode(),
         application.stage(),

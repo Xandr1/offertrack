@@ -11,6 +11,7 @@ const makeApplication = (): Application => ({
   companyName: "Acme",
   createdAt: "2026-01-01T00:00:00.000Z",
   id: "app-1",
+  jobUrl: null,
   location: null,
   nextInterview: null,
   notes: null,

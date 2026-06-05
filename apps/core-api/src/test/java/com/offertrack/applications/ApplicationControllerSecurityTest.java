@@ -198,6 +198,26 @@ class ApplicationControllerSecurityTest {
   }
 
   @Test
+  void putReturnsBadRequestWhenJobUrlUsesUnsupportedScheme() throws Exception {
+    expectPutJobUrlValidationError("ftp://example.com/jobs/123");
+  }
+
+  @Test
+  void putReturnsBadRequestWhenJobUrlIsRelative() throws Exception {
+    expectPutJobUrlValidationError("/jobs/123");
+  }
+
+  @Test
+  void putReturnsBadRequestWhenJobUrlIsMalformed() throws Exception {
+    expectPutJobUrlValidationError("https://exa mple.com/jobs/123");
+  }
+
+  @Test
+  void putReturnsBadRequestWhenJobUrlIsTooLong() throws Exception {
+    expectPutJobUrlValidationError("https://example.com/" + "a".repeat(2048));
+  }
+
+  @Test
   void putReturnsBadRequestWhenInterviewStatusIsMissing() throws Exception {
     UUID applicationId = UUID.randomUUID();
 
@@ -260,5 +280,30 @@ class ApplicationControllerSecurityTest {
 
   private static Cookie accessTokenCookie() {
     return new Cookie(CookieService.ACCESS_TOKEN_COOKIE_NAME, TEST_TOKEN);
+  }
+
+  private void expectPutJobUrlValidationError(String jobUrl) throws Exception {
+    UUID applicationId = UUID.randomUUID();
+
+    mockMvc
+        .perform(
+            put("/api/applications/{id}", applicationId)
+                .cookie(accessTokenCookie())
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content(
+                    """
+                    {
+                      "companyName": "Acme",
+                      "positionTitle": "Backend Engineer",
+                      "jobUrl": "%s",
+                      "interviews": []
+                    }
+                    """
+                        .formatted(jobUrl)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+        .andExpect(jsonPath("$.fieldErrors[*].field", hasItem("jobUrl")))
+        .andExpect(jsonPath("$.path").value("/api/applications/" + applicationId));
   }
 }
