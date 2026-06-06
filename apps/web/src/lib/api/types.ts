@@ -7,7 +7,8 @@ import {
   applicationStageSchema,
   applicationsSchema,
   authResponseSchema,
-  dashboardRecentApplicationSchema,
+  dashboardApplicationItemSchema,
+  dashboardInterviewItemSchema,
   dashboardSummarySchema,
   interviewStatusSchema,
   interviewTypeSchema,
@@ -30,9 +31,10 @@ export type ApplicationWithInterviews = z.infer<
 export type Applications = z.infer<typeof applicationsSchema>;
 export type ApplicationInterview = z.infer<typeof applicationInterviewSchema>;
 export type ApplicationInterviews = z.infer<typeof applicationInterviewsSchema>;
-export type DashboardRecentApplication = z.infer<
-  typeof dashboardRecentApplicationSchema
+export type DashboardApplicationItem = z.infer<
+  typeof dashboardApplicationItemSchema
 >;
+export type DashboardInterviewItem = z.infer<typeof dashboardInterviewItemSchema>;
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 
 export type RegisterRequest = {

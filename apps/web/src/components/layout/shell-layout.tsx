@@ -13,12 +13,24 @@ type ShellRoute = (typeof navItems)[number]["href"];
 type ShellLayoutProps = {
   activeRoute: ShellRoute;
   children: ReactNode;
+  sidebarFooter?: ReactNode;
 };
 
-export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => (
+export const ShellLayout = ({
+  activeRoute,
+  children,
+  sidebarFooter,
+}: ShellLayoutProps) => (
   <main className={pageStyles.appMain}>
     <div className={shellStyles.grid}>
-      <aside className={shellStyles.sidebar}>
+      <aside
+        className={[
+          shellStyles.sidebar,
+          sidebarFooter ? shellStyles.sidebarWithFooter : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <div className={shellStyles.brand}>
           <Image
             alt="OfferTrack logo"
@@ -30,7 +42,14 @@ export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => (
           />
           <span>OfferTrack</span>
         </div>
-        <nav className={shellStyles.nav}>
+        <nav
+          className={[
+            shellStyles.nav,
+            sidebarFooter ? shellStyles.navWithFooter : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {navItems.map((item) => (
             <Link
               aria-current={item.href === activeRoute ? "page" : undefined}
@@ -46,6 +65,10 @@ export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => (
             </Link>
           ))}
         </nav>
+
+        {sidebarFooter && (
+          <div className={shellStyles.footer}>{sidebarFooter}</div>
+        )}
       </aside>
 
       <section className={shellStyles.panel}>{children}</section>
