@@ -12,8 +12,11 @@ import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.JwtService;
 import com.offertrack.config.SecurityConfig;
-import com.offertrack.dashboard.dto.DashboardRecentApplicationResponse;
+import com.offertrack.dashboard.dto.DashboardApplicationItemResponse;
+import com.offertrack.dashboard.dto.DashboardInterviewItemResponse;
 import com.offertrack.dashboard.dto.DashboardSummaryResponse;
+import com.offertrack.interviews.InterviewStatus;
+import com.offertrack.interviews.InterviewType;
 import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -53,7 +56,8 @@ class DashboardControllerSecurityTest {
 
   @Test
   void getSummaryReturnsOkForAuthenticatedUser() throws Exception {
-    UUID recentId = UUID.randomUUID();
+    UUID applicationId = UUID.randomUUID();
+    UUID interviewId = UUID.randomUUID();
     DashboardSummaryResponse response =
         new DashboardSummaryResponse(
             8,
@@ -61,13 +65,35 @@ class DashboardControllerSecurityTest {
             2,
             1,
             4,
+            1,
+            0,
+            1,
+            0,
             List.of(
-                new DashboardRecentApplicationResponse(
-                    recentId,
+                new DashboardApplicationItemResponse(
+                    applicationId,
                     "Acme",
                     "Backend Engineer",
-                    ApplicationStage.INTERVIEWING,
-                    OffsetDateTime.parse("2026-05-01T10:15:00Z"))));
+                    ApplicationStage.INITIAL,
+                    "https://example.com/job",
+                    "Remote",
+                    "remote",
+                    null,
+                    OffsetDateTime.parse("2026-05-01T10:15:00Z"))),
+            List.of(),
+            List.of(
+                new DashboardInterviewItemResponse(
+                    applicationId,
+                    interviewId,
+                    "Acme",
+                    "Backend Engineer",
+                    null,
+                    null,
+                    null,
+                    OffsetDateTime.parse("2026-06-08T09:00:00Z"),
+                    InterviewType.TECHNICAL,
+                    InterviewStatus.SCHEDULED)),
+            List.of());
 
     when(dashboardService.getSummary(eq(AUTHENTICATED_USER_ID))).thenReturn(response);
 
@@ -79,8 +105,15 @@ class DashboardControllerSecurityTest {
         .andExpect(jsonPath("$.interviewing").value(2))
         .andExpect(jsonPath("$.offers").value(1))
         .andExpect(jsonPath("$.rejected").value(4))
-        .andExpect(jsonPath("$.recentApplications[0].id").value(recentId.toString()))
-        .andExpect(jsonPath("$.recentApplications[0].stage").value("interviewing"));
+        .andExpect(jsonPath("$.draftsToApplyCount").value(1))
+        .andExpect(jsonPath("$.applicationsToFollowUpCount").value(0))
+        .andExpect(jsonPath("$.upcomingInterviewsCount").value(1))
+        .andExpect(jsonPath("$.interviewsToFollowUpCount").value(0))
+        .andExpect(jsonPath("$.draftsToApply[0].applicationId").value(applicationId.toString()))
+        .andExpect(jsonPath("$.draftsToApply[0].stage").value("initial"))
+        .andExpect(jsonPath("$.upcomingInterviews[0].interviewId").value(interviewId.toString()))
+        .andExpect(jsonPath("$.upcomingInterviews[0].interviewType").value("technical"))
+        .andExpect(jsonPath("$.upcomingInterviews[0].status").value("scheduled"));
 
     verify(dashboardService).getSummary(AUTHENTICATED_USER_ID);
   }

@@ -8,4 +8,11 @@ public record DashboardSummaryResponse(
     long interviewing,
     long offers,
     long rejected,
-    List<DashboardRecentApplicationResponse> recentApplications) {}
+    long draftsToApplyCount,
+    long applicationsToFollowUpCount,
+    long upcomingInterviewsCount,
+    long interviewsToFollowUpCount,
+    List<DashboardApplicationItemResponse> draftsToApply,
+    List<DashboardApplicationItemResponse> applicationsToFollowUp,
+    List<DashboardInterviewItemResponse> upcomingInterviews,
+    List<DashboardInterviewItemResponse> interviewsToFollowUp) {}

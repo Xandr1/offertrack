@@ -109,12 +109,35 @@ export const applicationWithInterviewsSchema = z.object({
   interviews: applicationInterviewsSchema,
 });
 
-export const dashboardRecentApplicationSchema = z.object({
-  id: z.string(),
+export const dashboardApplicationItemSchema = z.object({
+  applicationId: z.string(),
   companyName: z.string(),
   positionTitle: z.string(),
   stage: applicationStageSchema,
+  jobUrl: optionalNullableStringSchema,
+  location: optionalNullableStringSchema,
+  workMode: z.preprocess(
+    (value) => (value === undefined ? null : value),
+    workModeSchema.nullable(),
+  ),
+  appliedAt: optionalNullableStringSchema,
   updatedAt: z.string(),
+});
+
+export const dashboardInterviewItemSchema = z.object({
+  applicationId: z.string(),
+  interviewId: z.string(),
+  companyName: z.string(),
+  positionTitle: z.string(),
+  jobUrl: optionalNullableStringSchema,
+  location: optionalNullableStringSchema,
+  workMode: z.preprocess(
+    (value) => (value === undefined ? null : value),
+    workModeSchema.nullable(),
+  ),
+  scheduledAt: optionalNullableStringSchema,
+  interviewType: interviewTypeSchema,
+  status: interviewStatusSchema,
 });
 
 export const dashboardSummarySchema = z.object({
@@ -123,5 +146,12 @@ export const dashboardSummarySchema = z.object({
   interviewing: z.number().int().nonnegative(),
   offers: z.number().int().nonnegative(),
   rejected: z.number().int().nonnegative(),
-  recentApplications: z.array(dashboardRecentApplicationSchema),
+  draftsToApplyCount: z.number().int().nonnegative(),
+  applicationsToFollowUpCount: z.number().int().nonnegative(),
+  upcomingInterviewsCount: z.number().int().nonnegative(),
+  interviewsToFollowUpCount: z.number().int().nonnegative(),
+  draftsToApply: z.array(dashboardApplicationItemSchema),
+  applicationsToFollowUp: z.array(dashboardApplicationItemSchema),
+  upcomingInterviews: z.array(dashboardInterviewItemSchema),
+  interviewsToFollowUp: z.array(dashboardInterviewItemSchema),
 });
