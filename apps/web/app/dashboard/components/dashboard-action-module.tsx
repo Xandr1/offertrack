@@ -37,15 +37,9 @@ export type DashboardActionModuleProps =
   | DashboardApplicationModuleProps
   | DashboardInterviewModuleProps;
 
-export const DashboardActionModule = ({
-  count,
-  helperText,
-  isLoading,
-  items,
-  kind,
-  title,
-  viewAllHref,
-}: DashboardActionModuleProps) => {
+export const DashboardActionModule = (props: DashboardActionModuleProps) => {
+  const { count, helperText, isLoading, title, viewAllHref } = props;
+
   return (
     <Card className="flex min-h-full flex-col">
       <div className={sectionStyles.splitRow}>
@@ -60,7 +54,7 @@ export const DashboardActionModule = ({
         <p className="mt-4 text-sm text-zinc-700">Loading action items...</p>
       )}
 
-      {!isLoading && items.length === 0 && (
+      {!isLoading && props.items.length === 0 && (
         <div className="mt-4">
           <div className={sectionStyles.dashedEmpty}>
             <div className="flex items-center justify-center gap-2 text-sm font-medium text-emerald-700">
@@ -71,21 +65,18 @@ export const DashboardActionModule = ({
         </div>
       )}
 
-      {!isLoading && items.length > 0 && (
+      {!isLoading && props.items.length > 0 && (
         <ul className="mt-4 space-y-3">
-          {items.map((item) =>
-            kind === "applications" ? (
-              <ApplicationActionItem
-                item={item as DashboardApplicationItem}
-                key={(item as DashboardApplicationItem).applicationId}
-              />
-            ) : (
-              <InterviewActionItem
-                item={item as DashboardInterviewItem}
-                key={(item as DashboardInterviewItem).interviewId}
-              />
-            ),
-          )}
+          {props.kind === "applications"
+            ? props.items.map((item) => (
+                <ApplicationActionItem
+                  item={item}
+                  key={item.applicationId}
+                />
+              ))
+            : props.items.map((item) => (
+                <InterviewActionItem item={item} key={item.interviewId} />
+              ))}
         </ul>
       )}
 

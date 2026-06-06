@@ -127,7 +127,7 @@ export const buttonStyles = {
   pill:
     "rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-800",
   pillAccent:
-    "rounded-full bg-violet-100 px-3 py-1 text-m font-medium text-zinc-800",
+    "rounded-full bg-violet-100 px-3 py-1 text-md font-medium text-zinc-800",
   link: "text-sm font-medium text-zinc-950 underline",
 };
 
