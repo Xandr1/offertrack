@@ -150,8 +150,21 @@ export const dashboardSummarySchema = z.object({
   applicationsToFollowUpCount: z.number().int().nonnegative(),
   upcomingInterviewsCount: z.number().int().nonnegative(),
   interviewsToFollowUpCount: z.number().int().nonnegative(),
+  followUpAfterApplyingDays: z.number().int().min(1).max(60),
+  upcomingInterviewDays: z.number().int().min(1).max(60),
+  followUpAfterInterviewDays: z.number().int().min(1).max(30),
   draftsToApply: z.array(dashboardApplicationItemSchema),
   applicationsToFollowUp: z.array(dashboardApplicationItemSchema),
   upcomingInterviews: z.array(dashboardInterviewItemSchema),
   interviewsToFollowUp: z.array(dashboardInterviewItemSchema),
+});
+
+export const settingsSchema = z.object({
+  followUpAfterApplyingDays: z.number().int().min(1).max(60),
+  upcomingInterviewDays: z.number().int().min(1).max(60),
+  followUpAfterInterviewDays: z.number().int().min(1).max(30),
+  targetRole: z.preprocess(
+    (value) => (value === undefined ? null : value),
+    z.string().max(160).nullable(),
+  ),
 });

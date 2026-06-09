@@ -4,3 +4,4 @@ export * from "./api/auth";
 export * from "./api/applications";
 export * from "./api/interviews";
 export * from "./api/dashboard";
+export * from "./api/settings";

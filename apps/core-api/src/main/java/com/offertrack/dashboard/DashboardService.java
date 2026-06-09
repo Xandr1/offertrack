@@ -3,6 +3,8 @@ package com.offertrack.dashboard;
 import com.offertrack.dashboard.dto.DashboardApplicationItemResponse;
 import com.offertrack.dashboard.dto.DashboardInterviewItemResponse;
 import com.offertrack.dashboard.dto.DashboardSummaryResponse;
+import com.offertrack.settings.SettingsService;
+import com.offertrack.settings.UserSettings;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -11,24 +13,25 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class DashboardService {
-  static final long FOLLOW_UP_AFTER_APPLYING_DAYS = 7;
-  static final long UPCOMING_INTERVIEW_DAYS = 7;
-  static final long FOLLOW_UP_AFTER_INTERVIEW_DAYS = 2;
   static final int DASHBOARD_MODULE_LIMIT = 3;
 
   private final DashboardRepository dashboardRepository;
+  private final SettingsService settingsService;
   private final Clock clock;
 
-  public DashboardService(DashboardRepository dashboardRepository, Clock clock) {
+  public DashboardService(
+      DashboardRepository dashboardRepository, SettingsService settingsService, Clock clock) {
     this.dashboardRepository = dashboardRepository;
+    this.settingsService = settingsService;
     this.clock = clock;
   }
 
   public DashboardSummaryResponse getSummary(UUID userId) {
     OffsetDateTime now = OffsetDateTime.now(clock);
-    OffsetDateTime applicationFollowUpBefore = now.minusDays(FOLLOW_UP_AFTER_APPLYING_DAYS);
-    OffsetDateTime upcomingInterviewBefore = now.plusDays(UPCOMING_INTERVIEW_DAYS);
-    OffsetDateTime interviewFollowUpBefore = now.minusDays(FOLLOW_UP_AFTER_INTERVIEW_DAYS);
+    UserSettings settings = settingsService.getSettings(userId);
+    OffsetDateTime applicationFollowUpBefore = now.minusDays(settings.followUpAfterApplyingDays());
+    OffsetDateTime upcomingInterviewBefore = now.plusDays(settings.upcomingInterviewDays());
+    OffsetDateTime interviewFollowUpBefore = now.minusDays(settings.followUpAfterInterviewDays());
 
     DashboardSummaryCounts counts = dashboardRepository.getSummaryCounts(userId);
 
@@ -82,6 +85,9 @@ public class DashboardService {
         applicationsToFollowUpCount,
         upcomingInterviewsCount,
         interviewsToFollowUpCount,
+        settings.followUpAfterApplyingDays(),
+        settings.upcomingInterviewDays(),
+        settings.followUpAfterInterviewDays(),
         draftsToApply,
         applicationsToFollowUp,
         upcomingInterviews,

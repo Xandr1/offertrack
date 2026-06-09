@@ -13,6 +13,7 @@ import {
   interviewStatusSchema,
   interviewTypeSchema,
   nextInterviewSchema,
+  settingsSchema,
   userSummarySchema,
   workModeSchema,
 } from "./schemas";
@@ -36,6 +37,7 @@ export type DashboardApplicationItem = z.infer<
 >;
 export type DashboardInterviewItem = z.infer<typeof dashboardInterviewItemSchema>;
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
+export type Settings = z.infer<typeof settingsSchema>;
 
 export type RegisterRequest = {
   name?: string;
@@ -91,4 +93,11 @@ export type ReplaceApplicationInterviewItemRequest = {
 
 export type UpdateInterviewStatusRequest = {
   status: InterviewStatus;
+};
+
+export type UpdateSettingsRequest = {
+  followUpAfterApplyingDays: number;
+  upcomingInterviewDays: number;
+  followUpAfterInterviewDays: number;
+  targetRole?: string | null;
 };
