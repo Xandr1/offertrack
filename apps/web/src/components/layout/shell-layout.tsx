@@ -6,13 +6,14 @@ import { pageStyles, shellStyles } from "@/lib/styles";
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/applications", label: "Applications" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 type ShellRoute = (typeof navItems)[number]["href"];
 
 type ShellLayoutProps = {
   activeRoute: ShellRoute;
-  children: ReactNode;
+  children?: ReactNode;
   sidebarFooter?: ReactNode;
 };
 

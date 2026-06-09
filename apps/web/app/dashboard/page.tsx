@@ -148,7 +148,7 @@ export default function DashboardPage() {
             />
             <DashboardActionModule
               count={summary?.applicationsToFollowUpCount ?? 0}
-              helperText="Applied roles that have been quiet for 7+ days."
+              helperText="Applied roles that have been quiet long enough to check in."
               isLoading={summaryQuery.isPending}
               items={summary?.applicationsToFollowUp ?? []}
               kind="applications"
@@ -157,7 +157,7 @@ export default function DashboardPage() {
             />
             <DashboardActionModule
               count={summary?.upcomingInterviewsCount ?? 0}
-              helperText="Scheduled interviews in the next 7 days."
+              helperText="Scheduled interviews in your upcoming window."
               isLoading={summaryQuery.isPending}
               items={summary?.upcomingInterviews ?? []}
               kind="interviews"

@@ -8,6 +8,8 @@ import com.offertrack.applications.ApplicationStage;
 import com.offertrack.dashboard.dto.DashboardSummaryResponse;
 import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
+import com.offertrack.settings.SettingsService;
+import com.offertrack.settings.UserSettings;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -25,13 +27,14 @@ class DashboardServiceTest {
   private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-06-06T12:00:00Z");
 
   @Mock private DashboardRepository dashboardRepository;
+  @Mock private SettingsService settingsService;
 
   private DashboardService dashboardService;
 
   @BeforeEach
   void setUp() {
     Clock fixedClock = Clock.fixed(Instant.parse("2026-06-06T12:00:00Z"), ZoneOffset.UTC);
-    dashboardService = new DashboardService(dashboardRepository, fixedClock);
+    dashboardService = new DashboardService(dashboardRepository, settingsService, fixedClock);
   }
 
   @Test
@@ -100,6 +103,7 @@ class DashboardServiceTest {
                 InterviewType.HR,
                 InterviewStatus.COMPLETED));
 
+    when(settingsService.getSettings(userId)).thenReturn(UserSettings.defaultForUser(userId));
     when(dashboardRepository.getSummaryCounts(userId)).thenReturn(counts);
     when(dashboardRepository.countDraftsToApply(userId)).thenReturn(2L);
     when(dashboardRepository.countApplicationsToFollowUp(userId, NOW.minusDays(7), NOW))
@@ -140,5 +144,32 @@ class DashboardServiceTest {
     verify(dashboardRepository).listApplicationsToFollowUp(userId, NOW.minusDays(7), NOW, 3);
     verify(dashboardRepository).listUpcomingInterviews(userId, NOW, NOW.plusDays(7), 3);
     verify(dashboardRepository).listInterviewsToFollowUp(userId, NOW.minusDays(2), 3);
+  }
+
+  @Test
+  void getSummaryUsesCustomSettingsForClockBasedCutoffs() {
+    UUID userId = UUID.randomUUID();
+
+    when(settingsService.getSettings(userId))
+        .thenReturn(new UserSettings(userId, 14, 3, 5, "Platform Engineer"));
+    when(dashboardRepository.getSummaryCounts(userId))
+        .thenReturn(new DashboardSummaryCounts(0, 0, 0, 0));
+    when(dashboardRepository.listDraftsToApply(userId, 3)).thenReturn(List.of());
+    when(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(14), NOW, 3))
+        .thenReturn(List.of());
+    when(dashboardRepository.listUpcomingInterviews(userId, NOW, NOW.plusDays(3), 3))
+        .thenReturn(List.of());
+    when(dashboardRepository.listInterviewsToFollowUp(userId, NOW.minusDays(5), 3))
+        .thenReturn(List.of());
+
+    dashboardService.getSummary(userId);
+
+    verify(settingsService).getSettings(userId);
+    verify(dashboardRepository).countApplicationsToFollowUp(userId, NOW.minusDays(14), NOW);
+    verify(dashboardRepository).countUpcomingInterviews(userId, NOW, NOW.plusDays(3));
+    verify(dashboardRepository).countInterviewsToFollowUp(userId, NOW.minusDays(5));
+    verify(dashboardRepository).listApplicationsToFollowUp(userId, NOW.minusDays(14), NOW, 3);
+    verify(dashboardRepository).listUpcomingInterviews(userId, NOW, NOW.plusDays(3), 3);
+    verify(dashboardRepository).listInterviewsToFollowUp(userId, NOW.minusDays(5), 3);
   }
 }

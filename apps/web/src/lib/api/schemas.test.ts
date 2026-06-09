@@ -1,4 +1,4 @@
-import { dashboardSummarySchema } from "./schemas";
+import { dashboardSummarySchema, settingsSchema } from "./schemas";
 
 describe("dashboardSummarySchema", () => {
   it("parses the dashboard action modules response", () => {
@@ -72,5 +72,31 @@ describe("dashboardSummarySchema", () => {
     expect(parsed.draftsToApplyCount).toBe(1);
     expect(parsed.upcomingInterviews[0].interviewType).toBe("technical");
     expect(parsed.interviewsToFollowUp[0].status).toBe("completed");
+  });
+});
+
+describe("settingsSchema", () => {
+  it("parses the settings response", () => {
+    const parsed = settingsSchema.parse({
+      followUpAfterApplyingDays: 10,
+      upcomingInterviewDays: 14,
+      followUpAfterInterviewDays: 4,
+      targetRole: "Platform Engineer",
+    });
+
+    expect(parsed.followUpAfterApplyingDays).toBe(10);
+    expect(parsed.upcomingInterviewDays).toBe(14);
+    expect(parsed.followUpAfterInterviewDays).toBe(4);
+    expect(parsed.targetRole).toBe("Platform Engineer");
+  });
+
+  it("parses missing target role as null", () => {
+    const parsed = settingsSchema.parse({
+      followUpAfterApplyingDays: 7,
+      upcomingInterviewDays: 7,
+      followUpAfterInterviewDays: 2,
+    });
+
+    expect(parsed.targetRole).toBeNull();
   });
 });
