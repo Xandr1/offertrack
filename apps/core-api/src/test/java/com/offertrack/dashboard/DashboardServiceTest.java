@@ -129,6 +129,9 @@ class DashboardServiceTest {
     assertThat(response.applicationsToFollowUpCount()).isEqualTo(3);
     assertThat(response.upcomingInterviewsCount()).isEqualTo(4);
     assertThat(response.interviewsToFollowUpCount()).isEqualTo(5);
+    assertThat(response.followUpAfterApplyingDays()).isEqualTo(7);
+    assertThat(response.upcomingInterviewDays()).isEqualTo(7);
+    assertThat(response.followUpAfterInterviewDays()).isEqualTo(2);
     assertThat(response.draftsToApply()).hasSize(2);
     assertThat(response.draftsToApply().getFirst().stage()).isEqualTo(ApplicationStage.INITIAL);
     assertThat(response.applicationsToFollowUp()).hasSize(1);
@@ -162,8 +165,11 @@ class DashboardServiceTest {
     when(dashboardRepository.listInterviewsToFollowUp(userId, NOW.minusDays(5), 3))
         .thenReturn(List.of());
 
-    dashboardService.getSummary(userId);
+    DashboardSummaryResponse response = dashboardService.getSummary(userId);
 
+    assertThat(response.followUpAfterApplyingDays()).isEqualTo(14);
+    assertThat(response.upcomingInterviewDays()).isEqualTo(3);
+    assertThat(response.followUpAfterInterviewDays()).isEqualTo(5);
     verify(settingsService).getSettings(userId);
     verify(dashboardRepository).countApplicationsToFollowUp(userId, NOW.minusDays(14), NOW);
     verify(dashboardRepository).countUpcomingInterviews(userId, NOW, NOW.plusDays(3));

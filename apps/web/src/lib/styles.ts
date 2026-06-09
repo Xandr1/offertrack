@@ -12,16 +12,13 @@ export const shellStyles = {
   grid: "mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-[190px_1fr]",
   sidebar:
     "rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-sm md:rounded-l-3xl md:rounded-r-none md:border-r-0",
-  sidebarWithFooter: "flex flex-col md:min-h-[calc(100vh-4rem)]",
   brand: "mb-8 flex items-center gap-2 text-sm font-bold text-zinc-950",
   logo: "h-8 w-8",
   nav: "space-y-1.5 text-sm",
-  navWithFooter: "flex-1",
   navLink:
     "block rounded-xl px-3 py-2 text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900",
   navLinkActive:
     "block rounded-xl bg-violet-50 px-3 py-2 font-medium text-violet-700",
-  footer: "mt-6 border-t border-zinc-100 pt-4",
   panel:
     "rounded-b-3xl border border-t-0 border-zinc-200 bg-white/90 p-5 shadow-sm backdrop-blur md:rounded-l-none md:rounded-r-3xl md:border-l md:border-t md:p-8",
 };

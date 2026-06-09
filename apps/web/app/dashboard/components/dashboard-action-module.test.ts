@@ -8,7 +8,7 @@ describe("DashboardActionModule", () => {
       React.createElement(DashboardActionModule, {
         title: "Drafts to apply",
         count: 4,
-        helperText: "Oldest drafts ready to move into applied.",
+        helperText: "Applications still waiting to be applied.",
         isLoading: false,
         kind: "applications",
         viewAllHref: "/applications?stage=initial",
@@ -76,7 +76,7 @@ describe("DashboardActionModule", () => {
       React.createElement(DashboardActionModule, {
         title: "Applications to follow up",
         count: 0,
-        helperText: "Applied roles that have been quiet for 7+ days.",
+        helperText: "Applied applications that may need a follow-up.",
         isLoading: false,
         kind: "applications",
         viewAllHref: "/applications?stage=applied",
@@ -92,7 +92,7 @@ describe("DashboardActionModule", () => {
       React.createElement(DashboardActionModule, {
         title: "Applications to follow up",
         count: 1,
-        helperText: "Applied roles that have been quiet for 7+ days.",
+        helperText: "Applied at least 7 days ago.",
         isLoading: false,
         kind: "applications",
         viewAllHref: "/applications?stage=applied",

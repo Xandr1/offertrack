@@ -20,6 +20,7 @@ import {
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
 import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
+import { SettingsPageHeader } from "./components/settings-page-header";
 import { SettingsForm } from "./components/settings-form";
 import {
   getSettingsFormValidationError,
@@ -106,30 +107,9 @@ export default function SettingsPage() {
   const user = userQuery.data;
 
   return (
-    <ShellLayout
-      activeRoute="/settings"
-      sidebarFooter={
-        <div>
-          <p className="break-all text-xs text-zinc-500">{user.email}</p>
-          <Button
-            className="mt-2 w-full justify-start px-0 text-zinc-700"
-            onClick={handleLogout}
-            variant="ghost"
-          >
-            Logout
-          </Button>
-        </div>
-      }
-    >
+    <ShellLayout activeRoute="/settings">
       <div className={layoutStyles.container}>
-        <header className={layoutStyles.splitHeader}>
-          <div>
-            <h1 className={textStyles.pageHeadline}>Settings</h1>
-            <p className={textStyles.subtitle}>
-              Configure your dashboard timing and target role.
-            </p>
-          </div>
-        </header>
+        <SettingsPageHeader email={user.email} onSignOut={handleLogout} />
 
         <section className={layoutStyles.section}>
           {settingsQuery.isPending && !settingsQuery.data ? (

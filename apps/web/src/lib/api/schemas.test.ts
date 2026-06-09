@@ -12,6 +12,9 @@ describe("dashboardSummarySchema", () => {
       applicationsToFollowUpCount: 1,
       upcomingInterviewsCount: 1,
       interviewsToFollowUpCount: 1,
+      followUpAfterApplyingDays: 10,
+      upcomingInterviewDays: 14,
+      followUpAfterInterviewDays: 4,
       draftsToApply: [
         {
           applicationId: "app-1",
@@ -70,6 +73,9 @@ describe("dashboardSummarySchema", () => {
 
     expect(parsed.draftsToApply[0].stage).toBe("initial");
     expect(parsed.draftsToApplyCount).toBe(1);
+    expect(parsed.followUpAfterApplyingDays).toBe(10);
+    expect(parsed.upcomingInterviewDays).toBe(14);
+    expect(parsed.followUpAfterInterviewDays).toBe(4);
     expect(parsed.upcomingInterviews[0].interviewType).toBe("technical");
     expect(parsed.interviewsToFollowUp[0].status).toBe("completed");
   });

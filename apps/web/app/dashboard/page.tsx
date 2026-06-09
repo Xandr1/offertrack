@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getDashboardSummary, getCurrentUser, logout } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { getDashboardSummary, getCurrentUser } from "@/lib/api";
 import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,7 +23,6 @@ import { DashboardActionModule } from "./components/dashboard-action-module";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   const userQuery = useQuery({
     queryKey: queryKeys.authMe,
@@ -47,15 +46,6 @@ export default function DashboardPage() {
 
     void redirectToLoginIfProtectedRoute(userQuery.error, router);
   }, [router, userQuery.error]);
-
-  async function handleLogout() {
-    try {
-      await logout();
-    } finally {
-      queryClient.clear();
-      router.replace("/login");
-    }
-  }
 
   if (userQuery.isPending) {
     return (
@@ -95,25 +85,10 @@ export default function DashboardPage() {
     return null;
   }
 
-  const user = userQuery.data;
   const summary = summaryQuery.data;
 
   return (
-    <ShellLayout
-      activeRoute="/dashboard"
-      sidebarFooter={
-        <div>
-          <p className="break-all text-xs text-zinc-500">{user.email}</p>
-          <Button
-            className="mt-2 w-full justify-start px-0 text-zinc-700"
-            onClick={handleLogout}
-            variant="ghost"
-          >
-            Logout
-          </Button>
-        </div>
-      }
-    >
+    <ShellLayout activeRoute="/dashboard">
       <div className={layoutStyles.container}>
         {summaryQuery.error && (
           <section>
@@ -139,7 +114,7 @@ export default function DashboardPage() {
           <section className="grid gap-4 xl:grid-cols-2">
             <DashboardActionModule
               count={summary?.draftsToApplyCount ?? 0}
-              helperText="Oldest drafts ready to move into applied."
+              helperText="Applications still waiting to be applied."
               isLoading={summaryQuery.isPending}
               items={summary?.draftsToApply ?? []}
               kind="applications"
@@ -148,7 +123,11 @@ export default function DashboardPage() {
             />
             <DashboardActionModule
               count={summary?.applicationsToFollowUpCount ?? 0}
-              helperText="Applied roles that have been quiet long enough to check in."
+              helperText={
+                summary
+                  ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.`
+                  : "Applied applications that may need a follow-up."
+              }
               isLoading={summaryQuery.isPending}
               items={summary?.applicationsToFollowUp ?? []}
               kind="applications"
@@ -157,7 +136,11 @@ export default function DashboardPage() {
             />
             <DashboardActionModule
               count={summary?.upcomingInterviewsCount ?? 0}
-              helperText="Scheduled interviews in your upcoming window."
+              helperText={
+                summary
+                  ? `Scheduled in the next ${summary.upcomingInterviewDays} days.`
+                  : "Scheduled interviews coming up soon."
+              }
               isLoading={summaryQuery.isPending}
               items={summary?.upcomingInterviews ?? []}
               kind="interviews"
@@ -166,7 +149,11 @@ export default function DashboardPage() {
             />
             <DashboardActionModule
               count={summary?.interviewsToFollowUpCount ?? 0}
-              helperText="Completed interviews waiting on next steps."
+              helperText={
+                summary
+                  ? `Completed at least ${summary.followUpAfterInterviewDays} days ago.`
+                  : "Completed interviews waiting on next steps."
+              }
               isLoading={summaryQuery.isPending}
               items={summary?.interviewsToFollowUp ?? []}
               kind="interviews"

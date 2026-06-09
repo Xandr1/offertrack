@@ -69,6 +69,9 @@ class DashboardControllerSecurityTest {
             0,
             1,
             0,
+            8,
+            9,
+            3,
             List.of(
                 new DashboardApplicationItemResponse(
                     applicationId,
@@ -109,6 +112,9 @@ class DashboardControllerSecurityTest {
         .andExpect(jsonPath("$.applicationsToFollowUpCount").value(0))
         .andExpect(jsonPath("$.upcomingInterviewsCount").value(1))
         .andExpect(jsonPath("$.interviewsToFollowUpCount").value(0))
+        .andExpect(jsonPath("$.followUpAfterApplyingDays").value(8))
+        .andExpect(jsonPath("$.upcomingInterviewDays").value(9))
+        .andExpect(jsonPath("$.followUpAfterInterviewDays").value(3))
         .andExpect(jsonPath("$.draftsToApply[0].applicationId").value(applicationId.toString()))
         .andExpect(jsonPath("$.draftsToApply[0].stage").value("initial"))
         .andExpect(jsonPath("$.upcomingInterviews[0].interviewId").value(interviewId.toString()))
