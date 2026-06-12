@@ -1,6 +1,7 @@
 package com.offertrack;
 
 import static com.offertrack.jooq.generated.tables.UserAuthTokens.USER_AUTH_TOKENS;
+import static com.offertrack.jooq.generated.tables.Users.USERS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -174,6 +175,22 @@ class AuthFlowIntegrationTest {
                 .content(loginJson("blocked@example.com")))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("EMAIL_NOT_VERIFIED"))
+        .andExpect(cookie().doesNotExist(CookieService.ACCESS_TOKEN_COOKIE_NAME));
+  }
+
+  @Test
+  void loginReturnsGenericInvalidCredentialsForUserWithoutPasswordHash() throws Exception {
+    User user = createVerifiedUser("oauth-only@example.com");
+    setPasswordHash(user.id(), null);
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginJson("oauth-only@example.com")))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("REQUEST_FAILED"))
+        .andExpect(jsonPath("$.message").value("Invalid email or password"))
         .andExpect(cookie().doesNotExist(CookieService.ACCESS_TOKEN_COOKIE_NAME));
   }
 
@@ -380,6 +397,29 @@ class AuthFlowIntegrationTest {
   }
 
   @Test
+  void resetPasswordSetsHashForUserWithoutPasswordHashAndAllowsNewPasswordLogin() throws Exception {
+    User user = createVerifiedUser("reset-null-hash@example.com");
+    setPasswordHash(user.id(), null);
+    String token = authTokenService.createPasswordResetToken(user.id());
+
+    resetPasswordViaApi(token, NEW_PASSWORD);
+
+    User updatedUser = userRepository.findByEmail("reset-null-hash@example.com").orElseThrow();
+    assertThat(updatedUser.emailVerifiedAt()).isNotNull();
+    assertThat(updatedUser.passwordHash()).isNotNull();
+    assertThat(passwordService.matches(NEW_PASSWORD, updatedUser.passwordHash())).isTrue();
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginJson("reset-null-hash@example.com", NEW_PASSWORD)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.user.email").value("reset-null-hash@example.com"))
+        .andExpect(cookie().exists(CookieService.ACCESS_TOKEN_COOKIE_NAME));
+  }
+
+  @Test
   void resetPasswordDoesNotVerifyEmail() throws Exception {
     User user = createUnverifiedUser("reset-unverified@example.com");
     String token = authTokenService.createPasswordResetToken(user.id());
@@ -484,6 +524,10 @@ class AuthFlowIntegrationTest {
     User user = createUnverifiedUser(email);
     userRepository.markEmailVerified(user.id(), OffsetDateTime.now());
     return user;
+  }
+
+  private void setPasswordHash(UUID userId, String passwordHash) {
+    dsl.update(USERS).set(USERS.PASSWORD_HASH, passwordHash).where(USERS.ID.eq(userId)).execute();
   }
 
   private int countPasswordResetTokens(UUID userId) {
