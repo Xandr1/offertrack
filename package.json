@@ -1,6 +1,7 @@
 {
   "name": "offertrack",
   "private": true,
+  "packageManager": "pnpm@11.1.2",
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:infra": "docker compose up -d",
