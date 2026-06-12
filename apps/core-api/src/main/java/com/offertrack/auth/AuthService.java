@@ -75,7 +75,8 @@ public class AuthService {
                     new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Invalid email or password"));
 
-    if (!passwordService.matches(request.password(), user.passwordHash())) {
+    String passwordHash = user.passwordHash();
+    if (passwordHash == null || !passwordService.matches(request.password(), passwordHash)) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
 
