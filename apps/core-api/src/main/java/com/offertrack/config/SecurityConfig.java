@@ -33,7 +33,14 @@ public class SecurityConfig {
             auth ->
                 auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
                     .permitAll()
-                    .requestMatchers("/auth/**")
+                    .requestMatchers(
+                        "/auth/register",
+                        "/auth/login",
+                        "/auth/logout",
+                        "/auth/email/verify",
+                        "/auth/email/verification/resend",
+                        "/auth/password/forgot",
+                        "/auth/password/reset")
                     .permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info")
                     .permitAll()

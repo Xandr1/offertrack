@@ -10,10 +10,12 @@ import {
 import {
   AuthResponse,
   GenericSuccessResponse,
+  ForgotPasswordRequest,
   LoginRequest,
   RegisterRequest,
   RegisterResponse,
   ResendVerificationRequest,
+  ResetPasswordRequest,
   UserSummary,
   VerifyEmailRequest,
   VerifyEmailResponse,
@@ -53,6 +55,32 @@ export const resendVerificationEmail = (
 ): Promise<GenericSuccessResponse> => {
   return request<GenericSuccessResponse>(
     "/auth/email/verification/resend",
+    genericSuccessResponseSchema,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+};
+
+export const forgotPassword = (
+  payload: ForgotPasswordRequest,
+): Promise<GenericSuccessResponse> => {
+  return request<GenericSuccessResponse>(
+    "/auth/password/forgot",
+    genericSuccessResponseSchema,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+};
+
+export const resetPassword = (
+  payload: ResetPasswordRequest,
+): Promise<GenericSuccessResponse> => {
+  return request<GenericSuccessResponse>(
+    "/auth/password/reset",
     genericSuccessResponseSchema,
     {
       method: "POST",

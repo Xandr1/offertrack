@@ -63,7 +63,7 @@ export const getErrorMessage = (error: unknown): string => {
     }
 
     if (code === INVALID_AUTH_TOKEN_ERROR_CODE) {
-      return "Verification link is invalid or expired.";
+      return "Link is invalid or expired.";
     }
 
     if (error.status === 400) {

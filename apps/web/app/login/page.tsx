@@ -139,7 +139,12 @@ const LoginPage = () => {
           </div>
 
           <div>
-            <label className={textStyles.label}>Password</label>
+            <div className="flex items-center justify-between gap-3">
+              <label className={textStyles.label}>Password</label>
+              <a className={buttonStyles.link} href="/forgot-password">
+                Forgot password?
+              </a>
+            </div>
             <Input
               value={password}
               onChange={(event) => handlePasswordChange(event.target.value)}

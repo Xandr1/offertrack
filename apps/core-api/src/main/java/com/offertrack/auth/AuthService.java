@@ -1,11 +1,13 @@
 package com.offertrack.auth;
 
 import com.offertrack.auth.dto.AuthResponse;
+import com.offertrack.auth.dto.ForgotPasswordRequest;
 import com.offertrack.auth.dto.GenericSuccessResponse;
 import com.offertrack.auth.dto.LoginRequest;
 import com.offertrack.auth.dto.RegisterRequest;
 import com.offertrack.auth.dto.RegisterResponse;
 import com.offertrack.auth.dto.ResendVerificationRequest;
+import com.offertrack.auth.dto.ResetPasswordRequest;
 import com.offertrack.auth.dto.VerifyEmailRequest;
 import com.offertrack.auth.dto.VerifyEmailResponse;
 import com.offertrack.users.User;
@@ -13,6 +15,8 @@ import com.offertrack.users.UserRepository;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+  private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
   private final UserRepository userRepository;
   private final PasswordService passwordService;
   private final JwtService jwtService;
@@ -100,6 +106,26 @@ public class AuthService {
     return new GenericSuccessResponse(true);
   }
 
+  @Transactional
+  public GenericSuccessResponse forgotPassword(ForgotPasswordRequest request) {
+    String normalizedEmail = request.email().trim().toLowerCase();
+
+    userRepository.findByEmail(normalizedEmail).ifPresent(this::sendPasswordResetEmail);
+
+    return new GenericSuccessResponse(true);
+  }
+
+  @Transactional
+  public GenericSuccessResponse resetPassword(ResetPasswordRequest request) {
+    UUID userId = authTokenService.consumePasswordResetToken(request.token());
+    String passwordHash = passwordService.hash(request.newPassword());
+
+    userRepository.updatePasswordHash(userId, passwordHash, OffsetDateTime.now(clock));
+    authTokenService.consumeActivePasswordResetTokens(userId);
+
+    return new GenericSuccessResponse(true);
+  }
+
   private AuthResult buildAuthResult(User user) {
     String accessToken = jwtService.generateAccessToken(user.id(), user.email());
 
@@ -112,6 +138,16 @@ public class AuthService {
   private void sendEmailVerification(User user) {
     String token = authTokenService.createEmailVerificationToken(user.id());
     verificationEmailService.sendVerificationEmail(user, token);
+  }
+
+  private void sendPasswordResetEmail(User user) {
+    String token = authTokenService.createPasswordResetToken(user.id());
+
+    try {
+      verificationEmailService.sendPasswordResetEmail(user, token);
+    } catch (RuntimeException exception) {
+      log.warn("Could not send password reset email for user {}", user.id(), exception);
+    }
   }
 
   public record AuthResult(String accessToken, AuthResponse response) {}

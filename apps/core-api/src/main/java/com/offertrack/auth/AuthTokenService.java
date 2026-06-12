@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 public class AuthTokenService {
   private static final int TOKEN_BYTES = 32;
   private static final int EMAIL_VERIFICATION_TTL_HOURS = 24;
+  private static final int PASSWORD_RESET_TTL_HOURS = 1;
 
   private final UserAuthTokenRepository userAuthTokenRepository;
   private final Clock clock;
@@ -39,6 +40,22 @@ public class AuthTokenService {
     return token;
   }
 
+  public String createPasswordResetToken(UUID userId) {
+    String token = generateToken();
+    OffsetDateTime now = OffsetDateTime.now(clock);
+
+    userAuthTokenRepository.consumeActiveTokensForUser(
+        AuthTokenPurpose.PASSWORD_RESET, userId, now);
+    userAuthTokenRepository.create(
+        userId,
+        AuthTokenPurpose.PASSWORD_RESET,
+        hashToken(token),
+        now.plusHours(PASSWORD_RESET_TTL_HOURS),
+        now);
+
+    return token;
+  }
+
   public UUID consumeEmailVerificationToken(String token) {
     String tokenHash = hashToken(token);
     OffsetDateTime now = OffsetDateTime.now(clock);
@@ -46,6 +63,20 @@ public class AuthTokenService {
     return userAuthTokenRepository
         .consumeActiveToken(AuthTokenPurpose.EMAIL_VERIFICATION, tokenHash, now)
         .orElseThrow(InvalidAuthTokenException::new);
+  }
+
+  public UUID consumePasswordResetToken(String token) {
+    String tokenHash = hashToken(token);
+    OffsetDateTime now = OffsetDateTime.now(clock);
+
+    return userAuthTokenRepository
+        .consumeActiveToken(AuthTokenPurpose.PASSWORD_RESET, tokenHash, now)
+        .orElseThrow(InvalidAuthTokenException::new);
+  }
+
+  public void consumeActivePasswordResetTokens(UUID userId) {
+    userAuthTokenRepository.consumeActiveTokensForUser(
+        AuthTokenPurpose.PASSWORD_RESET, userId, OffsetDateTime.now(clock));
   }
 
   private String generateToken() {

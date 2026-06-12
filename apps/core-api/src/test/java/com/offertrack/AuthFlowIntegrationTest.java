@@ -2,6 +2,8 @@ package com.offertrack;
 
 import static com.offertrack.jooq.generated.tables.UserAuthTokens.USER_AUTH_TOKENS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -31,6 +33,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -41,6 +44,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @Import(TestcontainersConfiguration.class)
 class AuthFlowIntegrationTest {
   private static final String PASSWORD = "Password1";
+  private static final String NEW_PASSWORD = "NewPassword1";
   private static final Pattern EMAIL_TOKEN_PATTERN = Pattern.compile("token=([A-Za-z0-9_-]+)");
 
   @Autowired private MockMvc mockMvc;
@@ -194,6 +198,145 @@ class AuthFlowIntegrationTest {
   }
 
   @Test
+  void forgotPasswordReturnsGenericResponseForUnknownEmail() throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/password/forgot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(forgotPasswordJson("unknown@example.com")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    assertThat(
+            dsl.fetchCount(
+                USER_AUTH_TOKENS,
+                USER_AUTH_TOKENS.PURPOSE.eq(AuthTokenPurpose.PASSWORD_RESET.value())))
+        .isZero();
+    verifyNoInteractions(mailSender);
+  }
+
+  @Test
+  void forgotPasswordConsumesExistingResetTokensCreatesNewTokenAndSendsEmail() throws Exception {
+    User user = createUnverifiedUser("forgot@example.com");
+    authTokenService.createPasswordResetToken(user.id());
+
+    mockMvc
+        .perform(
+            post("/auth/password/forgot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(forgotPasswordJson("forgot@example.com")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    assertThat(countPasswordResetTokens(user.id())).isEqualTo(2);
+    assertThat(countActivePasswordResetTokens(user.id())).isEqualTo(1);
+
+    String tokenHash =
+        dsl.select(USER_AUTH_TOKENS.TOKEN_HASH)
+            .from(USER_AUTH_TOKENS)
+            .where(USER_AUTH_TOKENS.USER_ID.eq(user.id()))
+            .and(USER_AUTH_TOKENS.PURPOSE.eq(AuthTokenPurpose.PASSWORD_RESET.value()))
+            .and(USER_AUTH_TOKENS.CONSUMED_AT.isNull())
+            .fetchSingle(USER_AUTH_TOKENS.TOKEN_HASH);
+    assertThat(tokenHash).hasSize(64);
+
+    SimpleMailMessage message = captureOnlyMessage();
+    assertThat(message.getTo()).containsExactly("forgot@example.com");
+    assertThat(message.getText()).contains("/reset-password?token=");
+  }
+
+  @Test
+  void forgotPasswordReturnsOkWhenEmailSendingFails() throws Exception {
+    User user = createUnverifiedUser("forgot-send-failure@example.com");
+    doThrow(new MailSendException("boom")).when(mailSender).send(any(SimpleMailMessage.class));
+
+    mockMvc
+        .perform(
+            post("/auth/password/forgot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(forgotPasswordJson("forgot-send-failure@example.com")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    assertThat(countPasswordResetTokens(user.id())).isEqualTo(1);
+    verify(mailSender).send(any(SimpleMailMessage.class));
+  }
+
+  @Test
+  void resetPasswordRejectsInvalidExpiredConsumedAndWrongPurposeTokens() throws Exception {
+    expectInvalidPasswordResetToken("not-a-valid-token");
+
+    User expiredUser = createVerifiedUser("reset-expired@example.com");
+    String expiredToken = authTokenService.createPasswordResetToken(expiredUser.id());
+    dsl.update(USER_AUTH_TOKENS)
+        .set(USER_AUTH_TOKENS.EXPIRES_AT, OffsetDateTime.now().minusMinutes(1))
+        .where(USER_AUTH_TOKENS.USER_ID.eq(expiredUser.id()))
+        .and(USER_AUTH_TOKENS.PURPOSE.eq(AuthTokenPurpose.PASSWORD_RESET.value()))
+        .execute();
+    expectInvalidPasswordResetToken(expiredToken);
+
+    User consumedUser = createVerifiedUser("reset-consumed@example.com");
+    String consumedToken = authTokenService.createPasswordResetToken(consumedUser.id());
+    resetPasswordViaApi(consumedToken, NEW_PASSWORD);
+    expectInvalidPasswordResetToken(consumedToken);
+
+    User wrongPurposeUser = createUnverifiedUser("reset-wrong-purpose@example.com");
+    String emailVerificationToken =
+        authTokenService.createEmailVerificationToken(wrongPurposeUser.id());
+    expectInvalidPasswordResetToken(emailVerificationToken);
+  }
+
+  @Test
+  void resetPasswordUpdatesHashConsumesTokensAndAllowsNewPasswordLogin() throws Exception {
+    User user = createVerifiedUser("reset-success@example.com");
+    String token = authTokenService.createPasswordResetToken(user.id());
+    insertActivePasswordResetToken(user.id());
+
+    resetPasswordViaApi(token, NEW_PASSWORD);
+
+    User updatedUser = userRepository.findByEmail("reset-success@example.com").orElseThrow();
+    assertThat(passwordService.matches(PASSWORD, updatedUser.passwordHash())).isFalse();
+    assertThat(passwordService.matches(NEW_PASSWORD, updatedUser.passwordHash())).isTrue();
+    assertThat(countActivePasswordResetTokens(user.id())).isZero();
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginJson("reset-success@example.com", PASSWORD)))
+        .andExpect(status().isUnauthorized());
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginJson("reset-success@example.com", NEW_PASSWORD)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.user.email").value("reset-success@example.com"))
+        .andExpect(cookie().exists(CookieService.ACCESS_TOKEN_COOKIE_NAME));
+  }
+
+  @Test
+  void resetPasswordDoesNotVerifyEmail() throws Exception {
+    User user = createUnverifiedUser("reset-unverified@example.com");
+    String token = authTokenService.createPasswordResetToken(user.id());
+
+    resetPasswordViaApi(token, NEW_PASSWORD);
+
+    User updatedUser = userRepository.findByEmail("reset-unverified@example.com").orElseThrow();
+    assertThat(updatedUser.emailVerifiedAt()).isNull();
+    assertThat(passwordService.matches(NEW_PASSWORD, updatedUser.passwordHash())).isTrue();
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginJson("reset-unverified@example.com", NEW_PASSWORD)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("EMAIL_NOT_VERIFIED"));
+  }
+
+  @Test
   void verifiedUserCanLogin() throws Exception {
     User user = createUnverifiedUser("verified@example.com");
     userRepository.markEmailVerified(user.id(), OffsetDateTime.now());
@@ -216,6 +359,26 @@ class AuthFlowIntegrationTest {
                 .content("{\"token\":\"" + token + "\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_AUTH_TOKEN"));
+  }
+
+  private void expectInvalidPasswordResetToken(String token) throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/password/reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(passwordResetJson(token, NEW_PASSWORD)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_AUTH_TOKEN"));
+  }
+
+  private void resetPasswordViaApi(String token, String newPassword) throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/password/reset")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(passwordResetJson(token, newPassword)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
   }
 
   private RegistrationResult registerViaApi(String email) throws Exception {
@@ -247,6 +410,40 @@ class AuthFlowIntegrationTest {
     return userRepository.createUser(email, passwordService.hash(PASSWORD), "Test User");
   }
 
+  private User createVerifiedUser(String email) {
+    User user = createUnverifiedUser(email);
+    userRepository.markEmailVerified(user.id(), OffsetDateTime.now());
+    return user;
+  }
+
+  private int countPasswordResetTokens(UUID userId) {
+    return dsl.fetchCount(
+        USER_AUTH_TOKENS,
+        USER_AUTH_TOKENS.USER_ID.eq(userId),
+        USER_AUTH_TOKENS.PURPOSE.eq(AuthTokenPurpose.PASSWORD_RESET.value()));
+  }
+
+  private int countActivePasswordResetTokens(UUID userId) {
+    return dsl.fetchCount(
+        USER_AUTH_TOKENS,
+        USER_AUTH_TOKENS.USER_ID.eq(userId),
+        USER_AUTH_TOKENS.PURPOSE.eq(AuthTokenPurpose.PASSWORD_RESET.value()),
+        USER_AUTH_TOKENS.CONSUMED_AT.isNull());
+  }
+
+  private void insertActivePasswordResetToken(UUID userId) {
+    OffsetDateTime now = OffsetDateTime.now();
+
+    dsl.insertInto(USER_AUTH_TOKENS)
+        .set(USER_AUTH_TOKENS.ID, UUID.randomUUID())
+        .set(USER_AUTH_TOKENS.USER_ID, userId)
+        .set(USER_AUTH_TOKENS.PURPOSE, AuthTokenPurpose.PASSWORD_RESET.value())
+        .set(USER_AUTH_TOKENS.TOKEN_HASH, "a".repeat(64))
+        .set(USER_AUTH_TOKENS.EXPIRES_AT, now.plusHours(1))
+        .set(USER_AUTH_TOKENS.CREATED_AT, now)
+        .execute();
+  }
+
   private static String registerJson(String email) {
     return """
         {
@@ -259,13 +456,36 @@ class AuthFlowIntegrationTest {
   }
 
   private static String loginJson(String email) {
+    return loginJson(email, PASSWORD);
+  }
+
+  private static String loginJson(String email, String password) {
     return """
         {
           "email": "%s",
           "password": "%s"
         }
         """
-        .formatted(email, PASSWORD);
+        .formatted(email, password);
+  }
+
+  private static String forgotPasswordJson(String email) {
+    return """
+        {
+          "email": "%s"
+        }
+        """
+        .formatted(email);
+  }
+
+  private static String passwordResetJson(String token, String newPassword) {
+    return """
+        {
+          "token": "%s",
+          "newPassword": "%s"
+        }
+        """
+        .formatted(token, newPassword);
   }
 
   private record RegistrationResult(UUID userId, String token) {}

@@ -1,11 +1,13 @@
 package com.offertrack.auth;
 
 import com.offertrack.auth.dto.AuthResponse;
+import com.offertrack.auth.dto.ForgotPasswordRequest;
 import com.offertrack.auth.dto.GenericSuccessResponse;
 import com.offertrack.auth.dto.LoginRequest;
 import com.offertrack.auth.dto.RegisterRequest;
 import com.offertrack.auth.dto.RegisterResponse;
 import com.offertrack.auth.dto.ResendVerificationRequest;
+import com.offertrack.auth.dto.ResetPasswordRequest;
 import com.offertrack.auth.dto.VerifyEmailRequest;
 import com.offertrack.auth.dto.VerifyEmailResponse;
 import jakarta.servlet.http.HttpServletResponse;
@@ -52,5 +54,15 @@ public class AuthController {
   public GenericSuccessResponse resendVerificationEmail(
       @Valid @RequestBody ResendVerificationRequest request) {
     return authService.resendVerificationEmail(request);
+  }
+
+  @PostMapping("/auth/password/forgot")
+  public GenericSuccessResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    return authService.forgotPassword(request);
+  }
+
+  @PostMapping("/auth/password/reset")
+  public GenericSuccessResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    return authService.resetPassword(request);
   }
 }

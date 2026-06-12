@@ -84,6 +84,14 @@ public class UserRepository {
         .execute();
   }
 
+  public void updatePasswordHash(UUID id, String passwordHash, OffsetDateTime updatedAt) {
+    dsl.update(USERS)
+        .set(USERS.PASSWORD_HASH, passwordHash)
+        .set(USERS.UPDATED_AT, updatedAt)
+        .where(USERS.ID.eq(id))
+        .execute();
+  }
+
   private User mapUser(org.jooq.Record record) {
     return new User(
         record.get(USERS.ID),

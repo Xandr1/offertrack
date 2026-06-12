@@ -17,6 +17,10 @@ describe("auth schemas", () => {
     );
     expect(genericSuccessResponseSchema.parse({ ok: true }).ok).toBe(true);
   });
+
+  it("parses password reset success responses", () => {
+    expect(genericSuccessResponseSchema.parse({ ok: true }).ok).toBe(true);
+  });
 });
 
 describe("dashboardSummarySchema", () => {

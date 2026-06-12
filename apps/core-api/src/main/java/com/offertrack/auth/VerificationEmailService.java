@@ -41,6 +41,26 @@ public class VerificationEmailService {
     mailSender.send(message);
   }
 
+  public void sendPasswordResetEmail(User user, String token) {
+    String resetUrl = normalizedWebUrl() + "/reset-password?token=" + token;
+
+    SimpleMailMessage message = new SimpleMailMessage();
+    message.setFrom(mailFrom);
+    message.setTo(user.email());
+    message.setSubject("Reset your OfferTrack password");
+    message.setText(
+        """
+        Reset your OfferTrack password:
+
+        %s
+
+        This link expires in 1 hour. If you did not request it, you can ignore this email.
+        """
+            .formatted(resetUrl));
+
+    mailSender.send(message);
+  }
+
   private String normalizedWebUrl() {
     if (appWebUrl.endsWith("/")) {
       return appWebUrl.substring(0, appWebUrl.length() - 1);
