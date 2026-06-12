@@ -12,6 +12,9 @@ import com.offertrack.auth.dto.VerifyEmailRequest;
 import com.offertrack.auth.dto.VerifyEmailResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,10 +23,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
   private final AuthService authService;
   private final CookieService cookieService;
+  private final String appWebUrl;
 
-  public AuthController(AuthService authService, CookieService cookieService) {
+  public AuthController(
+      AuthService authService,
+      CookieService cookieService,
+      @Value("${app.web-url}") String appWebUrl) {
     this.authService = authService;
     this.cookieService = cookieService;
+    this.appWebUrl = appWebUrl;
+  }
+
+  @GetMapping("/auth/oauth2/google/start")
+  public void startGoogleOAuth(HttpServletResponse response) throws IOException {
+    response.sendRedirect("/oauth2/authorization/google");
+  }
+
+  @GetMapping("/login")
+  public void redirectBackendLoginToWebLogin(HttpServletResponse response) throws IOException {
+    response.sendRedirect(stripTrailingSlash(appWebUrl) + "/login?oauthError=google");
   }
 
   @PostMapping("/auth/register")
@@ -64,5 +82,9 @@ public class AuthController {
   @PostMapping("/auth/password/reset")
   public GenericSuccessResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
     return authService.resetPassword(request);
+  }
+
+  private static String stripTrailingSlash(String value) {
+    return value.replaceAll("/+$", "");
   }
 }

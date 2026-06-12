@@ -3,16 +3,19 @@ package com.offertrack;
 import static com.offertrack.jooq.generated.tables.UserAuthTokens.USER_AUTH_TOKENS;
 import static com.offertrack.jooq.generated.tables.Users.USERS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.offertrack.auth.AuthTokenPurpose;
@@ -65,6 +68,34 @@ class AuthFlowIntegrationTest {
     dsl.execute("delete from application_interviews");
     dsl.execute("delete from job_applications");
     dsl.execute("delete from users");
+  }
+
+  @Test
+  void googleOAuthStartRedirectsUnauthenticatedRequests() throws Exception {
+    mockMvc
+        .perform(get("/auth/oauth2/google/start"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(redirectedUrl("/oauth2/authorization/google"));
+  }
+
+  @Test
+  void googleOAuthAuthorizationEndpointRedirectsUnauthenticatedRequestsToGoogle() throws Exception {
+    mockMvc
+        .perform(get("/oauth2/authorization/google"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(
+            header()
+                .string(
+                    HttpHeaders.LOCATION,
+                    startsWith("https://accounts.google.com/o/oauth2/v2/auth")));
+  }
+
+  @Test
+  void backendLoginPathRedirectsToFrontendOAuthError() throws Exception {
+    mockMvc
+        .perform(get("/login"))
+        .andExpect(status().is3xxRedirection())
+        .andExpect(redirectedUrl("http://localhost:3000/login?oauthError=google"));
   }
 
   @Test
