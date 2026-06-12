@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --dir apps/web run lint
+
+      - name: Typecheck
+        run: pnpm --dir apps/web run typecheck
+
+      - name: Test
+        run: pnpm --dir apps/web run test
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          chmod +x scripts/backend-codegen.sh apps/core-api/mvnw
+
+      - name: Check Docker
+        run: |
+          docker version
+          docker compose version
+
+      - name: Generate backend sources
+        run: ./scripts/backend-codegen.sh
+
+      - name: Test
+        working-directory: apps/core-api
+        run: ./mvnw test
+
+      - name: Clean up Compose services
+        if: always()
+        run: docker compose down -v

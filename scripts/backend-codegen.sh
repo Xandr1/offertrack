@@ -17,6 +17,13 @@ POSTGRES_WAIT_INTERVAL_SECONDS=2
 POSTGRES_ELAPSED_SECONDS=0
 ENABLE_FLYWAY_INSECURE_FALLBACK="${ENABLE_FLYWAY_INSECURE_FALLBACK:-false}"
 
+MAVEN_WRAPPER="./mvnw"
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    MAVEN_WRAPPER="./mvnw.cmd"
+    ;;
+esac
+
 echo "Starting postgres container..."
 docker compose up -d postgres
 
@@ -38,7 +45,7 @@ echo "Postgres is ready."
 echo "Running Flyway migrations..."
 (
   cd apps/core-api
-  if ./mvnw.cmd -q flyway:migrate; then
+  if "$MAVEN_WRAPPER" -q flyway:migrate; then
     exit 0
   fi
 
@@ -47,13 +54,13 @@ echo "Running Flyway migrations..."
   fi
 
   echo "Flyway migrate failed. Retrying with temporary Maven HTTPS insecure resolver mode..."
-  ./mvnw.cmd -q -Daether.connector.https.securityMode=insecure flyway:migrate
+  "$MAVEN_WRAPPER" -q -Daether.connector.https.securityMode=insecure flyway:migrate
 )
 
 echo "Running jOOQ code generation..."
 (
   cd apps/core-api
-  ./mvnw.cmd -q jooq-codegen:generate
+  "$MAVEN_WRAPPER" -q jooq-codegen:generate
 )
 
 echo "Backend codegen completed."
