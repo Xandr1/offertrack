@@ -1,4 +1,23 @@
-import { dashboardSummarySchema, settingsSchema } from "./schemas";
+import {
+  dashboardSummarySchema,
+  genericSuccessResponseSchema,
+  registerResponseSchema,
+  settingsSchema,
+  verifyEmailResponseSchema,
+} from "./schemas";
+
+describe("auth schemas", () => {
+  it("parses email verification auth responses", () => {
+    expect(
+      registerResponseSchema.parse({ emailVerificationRequired: true })
+        .emailVerificationRequired,
+    ).toBe(true);
+    expect(verifyEmailResponseSchema.parse({ verified: true }).verified).toBe(
+      true,
+    );
+    expect(genericSuccessResponseSchema.parse({ ok: true }).ok).toBe(true);
+  });
+});
 
 describe("dashboardSummarySchema", () => {
   it("parses the dashboard action modules response", () => {

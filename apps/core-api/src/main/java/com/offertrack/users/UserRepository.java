@@ -32,6 +32,7 @@ public class UserRepository {
             USERS.EMAIL,
             USERS.PASSWORD_HASH,
             USERS.NAME,
+            USERS.EMAIL_VERIFIED_AT,
             USERS.CREATED_AT,
             USERS.UPDATED_AT)
         .fetchOne(
@@ -41,6 +42,7 @@ public class UserRepository {
                     record.get(USERS.EMAIL),
                     record.get(USERS.PASSWORD_HASH),
                     record.get(USERS.NAME),
+                    record.get(USERS.EMAIL_VERIFIED_AT),
                     record.get(USERS.CREATED_AT),
                     record.get(USERS.UPDATED_AT)));
   }
@@ -51,19 +53,12 @@ public class UserRepository {
             USERS.EMAIL,
             USERS.PASSWORD_HASH,
             USERS.NAME,
+            USERS.EMAIL_VERIFIED_AT,
             USERS.CREATED_AT,
             USERS.UPDATED_AT)
         .from(USERS)
         .where(USERS.EMAIL.eq(email))
-        .fetchOptional(
-            record ->
-                new User(
-                    record.get(USERS.ID),
-                    record.get(USERS.EMAIL),
-                    record.get(USERS.PASSWORD_HASH),
-                    record.get(USERS.NAME),
-                    record.get(USERS.CREATED_AT),
-                    record.get(USERS.UPDATED_AT)));
+        .fetchOptional(this::mapUser);
   }
 
   public Optional<User> findById(UUID id) {
@@ -72,18 +67,31 @@ public class UserRepository {
             USERS.EMAIL,
             USERS.PASSWORD_HASH,
             USERS.NAME,
+            USERS.EMAIL_VERIFIED_AT,
             USERS.CREATED_AT,
             USERS.UPDATED_AT)
         .from(USERS)
         .where(USERS.ID.eq(id))
-        .fetchOptional(
-            record ->
-                new User(
-                    record.get(USERS.ID),
-                    record.get(USERS.EMAIL),
-                    record.get(USERS.PASSWORD_HASH),
-                    record.get(USERS.NAME),
-                    record.get(USERS.CREATED_AT),
-                    record.get(USERS.UPDATED_AT)));
+        .fetchOptional(this::mapUser);
+  }
+
+  public void markEmailVerified(UUID id, OffsetDateTime verifiedAt) {
+    dsl.update(USERS)
+        .set(USERS.EMAIL_VERIFIED_AT, verifiedAt)
+        .set(USERS.UPDATED_AT, verifiedAt)
+        .where(USERS.ID.eq(id))
+        .and(USERS.EMAIL_VERIFIED_AT.isNull())
+        .execute();
+  }
+
+  private User mapUser(org.jooq.Record record) {
+    return new User(
+        record.get(USERS.ID),
+        record.get(USERS.EMAIL),
+        record.get(USERS.PASSWORD_HASH),
+        record.get(USERS.NAME),
+        record.get(USERS.EMAIL_VERIFIED_AT),
+        record.get(USERS.CREATED_AT),
+        record.get(USERS.UPDATED_AT));
   }
 }
