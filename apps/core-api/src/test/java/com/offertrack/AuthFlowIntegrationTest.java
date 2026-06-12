@@ -21,6 +21,7 @@ import com.offertrack.auth.PasswordService;
 import com.offertrack.users.User;
 import com.offertrack.users.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.jooq.DSLContext;
@@ -98,6 +99,68 @@ class AuthFlowIntegrationTest {
     SimpleMailMessage message = captureOnlyMessage();
     assertThat(message.getTo()).containsExactly(email);
     assertThat(message.getText()).contains("/verify-email?token=");
+  }
+
+  @Test
+  void plusAliasEmailsAreDistinctForVerificationAndPasswordReset() throws Exception {
+    String baseEmail = "john@example.com";
+    String aliasEmail = "john+1@example.com";
+
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registerJson(baseEmail)))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registerJson(aliasEmail)))
+        .andExpect(status().isOk());
+
+    User baseUser = userRepository.findByEmail(baseEmail).orElseThrow();
+    User aliasUser = userRepository.findByEmail(aliasEmail).orElseThrow();
+    assertThat(baseUser.id()).isNotEqualTo(aliasUser.id());
+    assertThat(baseUser.emailVerifiedAt()).isNull();
+    assertThat(aliasUser.emailVerifiedAt()).isNull();
+
+    List<SimpleMailMessage> registrationMessages = captureMessages(2);
+    assertThat(registrationMessages.get(0).getTo()).containsExactly(baseEmail);
+    assertThat(registrationMessages.get(1).getTo()).containsExactly(aliasEmail);
+
+    String aliasVerificationToken = extractToken(registrationMessages.get(1));
+    mockMvc
+        .perform(
+            post("/auth/email/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + aliasVerificationToken + "\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.verified").value(true));
+
+    assertThat(userRepository.findByEmail(baseEmail).orElseThrow().emailVerifiedAt()).isNull();
+    assertThat(userRepository.findByEmail(aliasEmail).orElseThrow().emailVerifiedAt()).isNotNull();
+
+    reset(mailSender);
+    mockMvc
+        .perform(
+            post("/auth/password/forgot")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(forgotPasswordJson(baseEmail)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ok").value(true));
+
+    SimpleMailMessage resetMessage = captureOnlyMessage();
+    assertThat(resetMessage.getTo()).containsExactly(baseEmail);
+    assertThat(resetMessage.getText()).contains("/reset-password?token=");
+
+    resetPasswordViaApi(extractToken(resetMessage), NEW_PASSWORD);
+
+    User updatedBaseUser = userRepository.findByEmail(baseEmail).orElseThrow();
+    User unchangedAliasUser = userRepository.findByEmail(aliasEmail).orElseThrow();
+    assertThat(passwordService.matches(NEW_PASSWORD, updatedBaseUser.passwordHash())).isTrue();
+    assertThat(passwordService.matches(PASSWORD, unchangedAliasUser.passwordHash())).isTrue();
+    assertThat(passwordService.matches(NEW_PASSWORD, unchangedAliasUser.passwordHash())).isFalse();
   }
 
   @Test
@@ -398,6 +461,13 @@ class AuthFlowIntegrationTest {
         ArgumentCaptor.forClass(SimpleMailMessage.class);
     verify(mailSender).send(messageCaptor.capture());
     return messageCaptor.getValue();
+  }
+
+  private List<SimpleMailMessage> captureMessages(int count) {
+    ArgumentCaptor<SimpleMailMessage> messageCaptor =
+        ArgumentCaptor.forClass(SimpleMailMessage.class);
+    verify(mailSender, times(count)).send(messageCaptor.capture());
+    return messageCaptor.getAllValues();
   }
 
   private String extractToken(SimpleMailMessage message) {

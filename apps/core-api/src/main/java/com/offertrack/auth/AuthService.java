@@ -31,7 +31,7 @@ public class AuthService {
   private final PasswordService passwordService;
   private final JwtService jwtService;
   private final AuthTokenService authTokenService;
-  private final VerificationEmailService verificationEmailService;
+  private final AuthEmailService authEmailService;
   private final Clock clock;
 
   public AuthService(
@@ -39,13 +39,13 @@ public class AuthService {
       PasswordService passwordService,
       JwtService jwtService,
       AuthTokenService authTokenService,
-      VerificationEmailService verificationEmailService,
+      AuthEmailService authEmailService,
       Clock clock) {
     this.userRepository = userRepository;
     this.passwordService = passwordService;
     this.jwtService = jwtService;
     this.authTokenService = authTokenService;
-    this.verificationEmailService = verificationEmailService;
+    this.authEmailService = authEmailService;
     this.clock = clock;
   }
 
@@ -137,14 +137,14 @@ public class AuthService {
 
   private void sendEmailVerification(User user) {
     String token = authTokenService.createEmailVerificationToken(user.id());
-    verificationEmailService.sendVerificationEmail(user, token);
+    authEmailService.sendVerificationEmail(user, token);
   }
 
   private void sendPasswordResetEmail(User user) {
     String token = authTokenService.createPasswordResetToken(user.id());
 
     try {
-      verificationEmailService.sendPasswordResetEmail(user, token);
+      authEmailService.sendPasswordResetEmail(user, token);
     } catch (RuntimeException exception) {
       log.warn("Could not send password reset email for user {}", user.id(), exception);
     }

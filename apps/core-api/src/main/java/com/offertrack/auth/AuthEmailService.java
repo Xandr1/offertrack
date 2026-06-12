@@ -7,12 +7,12 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
-public class VerificationEmailService {
+public class AuthEmailService {
   private final JavaMailSender mailSender;
   private final String mailFrom;
   private final String appWebUrl;
 
-  public VerificationEmailService(
+  public AuthEmailService(
       JavaMailSender mailSender,
       @Value("${app.mail.from}") String mailFrom,
       @Value("${app.web-url}") String appWebUrl) {
