@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { register } from "@/lib/api";
 import { resolveRequestError } from "@/lib/request-errors";
 import { Button } from "@/components/ui/button";
@@ -10,13 +9,12 @@ import { Input } from "@/components/ui/input";
 import { buttonStyles, formStyles, pageStyles, textStyles } from "@/lib/styles";
 
 export default function RegisterPage() {
-  const router = useRouter();
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,13 +23,21 @@ export default function RegisterPage() {
 
     try {
       await register({ name, email, password });
-      router.push("/dashboard");
+      setRegisteredEmail(email.trim());
     } catch (requestError) {
       const resolvedError = await resolveRequestError(requestError);
       setError(resolvedError.message);
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (registeredEmail) {
+    return (
+      <main className={pageStyles.centered}>
+        <RegisterSuccessState email={registeredEmail} />
+      </main>
+    );
   }
 
   return (
@@ -96,3 +102,23 @@ export default function RegisterPage() {
     </main>
   );
 }
+
+type RegisterSuccessStateProps = {
+  email: string;
+};
+
+export const RegisterSuccessState = ({ email }: RegisterSuccessStateProps) => (
+  <Card variant="auth">
+    <h1 className={textStyles.pageTitle}>Check your email</h1>
+    <p className={textStyles.description}>
+      We sent a verification link to {email}. Verify your email before signing
+      in.
+    </p>
+    <p className={pageStyles.authFooter}>
+      Already verified?{" "}
+      <a className={buttonStyles.link} href="/login">
+        Sign in
+      </a>
+    </p>
+  </Card>
+);

@@ -1,8 +1,15 @@
 package com.offertrack.auth;
 
 import com.offertrack.auth.dto.AuthResponse;
+import com.offertrack.auth.dto.ForgotPasswordRequest;
+import com.offertrack.auth.dto.GenericSuccessResponse;
 import com.offertrack.auth.dto.LoginRequest;
 import com.offertrack.auth.dto.RegisterRequest;
+import com.offertrack.auth.dto.RegisterResponse;
+import com.offertrack.auth.dto.ResendVerificationRequest;
+import com.offertrack.auth.dto.ResetPasswordRequest;
+import com.offertrack.auth.dto.VerifyEmailRequest;
+import com.offertrack.auth.dto.VerifyEmailResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,12 +27,8 @@ public class AuthController {
   }
 
   @PostMapping("/auth/register")
-  public AuthResponse register(
-      @Valid @RequestBody RegisterRequest request, HttpServletResponse response) {
-    AuthService.AuthResult result = authService.register(request);
-    cookieService.addAccessTokenCookie(response, result.accessToken());
-
-    return result.response();
+  public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
+    return authService.register(request);
   }
 
   @PostMapping("/auth/login")
@@ -40,5 +43,26 @@ public class AuthController {
   @PostMapping("/auth/logout")
   public void logout(HttpServletResponse response) {
     cookieService.clearAccessTokenCookie(response);
+  }
+
+  @PostMapping("/auth/email/verify")
+  public VerifyEmailResponse verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+    return authService.verifyEmail(request);
+  }
+
+  @PostMapping("/auth/email/verification/resend")
+  public GenericSuccessResponse resendVerificationEmail(
+      @Valid @RequestBody ResendVerificationRequest request) {
+    return authService.resendVerificationEmail(request);
+  }
+
+  @PostMapping("/auth/password/forgot")
+  public GenericSuccessResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    return authService.forgotPassword(request);
+  }
+
+  @PostMapping("/auth/password/reset")
+  public GenericSuccessResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    return authService.resetPassword(request);
   }
 }

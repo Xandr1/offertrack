@@ -7,6 +7,8 @@ import {
   applicationStageSchema,
   applicationsSchema,
   authResponseSchema,
+  genericSuccessResponseSchema,
+  registerResponseSchema,
   dashboardApplicationItemSchema,
   dashboardInterviewItemSchema,
   dashboardSummarySchema,
@@ -15,11 +17,15 @@ import {
   nextInterviewSchema,
   settingsSchema,
   userSummarySchema,
+  verifyEmailResponseSchema,
   workModeSchema,
 } from "./schemas";
 
 export type UserSummary = z.infer<typeof userSummarySchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+export type RegisterResponse = z.infer<typeof registerResponseSchema>;
+export type VerifyEmailResponse = z.infer<typeof verifyEmailResponseSchema>;
+export type GenericSuccessResponse = z.infer<typeof genericSuccessResponseSchema>;
 export type ApplicationStage = z.infer<typeof applicationStageSchema>;
 export type WorkMode = z.infer<typeof workModeSchema>;
 export type InterviewType = z.infer<typeof interviewTypeSchema>;
@@ -48,6 +54,23 @@ export type RegisterRequest = {
 export type LoginRequest = {
   email: string;
   password: string;
+};
+
+export type VerifyEmailRequest = {
+  token: string;
+};
+
+export type ResendVerificationRequest = {
+  email: string;
+};
+
+export type ForgotPasswordRequest = {
+  email: string;
+};
+
+export type ResetPasswordRequest = {
+  token: string;
+  newPassword: string;
 };
 
 export type CreateApplicationRequest = {

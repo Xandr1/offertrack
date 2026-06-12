@@ -1,3 +1,8 @@
+import { apiErrorResponseSchema } from "./schemas";
+
+export const EMAIL_NOT_VERIFIED_ERROR_CODE = "EMAIL_NOT_VERIFIED";
+export const INVALID_AUTH_TOKEN_ERROR_CODE = "INVALID_AUTH_TOKEN";
+
 export class ApiError extends Error {
   status: number;
   body: string;
@@ -24,6 +29,23 @@ export class ResponseValidationError extends Error {
   }
 }
 
+export const getApiErrorCode = (error: unknown): string | null => {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+
+  try {
+    const parsed = apiErrorResponseSchema.safeParse(JSON.parse(error.body));
+    return parsed.success ? parsed.data.code : null;
+  } catch {
+    return null;
+  }
+};
+
+export const hasApiErrorCode = (error: unknown, code: string): boolean => {
+  return getApiErrorCode(error) === code;
+};
+
 export const getErrorMessage = (error: unknown): string => {
   if (error instanceof NetworkError) {
     return "Cannot connect to the server. Check that the API is running.";
@@ -34,6 +56,16 @@ export const getErrorMessage = (error: unknown): string => {
   }
 
   if (error instanceof ApiError) {
+    const code = getApiErrorCode(error);
+
+    if (code === EMAIL_NOT_VERIFIED_ERROR_CODE) {
+      return "Please verify your email before signing in.";
+    }
+
+    if (code === INVALID_AUTH_TOKEN_ERROR_CODE) {
+      return "Link is invalid or expired.";
+    }
+
     if (error.status === 400) {
       return "Please check the form fields.";
     }

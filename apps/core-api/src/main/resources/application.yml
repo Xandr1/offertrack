@@ -13,6 +13,12 @@ spring:
   jooq:
     sql-dialect: POSTGRES
 
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+
 server:
   port: 8080
 
@@ -25,3 +31,6 @@ app:
   jwt:
     secret: "change-me-change-me-change-me-change-me-change-me"
     expiration-minutes: 60
+  mail:
+    from: ${MAIL_FROM:no-reply@offertrack.local}
+  web-url: ${APP_WEB_URL:http://localhost:3000}

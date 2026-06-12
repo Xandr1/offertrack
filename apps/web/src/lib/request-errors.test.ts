@@ -2,6 +2,7 @@ import { ApiError, NetworkError } from "@/lib/api";
 import {
   getRequestErrorMessage,
   isAuthError,
+  isEmailNotVerifiedError,
   redirectToLoginIfProtectedRoute,
   resolveRequestError,
   shouldRedirectToLoginAfterError,
@@ -15,8 +16,25 @@ describe("request-errors", () => {
   it("detects auth errors", () => {
     expect(isAuthError(new ApiError(401, ""))).toBe(true);
     expect(isAuthError(new ApiError(403, ""))).toBe(true);
+    expect(
+      isAuthError(
+        new ApiError(403, JSON.stringify({ code: "EMAIL_NOT_VERIFIED" })),
+      ),
+    ).toBe(false);
     expect(isAuthError(new ApiError(500, ""))).toBe(false);
     expect(isAuthError(new Error("boom"))).toBe(false);
+  });
+
+  it("detects email verification errors", () => {
+    const error = new ApiError(
+      403,
+      JSON.stringify({ code: "EMAIL_NOT_VERIFIED" }),
+    );
+
+    expect(isEmailNotVerifiedError(error)).toBe(true);
+    expect(getRequestErrorMessage(error)).toBe(
+      "Please verify your email before signing in.",
+    );
   });
 
   it("resolves redirect for 401 and not for non-api errors", async () => {
@@ -51,6 +69,14 @@ describe("request-errors", () => {
     await expect(
       shouldRedirectToLoginAfterError(new ApiError(403, "")),
     ).resolves.toBe(true);
+  });
+
+  it("does not redirect for email verification errors", async () => {
+    await expect(
+      shouldRedirectToLoginAfterError(
+        new ApiError(403, JSON.stringify({ code: "EMAIL_NOT_VERIFIED" })),
+      ),
+    ).resolves.toBe(false);
   });
 
   it("resolves message and redirect decision in one step", async () => {

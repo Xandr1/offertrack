@@ -8,5 +8,6 @@ public record User(
     String email,
     String passwordHash,
     String name,
+    OffsetDateTime emailVerifiedAt,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt) {}

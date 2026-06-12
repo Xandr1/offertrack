@@ -124,7 +124,9 @@ public class GlobalExceptionHandler {
   private static HttpStatus mapDomainStatus(String code) {
     return switch (code) {
       case "APPLICATION_NOT_FOUND", "INTERVIEW_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-      case "INVALID_INTERVIEW_COUNT", "DUPLICATE_INTERVIEW_IDS" -> HttpStatus.BAD_REQUEST;
+      case "EMAIL_NOT_VERIFIED" -> HttpStatus.FORBIDDEN;
+      case "INVALID_INTERVIEW_COUNT", "DUPLICATE_INTERVIEW_IDS", "INVALID_AUTH_TOKEN" ->
+          HttpStatus.BAD_REQUEST;
       default -> HttpStatus.INTERNAL_SERVER_ERROR;
     };
   }

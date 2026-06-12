@@ -10,6 +10,22 @@ export const authResponseSchema = z.object({
   user: userSummarySchema,
 });
 
+export const registerResponseSchema = z.object({
+  emailVerificationRequired: z.boolean(),
+});
+
+export const verifyEmailResponseSchema = z.object({
+  verified: z.boolean(),
+});
+
+export const genericSuccessResponseSchema = z.object({
+  ok: z.boolean(),
+});
+
+export const apiErrorResponseSchema = z.object({
+  code: z.string(),
+});
+
 export const applicationStageSchema = z.preprocess((value) => {
   if (typeof value === "string") {
     return value.toLowerCase();

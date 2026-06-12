@@ -1,4 +1,10 @@
-import { ApiError, getCurrentUser, getErrorMessage } from "@/lib/api";
+import {
+  ApiError,
+  EMAIL_NOT_VERIFIED_ERROR_CODE,
+  getCurrentUser,
+  getErrorMessage,
+  hasApiErrorCode,
+} from "@/lib/api";
 
 type ResolvedRequestError = {
   message: string;
@@ -7,8 +13,14 @@ type ResolvedRequestError = {
 
 export const isAuthError = (error: unknown): error is ApiError => {
   return (
-    error instanceof ApiError && (error.status === 401 || error.status === 403)
+    error instanceof ApiError &&
+    (error.status === 401 ||
+      (error.status === 403 && !isEmailNotVerifiedError(error)))
   );
+};
+
+export const isEmailNotVerifiedError = (error: unknown): boolean => {
+  return hasApiErrorCode(error, EMAIL_NOT_VERIFIED_ERROR_CODE);
 };
 
 export const getRequestErrorMessage = (error: unknown): string => {
@@ -24,6 +36,10 @@ export const shouldRedirectToLoginAfterError = async (
 
   if (requestError.status === 401) {
     return true;
+  }
+
+  if (isEmailNotVerifiedError(requestError)) {
+    return false;
   }
 
   if (requestError.status !== 403) {
