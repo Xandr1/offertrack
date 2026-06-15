@@ -24,9 +24,11 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 
 @ExtendWith(MockitoExtension.class)
 class GoogleOAuth2SuccessHandlerTest {
@@ -59,7 +61,9 @@ class GoogleOAuth2SuccessHandlerTest {
                     new AuthResponse.UserSummary(USER_ID, "user@example.com", "Google User"))));
 
     handler.onAuthenticationSuccess(
-        new MockHttpServletRequest(), response, authentication(oidcUser("user@example.com", true)));
+        new MockHttpServletRequest(),
+        response,
+        googleAuthentication(oidcUser("user@example.com", true)));
 
     assertThat(response.getRedirectedUrl()).isEqualTo("http://localhost:3000/dashboard");
     assertThat(hasAccessTokenCookie(response)).isTrue();
@@ -69,22 +73,27 @@ class GoogleOAuth2SuccessHandlerTest {
 
   @Test
   void blankEmailFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(authentication(oidcUser(" ", true)), false);
+    expectFailure(googleAuthentication(oidcUser(" ", true)), false);
   }
 
   @Test
   void missingEmailFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(authentication(oidcUser(null, true)), false);
+    expectFailure(googleAuthentication(oidcUser(null, true)), false);
   }
 
   @Test
   void unverifiedEmailFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(authentication(oidcUser("user@example.com", false)), false);
+    expectFailure(googleAuthentication(oidcUser("user@example.com", false)), false);
   }
 
   @Test
   void nullEmailVerifiedFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(authentication(oidcUser("user@example.com", null)), false);
+    expectFailure(googleAuthentication(oidcUser("user@example.com", null)), false);
+  }
+
+  @Test
+  void wrongRegistrationIdFailsWithoutSettingAccessToken() throws Exception {
+    expectFailure(oauth2Authentication("github", oidcUser("user@example.com", true)), false);
   }
 
   @Test
@@ -93,11 +102,23 @@ class GoogleOAuth2SuccessHandlerTest {
   }
 
   @Test
+  void nonOidcOAuthPrincipalFailsWithoutSettingAccessToken() throws Exception {
+    DefaultOAuth2User principal =
+        new DefaultOAuth2User(
+            List.of(new SimpleGrantedAuthority("ROLE_USER")),
+            Map.of("sub", "google-subject"),
+            "sub");
+
+    expectFailure(
+        new OAuth2AuthenticationToken(principal, principal.getAuthorities(), "google"), false);
+  }
+
+  @Test
   void serviceFailureFailsWithoutSettingAccessToken() throws Exception {
     when(authService.loginWithGoogle(anyString(), anyString(), anyBoolean()))
         .thenThrow(new IllegalStateException("failed"));
 
-    expectFailure(authentication(oidcUser("user@example.com", true)), true);
+    expectFailure(googleAuthentication(oidcUser("user@example.com", true)), true);
   }
 
   private void expectFailure(Authentication authentication, boolean authServiceExpected)
@@ -116,8 +137,13 @@ class GoogleOAuth2SuccessHandlerTest {
     }
   }
 
-  private static Authentication authentication(OidcUser oidcUser) {
-    return new TestingAuthenticationToken(oidcUser, "credentials");
+  private static Authentication googleAuthentication(OidcUser oidcUser) {
+    return oauth2Authentication("google", oidcUser);
+  }
+
+  private static Authentication oauth2Authentication(String registrationId, OidcUser oidcUser) {
+    return new OAuth2AuthenticationToken(
+        oidcUser, List.copyOf(oidcUser.getAuthorities()), registrationId);
   }
 
   private static OidcUser oidcUser(String email, Boolean emailVerified) {
@@ -156,7 +182,7 @@ class GoogleOAuth2SuccessHandlerTest {
                     && header.contains("Max-Age=0")
                     && header.contains("Path=/")
                     && header.contains("HttpOnly")
-                    && header.contains("SameSite=None")
+                    && header.contains("SameSite=Lax")
                     && header.contains("Secure"));
   }
 }

@@ -178,7 +178,9 @@ public class CookieOAuth2AuthorizationRequestRepository
             + maxAge.toSeconds()
             + "; Path=/"
             + "; HttpOnly"
-            + "; SameSite=None"
+            // Authorization-code callbacks are top-level GET navigations. Revisit if the OAuth
+            // flow changes to response_mode=form_post.
+            + "; SameSite=Lax"
             + "; Secure";
 
     response.addHeader(HttpHeaders.SET_COOKIE, cookie);

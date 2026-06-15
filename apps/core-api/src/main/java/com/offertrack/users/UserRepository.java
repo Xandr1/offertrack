@@ -47,7 +47,8 @@ public class UserRepository {
                     record.get(USERS.UPDATED_AT)));
   }
 
-  public User createVerifiedOAuthUser(String email, String name, OffsetDateTime verifiedAt) {
+  public Optional<User> insertVerifiedOAuthUserIfAbsent(
+      String email, String name, OffsetDateTime verifiedAt) {
     UUID id = UUID.randomUUID();
 
     return dsl.insertInto(USERS)
@@ -58,6 +59,8 @@ public class UserRepository {
         .set(USERS.EMAIL_VERIFIED_AT, verifiedAt)
         .set(USERS.CREATED_AT, verifiedAt)
         .set(USERS.UPDATED_AT, verifiedAt)
+        .onConflict(USERS.EMAIL)
+        .doNothing()
         .returning(
             USERS.ID,
             USERS.EMAIL,
@@ -66,7 +69,7 @@ public class UserRepository {
             USERS.EMAIL_VERIFIED_AT,
             USERS.CREATED_AT,
             USERS.UPDATED_AT)
-        .fetchOne(this::mapUser);
+        .fetchOptional(this::mapUser);
   }
 
   public Optional<User> findByEmail(String email) {

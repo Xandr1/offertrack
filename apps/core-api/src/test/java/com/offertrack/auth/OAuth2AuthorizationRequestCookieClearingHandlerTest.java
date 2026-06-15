@@ -61,7 +61,7 @@ class OAuth2AuthorizationRequestCookieClearingHandlerTest {
                     && header.contains("Max-Age=0")
                     && header.contains("Path=/")
                     && header.contains("HttpOnly")
-                    && header.contains("SameSite=None")
+                    && header.contains("SameSite=Lax")
                     && header.contains("Secure"));
   }
 }

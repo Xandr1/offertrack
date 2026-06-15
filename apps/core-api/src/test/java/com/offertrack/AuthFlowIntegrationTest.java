@@ -27,9 +27,16 @@ import com.offertrack.auth.PasswordService;
 import com.offertrack.users.User;
 import com.offertrack.users.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -140,6 +147,48 @@ class AuthFlowIntegrationTest {
     assertThat(user.passwordHash()).isNull();
     assertThat(user.name()).isEqualTo("Google User");
     assertThat(user.emailVerifiedAt()).isNotNull();
+  }
+
+  @Test
+  void concurrentGoogleFirstLoginCreatesSingleVerifiedOauthUser() throws Exception {
+    int attempts = 8;
+    ExecutorService executor = Executors.newFixedThreadPool(attempts);
+    CountDownLatch ready = new CountDownLatch(attempts);
+    CountDownLatch start = new CountDownLatch(1);
+
+    try {
+      List<Future<AuthService.AuthResult>> futures =
+          IntStream.range(0, attempts)
+              .mapToObj(
+                  ignored ->
+                      executor.submit(
+                          () -> {
+                            ready.countDown();
+                            start.await();
+                            return authService.loginWithGoogle(
+                                "Race.Google@Example.com", "Race User", true);
+                          }))
+              .toList();
+
+      assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+      start.countDown();
+
+      List<AuthService.AuthResult> results = new ArrayList<>();
+      for (Future<AuthService.AuthResult> future : futures) {
+        results.add(future.get(10, TimeUnit.SECONDS));
+      }
+
+      UUID userId = results.getFirst().response().user().id();
+      assertThat(results).allMatch(result -> result.response().user().id().equals(userId));
+
+      assertThat(dsl.fetchCount(USERS, USERS.EMAIL.eq("race.google@example.com"))).isEqualTo(1);
+      User user = userRepository.findByEmail("race.google@example.com").orElseThrow();
+      assertThat(user.id()).isEqualTo(userId);
+      assertThat(user.passwordHash()).isNull();
+      assertThat(user.emailVerifiedAt()).isNotNull();
+    } finally {
+      executor.shutdownNow();
+    }
   }
 
   @Test

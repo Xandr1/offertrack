@@ -93,6 +93,8 @@ public class SecurityConfig {
   public CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository(
       @Value("${app.oauth.authorization-request-cookie-signing-secret}") String signingSecret,
       @Value("${app.jwt.secret}") String jwtSecret) {
+    // Local fallback keeps dev/test startup simple; protected profiles must configure a separate
+    // OAuth cookie secret and are validated by ProtectedOAuthConfigValidator.
     String resolvedSigningSecret = StringUtils.hasText(signingSecret) ? signingSecret : jwtSecret;
     return new CookieOAuth2AuthorizationRequestRepository(resolvedSigningSecret);
   }

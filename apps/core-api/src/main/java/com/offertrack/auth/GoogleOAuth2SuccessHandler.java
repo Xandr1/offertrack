@@ -4,12 +4,18 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.util.StringUtils;
 
 public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler {
+  private static final Logger log = LoggerFactory.getLogger(GoogleOAuth2SuccessHandler.class);
+  private static final String GOOGLE_REGISTRATION_ID = "google";
+
   private final AuthService authService;
   private final CookieService cookieService;
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
@@ -37,13 +43,14 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     AuthService.AuthResult result;
 
     try {
-      OidcUser oidcUser = requireOidcUser(authentication);
+      OidcUser oidcUser = requireGoogleOidcUser(authentication);
       String email = requireEmail(oidcUser);
       boolean emailVerified = requireVerifiedEmail(oidcUser);
       String name = displayName(oidcUser);
 
       result = authService.loginWithGoogle(email, name, emailVerified);
     } catch (RuntimeException exception) {
+      log.warn("Google OAuth login failed", exception);
       redirectToFailure(response);
       return;
     }
@@ -53,8 +60,16 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     response.sendRedirect(dashboardRedirectUrl);
   }
 
-  private OidcUser requireOidcUser(Authentication authentication) {
-    if (authentication == null || !(authentication.getPrincipal() instanceof OidcUser oidcUser)) {
+  private OidcUser requireGoogleOidcUser(Authentication authentication) {
+    if (!(authentication instanceof OAuth2AuthenticationToken oauth2Authentication)) {
+      throw new IllegalArgumentException("Google OAuth authentication token is required");
+    }
+
+    if (!GOOGLE_REGISTRATION_ID.equals(oauth2Authentication.getAuthorizedClientRegistrationId())) {
+      throw new IllegalArgumentException("OAuth provider must be Google");
+    }
+
+    if (!(oauth2Authentication.getPrincipal() instanceof OidcUser oidcUser)) {
       throw new IllegalArgumentException("Google OAuth principal must be an OIDC user");
     }
 

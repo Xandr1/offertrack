@@ -38,7 +38,7 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
             "Max-Age=180",
             "Path=/",
             "HttpOnly",
-            "SameSite=None",
+            "SameSite=Lax",
             "Secure");
     assertThat(segments).hasSize(2);
     assertThat(segments[0]).matches("[A-Za-z0-9_-]+");
@@ -85,7 +85,7 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
             "Max-Age=0",
             "Path=/",
             "HttpOnly",
-            "SameSite=None",
+            "SameSite=Lax",
             "Secure");
   }
 

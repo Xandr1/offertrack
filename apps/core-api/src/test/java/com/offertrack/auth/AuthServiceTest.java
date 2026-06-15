@@ -2,7 +2,9 @@ package com.offertrack.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,14 +19,15 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DuplicateKeyException;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-06-13T10:15:30Z"), ZoneOffset.UTC);
+  private static final OffsetDateTime NOW = OffsetDateTime.now(CLOCK);
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   @Mock private UserRepository userRepository;
@@ -43,22 +46,29 @@ class AuthServiceTest {
   }
 
   @Test
-  void googleLoginRefetchesExistingUserAfterDuplicateInsertRace() {
-    User existingUser =
-        new User(
-            USER_ID,
-            "race@example.com",
-            null,
-            "Race User",
-            OffsetDateTime.now(CLOCK),
-            OffsetDateTime.now(CLOCK),
-            OffsetDateTime.now(CLOCK));
+  void googleLoginUsesInsertedUserWhenInsertSucceeds() {
+    User insertedUser = verifiedUser("new@example.com", "Google User");
 
-    when(userRepository.findByEmail("race@example.com"))
-        .thenReturn(Optional.empty(), Optional.of(existingUser));
-    when(userRepository.createVerifiedOAuthUser(
-            eq("race@example.com"), eq("Race User"), any(OffsetDateTime.class)))
-        .thenThrow(new DuplicateKeyException("race"));
+    when(userRepository.insertVerifiedOAuthUserIfAbsent("new@example.com", "Google User", NOW))
+        .thenReturn(Optional.of(insertedUser));
+    when(jwtService.generateAccessToken(USER_ID, "new@example.com")).thenReturn("jwt-token");
+
+    AuthService.AuthResult result =
+        authService.loginWithGoogle(" New@Example.COM ", "Google User", true);
+
+    assertThat(result.accessToken()).isEqualTo("jwt-token");
+    assertThat(result.response().user().id()).isEqualTo(USER_ID);
+    assertThat(result.response().user().email()).isEqualTo("new@example.com");
+    verify(userRepository, never()).findByEmail(anyString());
+  }
+
+  @Test
+  void googleLoginFetchesExistingVerifiedUserWhenInsertDoesNothing() {
+    User existingUser = verifiedUser("race@example.com", "Race User");
+
+    when(userRepository.insertVerifiedOAuthUserIfAbsent("race@example.com", "Race User", NOW))
+        .thenReturn(Optional.empty());
+    when(userRepository.findByEmail("race@example.com")).thenReturn(Optional.of(existingUser));
     when(jwtService.generateAccessToken(USER_ID, "race@example.com")).thenReturn("jwt-token");
 
     AuthService.AuthResult result =
@@ -66,8 +76,77 @@ class AuthServiceTest {
 
     assertThat(result.accessToken()).isEqualTo("jwt-token");
     assertThat(result.response().user().id()).isEqualTo(USER_ID);
-    verify(userRepository)
-        .createVerifiedOAuthUser(
-            eq("race@example.com"), eq("Race User"), any(OffsetDateTime.class));
+    verify(userRepository, never()).markEmailVerified(any(UUID.class), any(OffsetDateTime.class));
+  }
+
+  @Test
+  void googleLoginMarksExistingUnverifiedUserVerifiedAndRefetches() {
+    User unverifiedUser =
+        new User(
+            USER_ID,
+            "unverified@example.com",
+            "password-hash",
+            "Existing User",
+            null,
+            NOW.minusDays(1),
+            NOW.minusDays(1));
+    User verifiedUser =
+        new User(
+            USER_ID,
+            "unverified@example.com",
+            "password-hash",
+            "Existing User",
+            NOW,
+            NOW.minusDays(1),
+            NOW);
+
+    when(userRepository.insertVerifiedOAuthUserIfAbsent(
+            "unverified@example.com", "Google User", NOW))
+        .thenReturn(Optional.empty());
+    when(userRepository.findByEmail("unverified@example.com"))
+        .thenReturn(Optional.of(unverifiedUser), Optional.of(verifiedUser));
+    when(jwtService.generateAccessToken(USER_ID, "unverified@example.com")).thenReturn("jwt-token");
+
+    AuthService.AuthResult result =
+        authService.loginWithGoogle("unverified@example.com", "Google User", true);
+
+    assertThat(result.accessToken()).isEqualTo("jwt-token");
+    assertThat(result.response().user().id()).isEqualTo(USER_ID);
+    verify(userRepository).markEmailVerified(USER_ID, NOW);
+  }
+
+  @Test
+  void googleLoginTrimsDisplayNameBeforeInsert() {
+    assertGoogleDisplayNameNormalized("  Google User  ", "Google User");
+  }
+
+  @Test
+  void googleLoginStoresBlankDisplayNameAsNull() {
+    assertGoogleDisplayNameNormalized("   ", null);
+  }
+
+  @Test
+  void googleLoginCapsDisplayNameBeforeInsert() {
+    assertGoogleDisplayNameNormalized("a".repeat(300), "a".repeat(255));
+  }
+
+  private void assertGoogleDisplayNameNormalized(String inputName, String expectedName) {
+    User insertedUser = verifiedUser("name@example.com", expectedName);
+    ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
+
+    when(userRepository.insertVerifiedOAuthUserIfAbsent(
+            eq("name@example.com"), nameCaptor.capture(), eq(NOW)))
+        .thenReturn(Optional.of(insertedUser));
+    when(jwtService.generateAccessToken(USER_ID, "name@example.com")).thenReturn("jwt-token");
+
+    AuthService.AuthResult result =
+        authService.loginWithGoogle("Name@Example.com", inputName, true);
+
+    assertThat(result.accessToken()).isEqualTo("jwt-token");
+    assertThat(nameCaptor.getValue()).isEqualTo(expectedName);
+  }
+
+  private static User verifiedUser(String email, String name) {
+    return new User(USER_ID, email, null, name, NOW, NOW, NOW);
   }
 }
