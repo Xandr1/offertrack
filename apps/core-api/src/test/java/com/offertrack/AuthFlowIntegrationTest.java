@@ -3,6 +3,7 @@ package com.offertrack;
 import static com.offertrack.jooq.generated.tables.UserAuthTokens.USER_AUTH_TOKENS;
 import static com.offertrack.jooq.generated.tables.Users.USERS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -18,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.offertrack.auth.AuthService;
 import com.offertrack.auth.AuthTokenPurpose;
 import com.offertrack.auth.AuthTokenService;
 import com.offertrack.auth.CookieService;
@@ -56,6 +58,7 @@ class AuthFlowIntegrationTest {
   @Autowired private UserRepository userRepository;
   @Autowired private PasswordService passwordService;
   @Autowired private AuthTokenService authTokenService;
+  @Autowired private AuthService authService;
   @Autowired private DSLContext dsl;
 
   @MockitoBean private JavaMailSender mailSender;
@@ -91,14 +94,6 @@ class AuthFlowIntegrationTest {
   }
 
   @Test
-  void backendLoginPathRedirectsToFrontendOAuthError() throws Exception {
-    mockMvc
-        .perform(get("/login"))
-        .andExpect(status().is3xxRedirection())
-        .andExpect(redirectedUrl("http://localhost:3000/login?oauthError=google"));
-  }
-
-  @Test
   void registerCreatesUnverifiedUserTokenAndSendsEmailWithoutAuthCookie() throws Exception {
     String email = "register@example.com";
 
@@ -131,6 +126,68 @@ class AuthFlowIntegrationTest {
     SimpleMailMessage message = captureOnlyMessage();
     assertThat(message.getTo()).containsExactly(email);
     assertThat(message.getText()).contains("/verify-email?token=");
+  }
+
+  @Test
+  void googleLoginCreatesVerifiedOauthUserWithNullPasswordHash() {
+    AuthService.AuthResult result =
+        authService.loginWithGoogle("  New.Google@Example.COM ", "Google User", true);
+
+    User user = userRepository.findByEmail("new.google@example.com").orElseThrow();
+    assertThat(result.response().user().id()).isEqualTo(user.id());
+    assertThat(result.response().user().email()).isEqualTo("new.google@example.com");
+    assertThat(result.accessToken()).isNotBlank();
+    assertThat(user.passwordHash()).isNull();
+    assertThat(user.name()).isEqualTo("Google User");
+    assertThat(user.emailVerifiedAt()).isNotNull();
+  }
+
+  @Test
+  void googleLoginReusesExistingNormalizedEmailWithoutCreatingDuplicate() {
+    User existingUser = createVerifiedUser("same@example.com");
+
+    AuthService.AuthResult result =
+        authService.loginWithGoogle(" SAME@example.com ", "Google Name", true);
+
+    assertThat(result.response().user().id()).isEqualTo(existingUser.id());
+    assertThat(dsl.fetchCount(USERS, USERS.EMAIL.eq("same@example.com"))).isEqualTo(1);
+    assertThat(userRepository.findByEmail("same@example.com").orElseThrow().name())
+        .isEqualTo("Test User");
+  }
+
+  @Test
+  void googleLoginMarksExistingUnverifiedUserVerified() {
+    User existingUser = createUnverifiedUser("unverified-google@example.com");
+
+    AuthService.AuthResult result =
+        authService.loginWithGoogle("unverified-google@example.com", "Google Name", true);
+
+    User updatedUser = userRepository.findByEmail("unverified-google@example.com").orElseThrow();
+    assertThat(result.response().user().id()).isEqualTo(existingUser.id());
+    assertThat(updatedUser.emailVerifiedAt()).isNotNull();
+    assertThat(updatedUser.passwordHash()).isEqualTo(existingUser.passwordHash());
+  }
+
+  @Test
+  void googleLoginRejectsInvalidInputWithoutChangingUsers() {
+    User existingUser = createUnverifiedUser("unchanged-google@example.com");
+    int userCountBefore = dsl.fetchCount(USERS);
+
+    assertThatThrownBy(() -> authService.loginWithGoogle(null, "Missing Email", true))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> authService.loginWithGoogle(" ", "Missing Email", true))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () -> authService.loginWithGoogle("new-unverified-google@example.com", "Name", false))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () -> authService.loginWithGoogle("unchanged-google@example.com", "Name", false))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    User unchangedUser = userRepository.findByEmail("unchanged-google@example.com").orElseThrow();
+    assertThat(dsl.fetchCount(USERS)).isEqualTo(userCountBefore);
+    assertThat(unchangedUser.id()).isEqualTo(existingUser.id());
+    assertThat(unchangedUser.emailVerifiedAt()).isNull();
   }
 
   @Test

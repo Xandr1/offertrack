@@ -21,6 +21,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -88,6 +89,25 @@ public class AuthService {
   }
 
   @Transactional
+  public AuthResult loginWithGoogle(String email, String name, boolean emailVerified) {
+    if (!StringUtils.hasText(email)) {
+      throw new IllegalArgumentException("Google email must not be blank");
+    }
+
+    if (!emailVerified) {
+      throw new IllegalArgumentException("Google email must be verified");
+    }
+
+    String normalizedEmail = email.trim().toLowerCase();
+
+    return userRepository
+        .findByEmail(normalizedEmail)
+        .map(this::verifyExistingGoogleUserIfNeeded)
+        .map(this::buildAuthResult)
+        .orElseGet(() -> createGoogleUserAndBuildAuthResult(normalizedEmail, name));
+  }
+
+  @Transactional
   public VerifyEmailResponse verifyEmail(VerifyEmailRequest request) {
     UUID userId = authTokenService.consumeEmailVerificationToken(request.token());
     userRepository.markEmailVerified(userId, OffsetDateTime.now(clock));
@@ -134,6 +154,30 @@ public class AuthService {
         new AuthResponse(new AuthResponse.UserSummary(user.id(), user.email(), user.name()));
 
     return new AuthResult(accessToken, response);
+  }
+
+  private User verifyExistingGoogleUserIfNeeded(User user) {
+    if (user.emailVerifiedAt() != null) {
+      return user;
+    }
+
+    userRepository.markEmailVerified(user.id(), OffsetDateTime.now(clock));
+    return userRepository.findByEmail(user.email()).orElse(user);
+  }
+
+  private AuthResult createGoogleUserAndBuildAuthResult(String normalizedEmail, String name) {
+    try {
+      return buildAuthResult(
+          userRepository.createVerifiedOAuthUser(normalizedEmail, name, OffsetDateTime.now(clock)));
+    } catch (DuplicateKeyException exception) {
+      User user =
+          userRepository
+              .findByEmail(normalizedEmail)
+              .map(this::verifyExistingGoogleUserIfNeeded)
+              .orElseThrow(() -> exception);
+
+      return buildAuthResult(user);
+    }
   }
 
   private void sendEmailVerification(User user) {

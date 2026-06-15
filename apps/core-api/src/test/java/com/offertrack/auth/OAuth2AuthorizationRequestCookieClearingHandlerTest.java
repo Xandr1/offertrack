@@ -8,36 +8,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 
 class OAuth2AuthorizationRequestCookieClearingHandlerTest {
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository =
       new CookieOAuth2AuthorizationRequestRepository("test-oauth-cookie-secret");
-
-  @Test
-  void successHandlerClearsAuthorizationRequestCookieBeforeDelegating() throws Exception {
-    AtomicBoolean cookieClearedBeforeDelegate = new AtomicBoolean(false);
-    MockHttpServletResponse response = new MockHttpServletResponse();
-    AuthenticationSuccessHandler delegate =
-        (request, delegateResponse, authentication) -> {
-          cookieClearedBeforeDelegate.set(hasClearingCookie(response));
-          delegateResponse.sendRedirect("/dashboard");
-        };
-    OAuth2AuthorizationRequestCookieClearingSuccessHandler handler =
-        new OAuth2AuthorizationRequestCookieClearingSuccessHandler(
-            authorizationRequestRepository, delegate);
-
-    handler.onAuthenticationSuccess(
-        new MockHttpServletRequest(),
-        response,
-        new TestingAuthenticationToken("user@example.com", "credentials"));
-
-    assertThat(cookieClearedBeforeDelegate).isTrue();
-    assertThat(response.getRedirectedUrl()).isEqualTo("/dashboard");
-    assertThat(hasClearingCookie(response)).isTrue();
-  }
 
   @Test
   void failureHandlerClearsAuthorizationRequestCookieBeforeDelegating() throws Exception {

@@ -1,13 +1,14 @@
 package com.offertrack.config;
 
+import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieOAuth2AuthorizationRequestRepository;
+import com.offertrack.auth.CookieService;
+import com.offertrack.auth.GoogleOAuth2SuccessHandler;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.NoopOAuth2AuthorizedClientRepository;
 import com.offertrack.auth.OAuth2AuthorizationRequestCookieClearingFailureHandler;
-import com.offertrack.auth.OAuth2AuthorizationRequestCookieClearingSuccessHandler;
 import jakarta.servlet.DispatcherType;
 import java.util.List;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -39,14 +39,15 @@ public class SecurityConfig {
       HttpSecurity http,
       CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository,
       OAuth2AuthorizedClientRepository oauth2AuthorizedClientRepository,
-      OAuth2AuthorizationRequestCookieClearingSuccessHandler oauth2SuccessHandler,
-      OAuth2AuthorizationRequestCookieClearingFailureHandler oauth2FailureHandler,
-      ObjectProvider<ClientRegistrationRepository> clientRegistrationRepository)
+      GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler,
+      OAuth2AuthorizationRequestCookieClearingFailureHandler oauth2FailureHandler)
       throws Exception {
     http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        // Preserve JWT API behavior after enabling oauth2Login, which otherwise redirects to
+        // /login.
         .exceptionHandling(
             exception ->
                 exception.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.FORBIDDEN)))
@@ -61,8 +62,7 @@ public class SecurityConfig {
                         "/auth/email/verify",
                         "/auth/email/verification/resend",
                         "/auth/password/forgot",
-                        "/auth/password/reset",
-                        "/login")
+                        "/auth/password/reset")
                     .permitAll()
                     .requestMatchers(
                         "/auth/oauth2/google/start",
@@ -74,18 +74,16 @@ public class SecurityConfig {
                     .anyRequest()
                     .authenticated());
 
-    if (clientRegistrationRepository.getIfAvailable() != null) {
-      http.oauth2Login(
-          oauth2 ->
-              oauth2
-                  .authorizationEndpoint(
-                      authorization ->
-                          authorization.authorizationRequestRepository(
-                              oauth2AuthorizationRequestRepository))
-                  .authorizedClientRepository(oauth2AuthorizedClientRepository)
-                  .successHandler(oauth2SuccessHandler)
-                  .failureHandler(oauth2FailureHandler));
-    }
+    http.oauth2Login(
+        oauth2 ->
+            oauth2
+                .authorizationEndpoint(
+                    authorization ->
+                        authorization.authorizationRequestRepository(
+                            oauth2AuthorizationRequestRepository))
+                .authorizedClientRepository(oauth2AuthorizedClientRepository)
+                .successHandler(googleOAuth2SuccessHandler)
+                .failureHandler(oauth2FailureHandler));
 
     return http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .build();
@@ -105,10 +103,13 @@ public class SecurityConfig {
   }
 
   @Bean
-  public OAuth2AuthorizationRequestCookieClearingSuccessHandler oauth2SuccessHandler(
-      CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository) {
-    return new OAuth2AuthorizationRequestCookieClearingSuccessHandler(
-        oauth2AuthorizationRequestRepository);
+  public GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler(
+      AuthService authService,
+      CookieService cookieService,
+      CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository,
+      @Value("${app.web-url}") String appWebUrl) {
+    return new GoogleOAuth2SuccessHandler(
+        authService, cookieService, oauth2AuthorizationRequestRepository, appWebUrl);
   }
 
   @Bean

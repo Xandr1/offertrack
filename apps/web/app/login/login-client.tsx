@@ -159,11 +159,7 @@ export const LoginClient = () => {
             />
           </div>
 
-          {oauthError === "google" && (
-            <div className={formStyles.error}>
-              Could not sign in with Google. Please try again.
-            </div>
-          )}
+          <LoginGoogleOAuthErrorMessage oauthError={oauthError} />
           {sessionError && <div className={formStyles.error}>{sessionError}</div>}
           {error && <div className={formStyles.error}>{error}</div>}
           {requiresEmailVerification && (
@@ -207,6 +203,22 @@ export const LoginGoogleAction = () => (
     </div>
   </div>
 );
+
+export const LoginGoogleOAuthErrorMessage = ({
+  oauthError,
+}: {
+  oauthError: string | null;
+}) => {
+  if (oauthError !== "google") {
+    return null;
+  }
+
+  return (
+    <div className={formStyles.error}>
+      Could not sign in with Google. Please try again.
+    </div>
+  );
+};
 
 const GoogleIcon = () => (
   <svg

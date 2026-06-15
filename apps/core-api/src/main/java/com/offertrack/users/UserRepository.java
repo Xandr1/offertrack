@@ -47,6 +47,28 @@ public class UserRepository {
                     record.get(USERS.UPDATED_AT)));
   }
 
+  public User createVerifiedOAuthUser(String email, String name, OffsetDateTime verifiedAt) {
+    UUID id = UUID.randomUUID();
+
+    return dsl.insertInto(USERS)
+        .set(USERS.ID, id)
+        .set(USERS.EMAIL, email)
+        .set(USERS.PASSWORD_HASH, (String) null)
+        .set(USERS.NAME, name)
+        .set(USERS.EMAIL_VERIFIED_AT, verifiedAt)
+        .set(USERS.CREATED_AT, verifiedAt)
+        .set(USERS.UPDATED_AT, verifiedAt)
+        .returning(
+            USERS.ID,
+            USERS.EMAIL,
+            USERS.PASSWORD_HASH,
+            USERS.NAME,
+            USERS.EMAIL_VERIFIED_AT,
+            USERS.CREATED_AT,
+            USERS.UPDATED_AT)
+        .fetchOne(this::mapUser);
+  }
+
   public Optional<User> findByEmail(String email) {
     return dsl.select(
             USERS.ID,
