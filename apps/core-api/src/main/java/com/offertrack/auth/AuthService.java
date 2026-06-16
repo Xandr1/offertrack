@@ -21,11 +21,13 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
   private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+  private static final int MAX_GOOGLE_DISPLAY_NAME_LENGTH = 255;
 
   private final UserRepository userRepository;
   private final PasswordService passwordService;
@@ -88,6 +90,28 @@ public class AuthService {
   }
 
   @Transactional
+  public AuthResult loginWithGoogle(String email, String name, boolean emailVerified) {
+    if (!StringUtils.hasText(email)) {
+      throw new IllegalArgumentException("Google email must not be blank");
+    }
+
+    if (!emailVerified) {
+      throw new IllegalArgumentException("Google email must be verified");
+    }
+
+    String normalizedEmail = email.trim().toLowerCase();
+    String normalizedName = normalizeGoogleDisplayName(name);
+    OffsetDateTime verifiedAt = OffsetDateTime.now(clock);
+
+    User user =
+        userRepository
+            .insertVerifiedOAuthUserIfAbsent(normalizedEmail, normalizedName, verifiedAt)
+            .orElseGet(() -> findAndVerifyExistingGoogleUser(normalizedEmail, verifiedAt));
+
+    return buildAuthResult(user);
+  }
+
+  @Transactional
   public VerifyEmailResponse verifyEmail(VerifyEmailRequest request) {
     UUID userId = authTokenService.consumeEmailVerificationToken(request.token());
     userRepository.markEmailVerified(userId, OffsetDateTime.now(clock));
@@ -134,6 +158,38 @@ public class AuthService {
         new AuthResponse(new AuthResponse.UserSummary(user.id(), user.email(), user.name()));
 
     return new AuthResult(accessToken, response);
+  }
+
+  private User findAndVerifyExistingGoogleUser(String normalizedEmail, OffsetDateTime verifiedAt) {
+    User user =
+        userRepository
+            .findByEmail(normalizedEmail)
+            .orElseThrow(
+                () -> new IllegalStateException("Google OAuth user was not created or found"));
+
+    return verifyExistingGoogleUserIfNeeded(user, verifiedAt);
+  }
+
+  private User verifyExistingGoogleUserIfNeeded(User user, OffsetDateTime verifiedAt) {
+    if (user.emailVerifiedAt() != null) {
+      return user;
+    }
+
+    userRepository.markEmailVerified(user.id(), verifiedAt);
+    return userRepository.findByEmail(user.email()).orElse(user);
+  }
+
+  private String normalizeGoogleDisplayName(String name) {
+    if (!StringUtils.hasText(name)) {
+      return null;
+    }
+
+    String normalizedName = name.trim();
+    if (normalizedName.length() <= MAX_GOOGLE_DISPLAY_NAME_LENGTH) {
+      return normalizedName;
+    }
+
+    return normalizedName.substring(0, MAX_GOOGLE_DISPLAY_NAME_LENGTH);
   }
 
   private void sendEmailVerification(User user) {

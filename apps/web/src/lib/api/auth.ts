@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { request } from "./client";
+import { API_URL, request } from "./client";
 import {
   authResponseSchema,
   genericSuccessResponseSchema,
@@ -33,6 +33,10 @@ export const login = (payload: LoginRequest): Promise<AuthResponse> => {
     method: "POST",
     body: JSON.stringify(payload),
   });
+};
+
+export const getGoogleLoginUrl = (): string => {
+  return `${API_URL}/auth/oauth2/google/start`;
 };
 
 export const logout = (): Promise<void> => {

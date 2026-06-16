@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.JwtService;
@@ -36,6 +37,8 @@ class SettingsControllerSecurityTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private SettingsService settingsService;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private CookieService cookieService;
   @MockitoBean private JwtService jwtService;
 
   @BeforeEach

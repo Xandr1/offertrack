@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.offertrack.applications.ApplicationNotFoundException;
+import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.JwtService;
@@ -42,6 +43,8 @@ class ApplicationInterviewControllerSecurityTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private ApplicationInterviewService applicationInterviewService;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private CookieService cookieService;
   @MockitoBean private JwtService jwtService;
 
   @BeforeEach

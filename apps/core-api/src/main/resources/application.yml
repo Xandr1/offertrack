@@ -19,6 +19,19 @@ spring:
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:local-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:local-google-client-secret}
+            scope:
+              - openid
+              - email
+              - profile
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+
 server:
   port: 8080
 
@@ -33,4 +46,6 @@ app:
     expiration-minutes: 60
   mail:
     from: ${MAIL_FROM:no-reply@offertrack.local}
+  oauth:
+    authorization-request-cookie-signing-secret: ${OAUTH_COOKIE_SECRET:${app.jwt.secret}}
   web-url: ${APP_WEB_URL:http://localhost:3000}

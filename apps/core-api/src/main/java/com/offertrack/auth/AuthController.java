@@ -12,6 +12,8 @@ import com.offertrack.auth.dto.VerifyEmailRequest;
 import com.offertrack.auth.dto.VerifyEmailResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +26,11 @@ public class AuthController {
   public AuthController(AuthService authService, CookieService cookieService) {
     this.authService = authService;
     this.cookieService = cookieService;
+  }
+
+  @GetMapping("/auth/oauth2/google/start")
+  public void startGoogleOAuth(HttpServletResponse response) throws IOException {
+    response.sendRedirect("/oauth2/authorization/google");
   }
 
   @PostMapping("/auth/register")

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.offertrack.applications.ApplicationStage;
+import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.JwtService;
@@ -40,6 +41,8 @@ class DashboardControllerSecurityTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private DashboardService dashboardService;
+  @MockitoBean private AuthService authService;
+  @MockitoBean private CookieService cookieService;
   @MockitoBean private JwtService jwtService;
 
   @BeforeEach
