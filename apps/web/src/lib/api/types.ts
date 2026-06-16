@@ -4,6 +4,7 @@ import {
   applicationWithInterviewsSchema,
   applicationInterviewSchema,
   applicationInterviewsSchema,
+  applicationsPageSchema,
   applicationStageSchema,
   applicationsSchema,
   authResponseSchema,
@@ -36,6 +37,7 @@ export type ApplicationWithInterviews = z.infer<
   typeof applicationWithInterviewsSchema
 >;
 export type Applications = z.infer<typeof applicationsSchema>;
+export type ApplicationsPage = z.infer<typeof applicationsPageSchema>;
 export type ApplicationInterview = z.infer<typeof applicationInterviewSchema>;
 export type ApplicationInterviews = z.infer<typeof applicationInterviewsSchema>;
 export type DashboardApplicationItem = z.infer<
@@ -99,6 +101,24 @@ export type ReplaceApplicationRequest = {
 
 export type UpdateApplicationStageRequest = {
   stage: ApplicationStage;
+};
+
+export type ApplicationSortField =
+  | "updatedAt"
+  | "createdAt"
+  | "companyName"
+  | "positionTitle"
+  | "stage";
+
+export type SortDirection = "asc" | "desc";
+
+export type ApplicationsListParams = {
+  page: number;
+  size: number;
+  search: string;
+  stage: ApplicationStage | null;
+  sort: ApplicationSortField;
+  direction: SortDirection;
 };
 
 export type CreateApplicationInterviewItemRequest = {

@@ -108,6 +108,14 @@ export const applicationSchema = z.object({
 
 export const applicationsSchema = z.array(applicationSchema);
 
+export const applicationsPageSchema = z.object({
+  items: applicationsSchema,
+  page: z.number().int().nonnegative(),
+  size: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+});
+
 export const applicationInterviewSchema = z.object({
   id: z.string(),
   applicationId: z.string(),

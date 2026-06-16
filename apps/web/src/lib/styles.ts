@@ -165,7 +165,7 @@ export const modalStyles = {
 
 export const sectionStyles = {
   toolbar:
-    "grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 md:grid-cols-[170px_1fr_210px]",
+    "grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 md:grid-cols-[170px_minmax(0,1fr)_190px_130px]",
   searchIcon:
     "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400",
   softPanel: "rounded-xl border border-zinc-200 bg-zinc-50 p-3",

@@ -37,8 +37,10 @@ export const useApplicationMutations = ({
     onError: (mutationError) => {
       void onMutationError(mutationError);
     },
-    onSettled: () => {
-      invalidateApplicationsFeatureQueries(queryClient);
+    onSettled: (_data, _error, variables) => {
+      invalidateApplicationsFeatureQueries(queryClient, {
+        applicationId: variables?.applicationId,
+      });
     },
   });
 
@@ -48,8 +50,10 @@ export const useApplicationMutations = ({
       onError: (mutationError) => {
         void onMutationError(mutationError);
       },
-      onSettled: () => {
-        invalidateApplicationsFeatureQueries(queryClient);
+      onSettled: (_data, _error, variables) => {
+        invalidateApplicationsFeatureQueries(queryClient, {
+          applicationId: variables?.applicationId,
+        });
       },
     },
   );

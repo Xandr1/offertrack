@@ -1,27 +1,33 @@
 "use client";
 
 import { Input, Select } from "@/components/ui/input";
+import type { ApplicationSortField, SortDirection } from "@/lib/api";
 import { sectionStyles } from "@/lib/styles";
+import { StageFilter } from "../helpers/application-filters";
 import {
-  ApplicationsSort,
-  StageFilter,
-} from "../helpers/application-filters";
-import { sortOptions, stageFilterOptions } from "../helpers/constants";
+  applicationSortFieldOptions,
+  sortDirectionOptions,
+  stageFilterOptions,
+} from "../helpers/constants";
 import { IconSearch } from "./ui-icons";
 
 type ApplicationToolbarProps = {
+  direction: SortDirection;
   searchInput: string;
-  sort: ApplicationsSort;
+  sort: ApplicationSortField;
   stageFilter: StageFilter;
   onSearchInputChange: (value: string) => void;
-  onSortChange: (value: ApplicationsSort) => void;
+  onDirectionChange: (value: SortDirection) => void;
+  onSortChange: (value: ApplicationSortField) => void;
   onStageChange: (value: StageFilter) => void;
 };
 
 export const ApplicationToolbar = ({
+  direction,
   searchInput,
   sort,
   stageFilter,
+  onDirectionChange,
   onSearchInputChange,
   onSortChange,
   onStageChange,
@@ -57,9 +63,27 @@ export const ApplicationToolbar = ({
         <label className="sr-only">Sort</label>
         <Select
           value={sort}
-          onChange={(event) => onSortChange(event.target.value as ApplicationsSort)}
+          onChange={(event) =>
+            onSortChange(event.target.value as ApplicationSortField)
+          }
         >
-          {sortOptions.map((option) => (
+          {applicationSortFieldOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div>
+        <label className="sr-only">Direction</label>
+        <Select
+          value={direction}
+          onChange={(event) =>
+            onDirectionChange(event.target.value as SortDirection)
+          }
+        >
+          {sortDirectionOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

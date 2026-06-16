@@ -1,21 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type {
+  ApplicationSortField,
+  ApplicationStage,
+  ApplicationsListParams,
+  SortDirection,
+} from "@/lib/api";
 import {
-  ApplicationsSort,
   STAGE_FILTER_DEFAULT,
-  SORT_DEFAULT,
   StageFilter,
+  parseDirectionParam,
+  parsePageParam,
   parseSearchQueryParam,
+  parseSizeParam,
   parseSortParam,
   parseStageFilterParam,
+  toListParams,
+  writeApplicationsListParams,
 } from "../helpers/application-filters";
 
 type SetFiltersInput = {
-  q?: string;
-  sort?: ApplicationsSort;
+  direction?: SortDirection;
+  search?: string;
+  sort?: ApplicationSortField;
   stage?: StageFilter;
+};
+
+const toUrl = (pathname: string, params: URLSearchParams): string => {
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
 };
 
 export const useApplicationsUrlFilters = () => {
@@ -23,10 +38,27 @@ export const useApplicationsUrlFilters = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const page = parsePageParam(searchParams.get("page"));
+  const size = parseSizeParam(searchParams.get("size"));
   const stageFilter = parseStageFilterParam(searchParams.get("stage"));
   const sort = parseSortParam(searchParams.get("sort"));
-  const searchQuery = parseSearchQueryParam(searchParams.get("q"));
+  const direction = parseDirectionParam(searchParams.get("direction"));
+  const searchQuery = parseSearchQueryParam(searchParams.get("search"));
+  const selectedApplicationId = searchParams.get("id")?.trim() || null;
   const [searchInput, setSearchInput] = useState(searchQuery);
+
+  const listParams: ApplicationsListParams = useMemo(
+    () =>
+      toListParams({
+        direction,
+        page,
+        searchQuery,
+        size,
+        sort,
+        stageFilter,
+      }),
+    [direction, page, searchQuery, size, sort, stageFilter],
+  );
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -40,37 +72,64 @@ export const useApplicationsUrlFilters = () => {
     };
   }, [searchQuery]);
 
+  const replaceListParams = useCallback(
+    (nextListParams: ApplicationsListParams) => {
+      const params = new URLSearchParams(searchParams.toString());
+      writeApplicationsListParams(params, nextListParams);
+      router.replace(toUrl(pathname, params), { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   const setFilters = useCallback(
     (nextValues: SetFiltersInput) => {
-      const params = new URLSearchParams(searchParams.toString());
-
       const nextStage = nextValues.stage ?? stageFilter;
-      const nextSort = nextValues.sort ?? sort;
-      const nextQuery = (nextValues.q ?? searchQuery).trim();
+      const nextStageParam =
+        nextStage === STAGE_FILTER_DEFAULT ? null : (nextStage as ApplicationStage);
 
-      if (nextStage === STAGE_FILTER_DEFAULT) {
-        params.delete("stage");
-      } else {
-        params.set("stage", nextStage);
-      }
-
-      if (nextSort === SORT_DEFAULT) {
-        params.delete("sort");
-      } else {
-        params.set("sort", nextSort);
-      }
-
-      if (nextQuery === "") {
-        params.delete("q");
-      } else {
-        params.set("q", nextQuery);
-      }
-
-      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      router.replace(nextUrl, { scroll: false });
+      replaceListParams({
+        direction: nextValues.direction ?? direction,
+        page: 0,
+        search: (nextValues.search ?? searchQuery).trim(),
+        size,
+        sort: nextValues.sort ?? sort,
+        stage: nextStageParam,
+      });
     },
-    [pathname, router, searchParams, searchQuery, sort, stageFilter],
+    [
+      direction,
+      replaceListParams,
+      searchQuery,
+      size,
+      sort,
+      stageFilter,
+    ],
   );
+
+  const setPage = useCallback(
+    (nextPage: number) => {
+      replaceListParams({
+        ...listParams,
+        page: Math.max(0, nextPage),
+      });
+    },
+    [listParams, replaceListParams],
+  );
+
+  const setSelectedApplicationId = useCallback(
+    (applicationId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("id", applicationId);
+      router.replace(toUrl(pathname, params), { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const clearSelectedApplicationId = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("id");
+    router.replace(toUrl(pathname, params), { scroll: false });
+  }, [pathname, router, searchParams]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -78,7 +137,7 @@ export const useApplicationsUrlFilters = () => {
         return;
       }
 
-      setFilters({ q: searchInput });
+      setFilters({ search: searchInput });
     }, 300);
 
     return () => {
@@ -87,10 +146,18 @@ export const useApplicationsUrlFilters = () => {
   }, [searchInput, searchQuery, setFilters]);
 
   return {
+    clearSelectedApplicationId,
+    direction,
+    listParams,
+    page,
     searchInput,
     searchQuery,
+    selectedApplicationId,
     setFilters,
+    setPage,
     setSearchInput,
+    setSelectedApplicationId,
+    size,
     sort,
     stageFilter,
   };

@@ -2,12 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { listApplications } from "@/lib/api";
+import type { ApplicationsListParams } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-export const useApplicationsQuery = () => {
+export const useApplicationsQuery = (params: ApplicationsListParams) => {
   return useQuery({
-    queryFn: listApplications,
-    queryKey: queryKeys.applications.list(),
+    queryFn: () => listApplications(params),
+    queryKey: queryKeys.applications.list(params),
     retry: false,
   });
 };

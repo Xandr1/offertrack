@@ -1,5 +1,6 @@
 package com.offertrack.applications;
 
+import com.offertrack.applications.dto.ApplicationListResponse;
 import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.applications.dto.ApplicationWithInterviewsResponse;
 import com.offertrack.applications.dto.CreateApplicationInterviewItemRequest;
@@ -68,8 +69,13 @@ public class ApplicationService {
         storedInterviews.stream().map(ApplicationInterviewResponseMapper::toResponse).toList());
   }
 
-  public List<ApplicationResponse> list(UUID userId) {
-    List<Application> applications = applicationRepository.listByUser(userId);
+  public ApplicationListResponse list(UUID userId) {
+    return list(userId, ApplicationListQuery.defaults());
+  }
+
+  public ApplicationListResponse list(UUID userId, ApplicationListQuery query) {
+    ApplicationListPage page = applicationRepository.listByUser(userId, query);
+    List<Application> applications = page.items();
     List<UUID> applicationIds = applications.stream().map(Application::id).toList();
 
     Map<UUID, ApplicationInterview> nextInterviewByApplicationId =
@@ -78,13 +84,25 @@ public class ApplicationService {
             : applicationInterviewRepository.findNextByApplicationIdsForUser(
                 userId, applicationIds);
 
-    return applications.stream()
-        .map(
-            application ->
-                ApplicationResponseMapper.toResponse(
-                    application,
-                    toNextInterviewResponse(nextInterviewByApplicationId.get(application.id()))))
-        .toList();
+    List<ApplicationResponse> items =
+        applications.stream()
+            .map(
+                application ->
+                    ApplicationResponseMapper.toResponse(
+                        application,
+                        toNextInterviewResponse(
+                            nextInterviewByApplicationId.get(application.id()))))
+            .toList();
+
+    return new ApplicationListResponse(
+        items, page.page(), page.size(), page.totalItems(), page.totalPages());
+  }
+
+  public ApplicationResponse get(UUID userId, UUID applicationId) {
+    Application application = ensureApplicationExistsForUser(userId, applicationId);
+    NextInterviewResponse nextInterview = loadNextInterview(userId, applicationId);
+
+    return ApplicationResponseMapper.toResponse(application, nextInterview);
   }
 
   public void delete(UUID userId, UUID applicationId) {

@@ -37,6 +37,9 @@ export type DashboardActionModuleProps =
   | DashboardApplicationModuleProps
   | DashboardInterviewModuleProps;
 
+const applicationHref = (applicationId: string): string =>
+  `/applications?id=${encodeURIComponent(applicationId)}`;
+
 export const DashboardActionModule = (props: DashboardActionModuleProps) => {
   const { count, helperText, isLoading, title, viewAllHref } = props;
 
@@ -119,7 +122,10 @@ const ApplicationActionItem = ({ item }: ApplicationActionItemProps) => {
         </p>
       )}
 
-      <DashboardItemActions jobUrl={item.jobUrl} />
+      <DashboardItemActions
+        applicationId={item.applicationId}
+        jobUrl={item.jobUrl}
+      />
     </li>
   );
 };
@@ -159,19 +165,29 @@ const InterviewActionItem = ({ item }: InterviewActionItemProps) => {
         </p>
       )}
 
-      <DashboardItemActions jobUrl={item.jobUrl} />
+      <DashboardItemActions
+        applicationId={item.applicationId}
+        jobUrl={item.jobUrl}
+      />
     </li>
   );
 };
 
 type DashboardItemActionsProps = {
+  applicationId: string;
   jobUrl: string | null;
 };
 
-const DashboardItemActions = ({ jobUrl }: DashboardItemActionsProps) => {
+const DashboardItemActions = ({
+  applicationId,
+  jobUrl,
+}: DashboardItemActionsProps) => {
   return (
     <div className="mt-4 flex min-h-6 items-center gap-4 border-t border-zinc-100 pt-3">
-      <Link className={`${buttonStyles.link} whitespace-nowrap`} href="/applications">
+      <Link
+        className={`${buttonStyles.link} whitespace-nowrap`}
+        href={applicationHref(applicationId)}
+      >
         View in applications
       </Link>
       {jobUrl && (

@@ -10,6 +10,7 @@ import {
 import { ApplicationModal } from "./components/application-modal";
 import { ApplicationModalBody } from "./components/application-modal-body";
 import { ApplicationToolbar } from "./components/application-toolbar";
+import { ApplicationsPagination } from "./components/applications-pagination";
 import { ApplicationsList } from "./components/applications-list";
 import { DeleteApplicationConfirmModal } from "./components/delete-application-confirm-modal";
 import { IconPlus } from "./components/ui-icons";
@@ -43,9 +44,13 @@ const ApplicationsPage = () => {
 
       <div className={layoutStyles.section}>
         <ApplicationToolbar
+          direction={controller.direction}
           searchInput={controller.searchInput}
           sort={controller.sort}
           stageFilter={controller.stageFilter}
+          onDirectionChange={(value) =>
+            controller.setFilters({ direction: value })
+          }
           onSearchInputChange={controller.setSearchInput}
           onSortChange={(value) => controller.setFilters({ sort: value })}
           onStageChange={(value) => controller.setFilters({ stage: value })}
@@ -58,9 +63,23 @@ const ApplicationsPage = () => {
         </section>
       )}
 
+      {controller.applicationDetailStatusMessage && (
+        <section className="mt-5">
+          {controller.applicationDetailStatusKind === "error" ? (
+            <div className={formStyles.error}>
+              {controller.applicationDetailStatusMessage}
+            </div>
+          ) : (
+            <p className={textStyles.muted}>
+              {controller.applicationDetailStatusMessage}
+            </p>
+          )}
+        </section>
+      )}
+
       <section className={layoutStyles.section}>
         <ApplicationsList
-          applications={controller.filteredApplications}
+          applications={controller.applications}
           deletingApplicationId={
             controller.deleteApplicationMutation.isPending
               ? controller.deletingApplicationId
@@ -87,6 +106,11 @@ const ApplicationsPage = () => {
               ? controller.stageUpdatingApplicationId
               : undefined
           }
+        />
+        <ApplicationsPagination
+          page={controller.page}
+          totalPages={controller.totalPages}
+          onPageChange={controller.setPage}
         />
       </section>
 
