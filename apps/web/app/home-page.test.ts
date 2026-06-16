@@ -53,6 +53,16 @@ describe("HomeClient", () => {
     ).toBeTruthy();
     expect(screen.queryByText("Unauthorized")).toBeNull();
   });
+
+  it("renders the landing page while the session check is pending", () => {
+    mockedGetCurrentUser.mockReturnValueOnce(
+      new Promise<Awaited<ReturnType<typeof getCurrentUser>>>(() => undefined),
+    );
+
+    renderWithQueryClient(React.createElement(HomeClient));
+
+    expect(screen.getByRole("heading", { name: LANDING_HEADLINE })).toBeTruthy();
+  });
 });
 
 const renderWithQueryClient = (ui: React.ReactElement) => {

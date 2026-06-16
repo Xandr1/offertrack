@@ -3,7 +3,7 @@ import { buttonStyles, formStyles } from "@/lib/styles";
 
 const buttonVariantClassNames = {
   primary: formStyles.primaryButton,
-  primarySoft: formStyles.inlinePrimarySoftButton,
+  primarySoft: buttonStyles.primarySoft,
   secondary: buttonStyles.secondary,
   danger: buttonStyles.danger,
   secondarySoft: buttonStyles.secondarySoft,
