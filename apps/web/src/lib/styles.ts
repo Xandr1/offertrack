@@ -35,23 +35,41 @@ export const layoutStyles = {
 };
 
 export const homeStyles = {
-  root:
-    "flex flex-1 flex-col items-center justify-center bg-zinc-50 dark:bg-black",
-  main:
-    "flex w-full max-w-3xl flex-1 flex-col items-center justify-between bg-white px-16 py-32 dark:bg-black sm:items-start",
-  invertOnDark: "dark:invert",
-  intro:
-    "flex flex-col items-center gap-6 text-center sm:items-start sm:text-left",
+  root: "min-h-screen bg-zinc-50 text-zinc-950",
+  page:
+    "mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8",
+  header:
+    "flex items-center justify-between border-b border-zinc-200 pb-5",
+  brand: "flex items-center gap-3 text-sm font-bold text-zinc-950",
+  logo: "h-10 w-10",
+  hero:
+    "mx-auto flex w-full max-w-3xl flex-col items-center py-12 text-center md:py-16",
+  eyebrow:
+    "rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-violet-700",
   title:
-    "max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50",
+    "mt-5 text-4xl font-bold leading-tight text-zinc-950 sm:text-5xl",
   description:
-    "max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400",
-  strongLink: "font-medium text-zinc-950 dark:text-zinc-50",
-  actions: "flex flex-col gap-4 text-base font-medium sm:flex-row",
-  primaryAction:
-    "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]",
-  secondaryAction:
-    "flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]",
+    "mt-5 max-w-2xl text-base leading-7 text-zinc-700 sm:text-lg",
+  actions: "mt-8 flex w-full flex-col gap-3 sm:w-auto sm:flex-row",
+  ctaLink: "w-full px-5 sm:w-auto",
+  section: "pb-10",
+  sectionHeader: "mx-auto max-w-2xl text-center",
+  sectionTitle: "text-2xl font-semibold tracking-tight text-zinc-950",
+  sectionIntro: "mb-3 mt-2 text-sm leading-6 text-zinc-700",
+  stepsGrid: "mt-5 grid gap-4 md:grid-cols-3",
+  stepCard: "h-full",
+  stepNumber:
+    "flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-violet-700",
+  stepTitle: "mt-4 text-base font-semibold text-zinc-950",
+  stepDescription: "mt-2 text-sm leading-6 text-zinc-700",
+  features: "grid gap-4 pb-10 sm:grid-cols-2 lg:grid-cols-4",
+  featureCard: "h-full",
+  featureIcon:
+    "mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-700",
+  featureTitle: "text-base font-semibold text-zinc-950",
+  featureDescription: "mt-3 text-sm leading-6 text-zinc-700",
+  footer:
+    "border-t border-zinc-200 py-5 text-center text-xs font-medium text-zinc-500",
 };
 
 export const cardStyles = {
@@ -96,8 +114,6 @@ export const formStyles = {
     "w-40 rounded-lg border border-zinc-300 bg-white pb-[5px] pl-3 pr-[5px] pt-[5px] text-sm font-medium text-zinc-900 shadow-sm outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-100",
   primaryButton:
     "w-full rounded-xl bg-zinc-950 px-4 py-2 font-medium text-white disabled:opacity-60",
-  inlinePrimarySoftButton:
-    "inline-flex h-10 items-center justify-center rounded-lg bg-violet-700 px-4 text-sm font-medium text-white shadow-sm shadow-violet-900/10 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60",
   error:
     "rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700",
 };
@@ -107,6 +123,8 @@ export const buttonStyles = {
     "rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-50",
   danger:
     "rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50",
+  primarySoft:
+    "inline-flex h-10 items-center justify-center rounded-lg bg-violet-700 px-4 text-sm font-medium text-white shadow-sm shadow-violet-900/10 transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-60",
   secondarySoft:
     "inline-flex h-10 items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60",
   secondarySoftAccent:
