@@ -201,17 +201,18 @@ class ApplicationServiceTest {
             InterviewType.TECHNICAL,
             InterviewStatus.SCHEDULED);
 
-    when(applicationRepository.listByUser(userId)).thenReturn(List.of(first, second));
+    when(applicationRepository.listByUser(userId, ApplicationListQuery.defaults()))
+        .thenReturn(new ApplicationListPage(List.of(first, second), 0, 20, 2, 1));
     when(applicationInterviewRepository.findNextByApplicationIdsForUser(
             userId, List.of(first.id(), second.id())))
         .thenReturn(Map.of(first.id(), nextInterview));
 
     var response = applicationService.list(userId);
 
-    assertThat(response).hasSize(2);
-    assertThat(response.getFirst().nextInterview()).isNotNull();
-    assertThat(response.getFirst().nextInterview().id()).isEqualTo(nextInterview.id());
-    assertThat(response.get(1).nextInterview()).isNull();
+    assertThat(response.items()).hasSize(2);
+    assertThat(response.items().getFirst().nextInterview()).isNotNull();
+    assertThat(response.items().getFirst().nextInterview().id()).isEqualTo(nextInterview.id());
+    assertThat(response.items().get(1).nextInterview()).isNull();
     verify(applicationInterviewRepository)
         .findNextByApplicationIdsForUser(userId, List.of(first.id(), second.id()));
     verify(applicationInterviewRepository, never())

@@ -1,4 +1,5 @@
 import {
+  applicationsPageSchema,
   dashboardSummarySchema,
   genericSuccessResponseSchema,
   registerResponseSchema,
@@ -101,6 +102,36 @@ describe("dashboardSummarySchema", () => {
     expect(parsed.followUpAfterInterviewDays).toBe(4);
     expect(parsed.upcomingInterviews[0].interviewType).toBe("technical");
     expect(parsed.interviewsToFollowUp[0].status).toBe("completed");
+  });
+});
+
+describe("applicationsPageSchema", () => {
+  it("parses paginated applications responses", () => {
+    const parsed = applicationsPageSchema.parse({
+      items: [
+        {
+          appliedAt: null,
+          companyName: "Acme",
+          createdAt: "2026-06-01T10:00:00Z",
+          id: "app-1",
+          jobUrl: null,
+          location: null,
+          nextInterview: null,
+          notes: null,
+          positionTitle: "Backend Engineer",
+          stage: "applied",
+          updatedAt: "2026-06-01T10:00:00Z",
+          workMode: null,
+        },
+      ],
+      page: 0,
+      size: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+
+    expect(parsed.items[0].stage).toBe("applied");
+    expect(parsed.totalItems).toBe(1);
   });
 });
 

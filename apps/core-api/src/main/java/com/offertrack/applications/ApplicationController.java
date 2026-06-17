@@ -1,5 +1,6 @@
 package com.offertrack.applications;
 
+import com.offertrack.applications.dto.ApplicationListResponse;
 import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.applications.dto.ApplicationWithInterviewsResponse;
 import com.offertrack.applications.dto.CreateApplicationRequest;
@@ -7,7 +8,6 @@ import com.offertrack.applications.dto.ReplaceApplicationRequest;
 import com.offertrack.applications.dto.UpdateApplicationStageRequest;
 import com.offertrack.auth.CurrentUser;
 import jakarta.validation.Valid;
-import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,8 +39,23 @@ public class ApplicationController {
   }
 
   @GetMapping("/api/applications")
-  public List<ApplicationResponse> list(@AuthenticationPrincipal CurrentUser currentUser) {
-    return applicationService.list(currentUser.id());
+  public ApplicationListResponse list(
+      @AuthenticationPrincipal CurrentUser currentUser,
+      @RequestParam(required = false) Integer page,
+      @RequestParam(required = false) Integer size,
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) String stage,
+      @RequestParam(required = false) String sort,
+      @RequestParam(required = false) String direction) {
+    return applicationService.list(
+        currentUser.id(),
+        ApplicationListQuery.fromRequestParams(page, size, search, stage, sort, direction));
+  }
+
+  @GetMapping("/api/applications/{id}")
+  public ApplicationResponse get(
+      @AuthenticationPrincipal CurrentUser currentUser, @PathVariable UUID id) {
+    return applicationService.get(currentUser.id(), id);
   }
 
   @DeleteMapping("/api/applications/{id}")

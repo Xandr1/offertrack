@@ -111,55 +111,68 @@ export default function DashboardPage() {
         )}
 
         {!summaryQuery.error && (
-          <section className="grid gap-4 xl:grid-cols-2">
-            <DashboardActionModule
-              count={summary?.draftsToApplyCount ?? 0}
-              helperText="Applications still waiting to be applied."
-              isLoading={summaryQuery.isPending}
-              items={summary?.draftsToApply ?? []}
-              kind="applications"
-              title="Drafts to apply"
-              viewAllHref="/applications?stage=initial"
-            />
-            <DashboardActionModule
-              count={summary?.applicationsToFollowUpCount ?? 0}
-              helperText={
-                summary
-                  ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.`
-                  : "Applied applications that may need a follow-up."
-              }
-              isLoading={summaryQuery.isPending}
-              items={summary?.applicationsToFollowUp ?? []}
-              kind="applications"
-              title="Applications to follow up"
-              viewAllHref="/applications?stage=applied"
-            />
-            <DashboardActionModule
-              count={summary?.upcomingInterviewsCount ?? 0}
-              helperText={
-                summary
-                  ? `Scheduled in the next ${summary.upcomingInterviewDays} days.`
-                  : "Scheduled interviews coming up soon."
-              }
-              isLoading={summaryQuery.isPending}
-              items={summary?.upcomingInterviews ?? []}
-              kind="interviews"
-              title="Upcoming interviews"
-              viewAllHref="/applications?stage=interviewing"
-            />
-            <DashboardActionModule
-              count={summary?.interviewsToFollowUpCount ?? 0}
-              helperText={
-                summary
-                  ? `Completed at least ${summary.followUpAfterInterviewDays} days ago.`
-                  : "Completed interviews waiting on next steps."
-              }
-              isLoading={summaryQuery.isPending}
-              items={summary?.interviewsToFollowUp ?? []}
-              kind="interviews"
-              title="Interviews to follow up"
-              viewAllHref="/applications?stage=interviewing"
-            />
+          <section className="flex flex-col gap-4 xl:flex-row xl:items-start">
+            <div className="contents xl:flex xl:flex-1 xl:flex-col xl:gap-4">
+              <div className="order-1 xl:order-none">
+                <DashboardActionModule
+                  count={summary?.draftsToApplyCount ?? 0}
+                  helperText="Applications still waiting to be applied."
+                  isLoading={summaryQuery.isPending}
+                  items={summary?.draftsToApply ?? []}
+                  kind="applications"
+                  title="Drafts to apply"
+                  viewAllHref="/applications?stage=initial"
+                />
+              </div>
+              <div className="order-3 xl:order-none">
+                <DashboardActionModule
+                  count={summary?.upcomingInterviewsCount ?? 0}
+                  helperText={
+                    summary
+                      ? `Scheduled in the next ${summary.upcomingInterviewDays} days.`
+                      : "Scheduled interviews coming up soon."
+                  }
+                  isLoading={summaryQuery.isPending}
+                  items={summary?.upcomingInterviews ?? []}
+                  kind="interviews"
+                  title="Upcoming interviews"
+                  viewAllHref="/applications?stage=interviewing"
+                />
+              </div>
+            </div>
+
+            <div className="contents xl:flex xl:flex-1 xl:flex-col xl:gap-4">
+              <div className="order-2 xl:order-none">
+                <DashboardActionModule
+                  count={summary?.applicationsToFollowUpCount ?? 0}
+                  helperText={
+                    summary
+                      ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.`
+                      : "Applied applications that may need a follow-up."
+                  }
+                  isLoading={summaryQuery.isPending}
+                  items={summary?.applicationsToFollowUp ?? []}
+                  kind="applications"
+                  title="Applications to follow up"
+                  viewAllHref="/applications?stage=applied"
+                />
+              </div>
+              <div className="order-4 xl:order-none">
+                <DashboardActionModule
+                  count={summary?.interviewsToFollowUpCount ?? 0}
+                  helperText={
+                    summary
+                      ? `Completed at least ${summary.followUpAfterInterviewDays} days ago.`
+                      : "Completed interviews waiting on next steps."
+                  }
+                  isLoading={summaryQuery.isPending}
+                  items={summary?.interviewsToFollowUp ?? []}
+                  kind="interviews"
+                  title="Interviews to follow up"
+                  viewAllHref="/applications?stage=interviewing"
+                />
+              </div>
+            </div>
           </section>
         )}
       </div>

@@ -32,7 +32,7 @@ describe("DashboardActionModule", () => {
     expect(html).toContain("Acme");
     expect(html).toContain("Backend Engineer");
     expect(html).toContain("View in applications");
-    expect(html).toContain("href=\"/applications\"");
+    expect(html).toContain("href=\"/applications?id=app-1\"");
     expect(html).toContain("View all");
     expect(html).toContain("href=\"/applications?stage=initial\"");
     expect(html).toContain("Open job post");
@@ -69,6 +69,7 @@ describe("DashboardActionModule", () => {
     expect(html).toContain("Globex");
     expect(html).toContain("Technical");
     expect(html).toContain("Scheduled");
+    expect(html).toContain("href=\"/applications?id=app-2\"");
   });
 
   it("renders empty states", () => {

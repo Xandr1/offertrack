@@ -3,6 +3,8 @@ package com.offertrack;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.offertrack.applications.ApplicationListQuery;
+import com.offertrack.applications.ApplicationNotFoundException;
 import com.offertrack.applications.ApplicationRepository;
 import com.offertrack.applications.ApplicationService;
 import com.offertrack.applications.ApplicationStage;
@@ -19,6 +21,7 @@ import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
 import com.offertrack.users.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
@@ -110,6 +113,214 @@ class ApplicationAggregateServiceIntegrationTest {
     assertThat(replaced.application().jobUrl()).isNull();
     assertThat(applicationRepository.findByIdForUser(applicationId, userId).orElseThrow().jobUrl())
         .isNull();
+  }
+
+  @Test
+  void listUsesDefaultPaginationMetadata() {
+    UUID userId = createUser("list-defaults@example.com");
+    createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Globex", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+
+    var response = applicationService.list(userId);
+
+    assertThat(response.items()).hasSize(2);
+    assertThat(response.page()).isZero();
+    assertThat(response.size()).isEqualTo(20);
+    assertThat(response.totalItems()).isEqualTo(2);
+    assertThat(response.totalPages()).isEqualTo(1);
+  }
+
+  @Test
+  void listReturnsPageSizeMetadata() {
+    UUID userId = createUser("list-page-size@example.com");
+    createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Globex", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+    createApplication(userId, "Initech", "Platform Engineer", ApplicationStage.OFFER);
+
+    var response =
+        applicationService.list(
+            userId, ApplicationListQuery.fromRequestParams(1, 2, null, null, null, null));
+
+    assertThat(response.items()).hasSize(1);
+    assertThat(response.page()).isEqualTo(1);
+    assertThat(response.size()).isEqualTo(2);
+    assertThat(response.totalItems()).isEqualTo(3);
+    assertThat(response.totalPages()).isEqualTo(2);
+  }
+
+  @Test
+  void listReturnsEmptyItemsForBeyondRangePage() {
+    UUID userId = createUser("list-beyond-range@example.com");
+    createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+
+    var response =
+        applicationService.list(
+            userId, ApplicationListQuery.fromRequestParams(3, 1, null, null, null, null));
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.page()).isEqualTo(3);
+    assertThat(response.size()).isEqualTo(1);
+    assertThat(response.totalItems()).isEqualTo(1);
+    assertThat(response.totalPages()).isEqualTo(1);
+  }
+
+  @Test
+  void listReturnsZeroMetadataForEmptyResults() {
+    UUID userId = createUser("list-empty@example.com");
+
+    var response = applicationService.list(userId);
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.totalItems()).isZero();
+    assertThat(response.totalPages()).isZero();
+  }
+
+  @Test
+  void listSearchesCompanyNameCaseInsensitively() {
+    UUID userId = createUser("list-search-company@example.com");
+    createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Globex", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+
+    var response =
+        applicationService.list(
+            userId, ApplicationListQuery.fromRequestParams(0, 20, "  acM  ", null, null, null));
+
+    assertThat(response.items()).extracting("companyName").containsExactly("Acme");
+  }
+
+  @Test
+  void listSearchesPositionTitleCaseInsensitively() {
+    UUID userId = createUser("list-search-title@example.com");
+    createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Globex", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+
+    var response =
+        applicationService.list(
+            userId, ApplicationListQuery.fromRequestParams(0, 20, "front", null, null, null));
+
+    assertThat(response.items()).extracting("positionTitle").containsExactly("Frontend Engineer");
+  }
+
+  @Test
+  void listSearchDoesNotMatchUnrelatedFields() {
+    UUID userId = createUser("list-search-unrelated@example.com");
+    applicationService.create(
+        userId,
+        new CreateApplicationRequest(
+            "Acme",
+            "Backend Engineer",
+            "https://needle.example.com/jobs/1",
+            "Needle City",
+            null,
+            ApplicationStage.APPLIED,
+            "needle notes",
+            null,
+            null));
+
+    var response =
+        applicationService.list(
+            userId, ApplicationListQuery.fromRequestParams(0, 20, "needle", null, null, null));
+
+    assertThat(response.items()).isEmpty();
+    assertThat(response.totalItems()).isZero();
+    assertThat(response.totalPages()).isZero();
+  }
+
+  @Test
+  void listFiltersByStage() {
+    UUID userId = createUser("list-stage@example.com");
+    createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Globex", "Frontend Engineer", ApplicationStage.OFFER);
+
+    var response =
+        applicationService.list(
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, "offer", null, null));
+
+    assertThat(response.items()).extracting("stage").containsExactly(ApplicationStage.OFFER);
+  }
+
+  @Test
+  void listSupportsAllowedSorting() {
+    UUID userId = createUser("list-sort@example.com");
+    createApplication(userId, "Beta", "Analyst", ApplicationStage.APPLIED);
+    createApplication(userId, "Acme", "Engineer", ApplicationStage.INTERVIEWING);
+
+    var companyAsc =
+        applicationService.list(
+            userId,
+            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
+    var titleDesc =
+        applicationService.list(
+            userId,
+            ApplicationListQuery.fromRequestParams(0, 20, null, null, "positionTitle", "desc"));
+
+    assertThat(companyAsc.items()).extracting("companyName").containsExactly("Acme", "Beta");
+    assertThat(titleDesc.items())
+        .extracting("positionTitle")
+        .containsExactly("Engineer", "Analyst");
+  }
+
+  @Test
+  void listUsesIdAsSecondarySortForTiedPrimaryValues() {
+    UUID userId = createUser("list-sort-tie@example.com");
+    UUID firstId = createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    UUID secondId =
+        createApplication(userId, "Acme", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+    UUID thirdId = createApplication(userId, "Acme", "Platform Engineer", ApplicationStage.OFFER);
+    List<UUID> expectedIds =
+        List.of(firstId, secondId, thirdId).stream()
+            .sorted(Comparator.comparing(UUID::toString))
+            .toList();
+
+    var response =
+        applicationService.list(
+            userId,
+            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
+
+    assertThat(response.items().stream().map(item -> item.id()).toList())
+        .containsExactlyElementsOf(expectedIds);
+  }
+
+  @Test
+  void listIsIsolatedByUser() {
+    UUID firstUserId = createUser("list-isolation-1@example.com");
+    UUID secondUserId = createUser("list-isolation-2@example.com");
+    createApplication(firstUserId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    createApplication(secondUserId, "Globex", "Frontend Engineer", ApplicationStage.OFFER);
+
+    var response = applicationService.list(firstUserId);
+
+    assertThat(response.items()).extracting("companyName").containsExactly("Acme");
+    assertThat(response.totalItems()).isEqualTo(1);
+  }
+
+  @Test
+  void getReturnsOwnApplicationById() {
+    UUID userId = createUser("get-own@example.com");
+    UUID applicationId =
+        createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+
+    var response = applicationService.get(userId, applicationId);
+
+    assertThat(response.id()).isEqualTo(applicationId);
+    assertThat(response.companyName()).isEqualTo("Acme");
+  }
+
+  @Test
+  void getReturnsNotFoundForMissingOrForeignApplication() {
+    UUID firstUserId = createUser("get-foreign-1@example.com");
+    UUID secondUserId = createUser("get-foreign-2@example.com");
+    UUID foreignApplicationId =
+        createApplication(secondUserId, "Globex", "Frontend Engineer", ApplicationStage.OFFER);
+
+    assertThatThrownBy(() -> applicationService.get(firstUserId, UUID.randomUUID()))
+        .isInstanceOf(ApplicationNotFoundException.class)
+        .extracting(error -> ((DomainException) error).code())
+        .isEqualTo("APPLICATION_NOT_FOUND");
+    assertThatThrownBy(() -> applicationService.get(firstUserId, foreignApplicationId))
+        .isInstanceOf(ApplicationNotFoundException.class)
+        .extracting(error -> ((DomainException) error).code())
+        .isEqualTo("APPLICATION_NOT_FOUND");
   }
 
   @Test
@@ -497,5 +708,16 @@ class ApplicationAggregateServiceIntegrationTest {
 
   private UUID createUser(String email) {
     return userRepository.createUser(email, "hash", "Test User").id();
+  }
+
+  private UUID createApplication(
+      UUID userId, String companyName, String positionTitle, ApplicationStage stage) {
+    return applicationService
+        .create(
+            userId,
+            new CreateApplicationRequest(
+                companyName, positionTitle, null, null, null, stage, null, null, null))
+        .application()
+        .id();
   }
 }

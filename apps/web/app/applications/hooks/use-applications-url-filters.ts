@@ -1,21 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import type {
+  ApplicationSortField,
+  ApplicationStage,
+  ApplicationsListParams,
+  SortDirection,
+} from "@/lib/api";
 import {
-  ApplicationsSort,
   STAGE_FILTER_DEFAULT,
-  SORT_DEFAULT,
   StageFilter,
+  parseDirectionParam,
+  parsePageParam,
   parseSearchQueryParam,
+  parseSizeParam,
   parseSortParam,
   parseStageFilterParam,
+  toListParams,
+  writeApplicationsListParams,
 } from "../helpers/application-filters";
 
 type SetFiltersInput = {
-  q?: string;
-  sort?: ApplicationsSort;
+  direction?: SortDirection;
+  search?: string;
+  sort?: ApplicationSortField;
   stage?: StageFilter;
+};
+
+const toUrl = (pathname: string, params: URLSearchParams): string => {
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+};
+
+const isNonNegativeIntegerParam = (value: string | null): boolean => {
+  if (value === null || value.trim() === "") {
+    return false;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0;
 };
 
 export const useApplicationsUrlFilters = () => {
@@ -23,10 +47,30 @@ export const useApplicationsUrlFilters = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const rawPageParam = searchParams.get("page");
+  const hasInvalidPageParam =
+    searchParams.has("page") && !isNonNegativeIntegerParam(rawPageParam);
+  const page = parsePageParam(rawPageParam);
+  const size = parseSizeParam(searchParams.get("size"));
   const stageFilter = parseStageFilterParam(searchParams.get("stage"));
   const sort = parseSortParam(searchParams.get("sort"));
-  const searchQuery = parseSearchQueryParam(searchParams.get("q"));
+  const direction = parseDirectionParam(searchParams.get("direction"));
+  const searchQuery = parseSearchQueryParam(searchParams.get("search"));
+  const selectedApplicationId = searchParams.get("id")?.trim() || null;
   const [searchInput, setSearchInput] = useState(searchQuery);
+
+  const listParams: ApplicationsListParams = useMemo(
+    () =>
+      toListParams({
+        direction,
+        page,
+        searchQuery,
+        size,
+        sort,
+        stageFilter,
+      }),
+    [direction, page, searchQuery, size, sort, stageFilter],
+  );
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -40,57 +84,86 @@ export const useApplicationsUrlFilters = () => {
     };
   }, [searchQuery]);
 
-  const setFilters = useCallback(
-    (nextValues: SetFiltersInput) => {
+  const replaceListParams = useCallback(
+    (nextListParams: ApplicationsListParams) => {
       const params = new URLSearchParams(searchParams.toString());
-
-      const nextStage = nextValues.stage ?? stageFilter;
-      const nextSort = nextValues.sort ?? sort;
-      const nextQuery = (nextValues.q ?? searchQuery).trim();
-
-      if (nextStage === STAGE_FILTER_DEFAULT) {
-        params.delete("stage");
-      } else {
-        params.set("stage", nextStage);
-      }
-
-      if (nextSort === SORT_DEFAULT) {
-        params.delete("sort");
-      } else {
-        params.set("sort", nextSort);
-      }
-
-      if (nextQuery === "") {
-        params.delete("q");
-      } else {
-        params.set("q", nextQuery);
-      }
-
-      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-      router.replace(nextUrl, { scroll: false });
+      writeApplicationsListParams(params, nextListParams);
+      router.replace(toUrl(pathname, params), { scroll: false });
     },
-    [pathname, router, searchParams, searchQuery, sort, stageFilter],
+    [pathname, router, searchParams],
   );
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchInput === searchQuery) {
-        return;
-      }
+  const setFilters = useCallback(
+    (nextValues: SetFiltersInput) => {
+      const nextStage = nextValues.stage ?? stageFilter;
+      const nextStageParam =
+        nextStage === STAGE_FILTER_DEFAULT ? null : (nextStage as ApplicationStage);
 
-      setFilters({ q: searchInput });
-    }, 300);
+      replaceListParams({
+        direction: nextValues.direction ?? direction,
+        page: 0,
+        search: (nextValues.search ?? searchQuery).trim(),
+        size,
+        sort: nextValues.sort ?? sort,
+        stage: nextStageParam,
+      });
+    },
+    [
+      direction,
+      replaceListParams,
+      searchQuery,
+      size,
+      sort,
+      stageFilter,
+    ],
+  );
 
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [searchInput, searchQuery, setFilters]);
+  const setPage = useCallback(
+    (nextPage: number) => {
+      replaceListParams({
+        ...listParams,
+        page: Math.max(0, nextPage),
+      });
+    },
+    [listParams, replaceListParams],
+  );
+
+  const clearPageParam = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("page");
+    router.replace(toUrl(pathname, params), { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  const setSelectedApplicationId = useCallback(
+    (applicationId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("id", applicationId);
+      router.replace(toUrl(pathname, params), { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const clearSelectedApplicationId = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("id");
+    router.replace(toUrl(pathname, params), { scroll: false });
+  }, [pathname, router, searchParams]);
 
   return {
+    clearPageParam,
+    clearSelectedApplicationId,
+    direction,
+    hasInvalidPageParam,
+    listParams,
+    page,
     searchInput,
     searchQuery,
+    selectedApplicationId,
     setFilters,
+    setPage,
     setSearchInput,
+    setSelectedApplicationId,
+    size,
     sort,
     stageFilter,
   };

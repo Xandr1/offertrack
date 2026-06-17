@@ -1,7 +1,9 @@
-import {
+import type {
+  ApplicationSortField,
   ApplicationStage,
   InterviewStatus,
   InterviewType,
+  SortDirection,
   WorkMode,
 } from "@/lib/api";
 import {
@@ -54,9 +56,21 @@ export const interviewStatuses: InterviewStatus[] = [
   "rejected",
 ];
 
-export const sortOptions = [
-  { label: "Newest updated", value: "updated_desc" },
-  { label: "Oldest updated", value: "updated_asc" },
-  { label: "Newest created", value: "created_desc" },
-  { label: "Oldest created", value: "created_asc" },
-] as const;
+export const applicationSortFieldOptions: Array<{
+  label: string;
+  value: ApplicationSortField;
+}> = [
+  { label: "Updated", value: "updatedAt" },
+  { label: "Created", value: "createdAt" },
+  { label: "Company", value: "companyName" },
+  { label: "Position", value: "positionTitle" },
+  { label: "Stage", value: "stage" },
+];
+
+export const sortDirectionOptions: Array<{
+  label: string;
+  value: SortDirection;
+}> = [
+  { label: "Descending", value: "desc" },
+  { label: "Ascending", value: "asc" },
+];

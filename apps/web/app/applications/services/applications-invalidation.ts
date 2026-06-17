@@ -20,6 +20,9 @@ export const invalidateApplicationsFeatureQueries = (
   }
 
   void queryClient.invalidateQueries({
+    queryKey: queryKeys.applications.detail(input.applicationId),
+  });
+  void queryClient.invalidateQueries({
     queryKey: queryKeys.applications.interviews(input.applicationId),
     refetchType: shouldRefetchInterviews ? "active" : "none",
   });

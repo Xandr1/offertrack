@@ -1,23 +1,23 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import {
+import { getErrorMessage } from "@/lib/api";
+import type {
   Application,
   ApplicationStage,
   InterviewStatus,
-  getErrorMessage,
 } from "@/lib/api";
 import {
   getRequestErrorMessage,
   isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
-import { filterAndSortApplications } from "../helpers/application-filters";
 import { useApplicationInterviewsQuery } from "./use-application-interviews-query";
 import { useApplicationModalController } from "./use-application-modal-controller";
 import { useApplicationMutations } from "./use-application-mutations";
+import { useApplicationQuery } from "./use-application-query";
 import { useApplicationSave } from "./use-application-save";
 import { useApplicationsQuery } from "./use-applications-query";
 import { useApplicationsUrlFilters } from "./use-applications-url-filters";
@@ -31,21 +31,39 @@ export const useApplicationsPageController = () => {
   const [applicationToDelete, setApplicationToDelete] = useState<Application | null>(
     null,
   );
+  const openedDetailIdRef = useRef<string | null>(null);
+  const suppressedDetailIdRef = useRef<string | null>(null);
 
   const {
+    clearPageParam,
+    clearSelectedApplicationId,
+    direction,
+    hasInvalidPageParam,
+    listParams,
+    page,
     searchInput,
-    searchQuery,
+    selectedApplicationId,
     setFilters,
+    setPage,
     setSearchInput,
+    setSelectedApplicationId,
     sort,
     stageFilter,
   } = useApplicationsUrlFilters();
   const modalController = useApplicationModalController();
-  const applicationsQuery = useApplicationsQuery();
+  const applicationsQuery = useApplicationsQuery(listParams);
+  const applicationDetailQuery = useApplicationQuery(
+    selectedApplicationId,
+    selectedApplicationId !== null,
+  );
   const interviewsQuery = useApplicationInterviewsQuery(
     modalController.selectedApplicationId,
     modalController.isApplicationModalOpen && modalController.isEditMode,
   );
+
+  const clearPageError = useCallback(() => {
+    setPageError(null);
+  }, []);
 
   useEffect(() => {
     if (!applicationsQuery.error) {
@@ -54,6 +72,71 @@ export const useApplicationsPageController = () => {
 
     void redirectToLoginIfProtectedRoute(applicationsQuery.error, router);
   }, [applicationsQuery.error, router]);
+
+  useEffect(() => {
+    if (!applicationsQuery.data) {
+      return;
+    }
+
+    const totalPages = applicationsQuery.data.totalPages;
+    const isOutOfRangePage = totalPages > 0 && page >= totalPages;
+    const isNonDefaultEmptyPage = totalPages === 0 && page > 0;
+
+    if (!hasInvalidPageParam && !isOutOfRangePage && !isNonDefaultEmptyPage) {
+      return;
+    }
+
+    clearPageParam();
+  }, [applicationsQuery.data, clearPageParam, hasInvalidPageParam, page]);
+
+  useEffect(() => {
+    if (!applicationDetailQuery.error) {
+      return;
+    }
+
+    void redirectToLoginIfProtectedRoute(applicationDetailQuery.error, router);
+  }, [applicationDetailQuery.error, router]);
+
+  useEffect(() => {
+    if (!selectedApplicationId) {
+      openedDetailIdRef.current = null;
+      suppressedDetailIdRef.current = null;
+
+      if (modalController.isEditMode && !modalController.isSaving) {
+        modalController.closeApplicationModal();
+      }
+
+      return;
+    }
+
+    if (suppressedDetailIdRef.current === selectedApplicationId) {
+      return;
+    }
+
+    if (
+      modalController.isEditMode &&
+      modalController.selectedApplicationId !== selectedApplicationId &&
+      !modalController.isSaving
+    ) {
+      modalController.closeApplicationModal();
+    }
+
+    if (
+      !applicationDetailQuery.data ||
+      openedDetailIdRef.current === selectedApplicationId
+    ) {
+      return;
+    }
+
+    clearPageError();
+    modalController.openEditModal(applicationDetailQuery.data);
+    openedDetailIdRef.current = selectedApplicationId;
+  }, [
+    applicationDetailQuery.data,
+    clearPageError,
+    modalController,
+    selectedApplicationId,
+  ]);
 
   useEffect(() => {
     if (
@@ -95,10 +178,6 @@ export const useApplicationsPageController = () => {
     modalController,
   ]);
 
-  const clearPageError = useCallback(() => {
-    setPageError(null);
-  }, []);
-
   const onPageMutationError = useCallback(
     async (error: unknown) => {
       if (await redirectToLoginIfProtectedRoute(error, router)) {
@@ -136,16 +215,36 @@ export const useApplicationsPageController = () => {
 
   const openCreateApplicationModal = useCallback(() => {
     clearPageError();
+    openedDetailIdRef.current = null;
+    if (selectedApplicationId) {
+      suppressedDetailIdRef.current = selectedApplicationId;
+      clearSelectedApplicationId();
+    }
     modalController.openCreateModal();
-  }, [clearPageError, modalController]);
+  }, [
+    clearPageError,
+    clearSelectedApplicationId,
+    modalController,
+    selectedApplicationId,
+  ]);
 
   const openEditApplicationModal = useCallback(
     (application: Application) => {
       clearPageError();
-      modalController.openEditModal(application);
+      suppressedDetailIdRef.current = null;
+      setSelectedApplicationId(application.id);
     },
-    [clearPageError, modalController],
+    [clearPageError, setSelectedApplicationId],
   );
+
+  const submitSearch = useCallback(() => {
+    setFilters({ search: searchInput });
+  }, [searchInput, setFilters]);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput("");
+    setFilters({ search: "" });
+  }, [setFilters, setSearchInput]);
 
   const closeApplicationModal = useCallback(() => {
     if (modalController.isSaving) {
@@ -153,7 +252,12 @@ export const useApplicationsPageController = () => {
     }
 
     modalController.closeApplicationModal();
-  }, [modalController]);
+    openedDetailIdRef.current = null;
+    if (selectedApplicationId) {
+      suppressedDetailIdRef.current = selectedApplicationId;
+      clearSelectedApplicationId();
+    }
+  }, [clearSelectedApplicationId, modalController, selectedApplicationId]);
 
   const handleDeleteRequest = useCallback(
     (application: Application) => {
@@ -171,8 +275,23 @@ export const useApplicationsPageController = () => {
     const applicationId = applicationToDelete.id;
     setApplicationToDelete(null);
     clearPageError();
+
+    if (selectedApplicationId === applicationId) {
+      openedDetailIdRef.current = null;
+      suppressedDetailIdRef.current = selectedApplicationId;
+      modalController.closeApplicationModal();
+      clearSelectedApplicationId();
+    }
+
     deleteApplicationMutation.mutate({ applicationId });
-  }, [applicationToDelete, clearPageError, deleteApplicationMutation]);
+  }, [
+    applicationToDelete,
+    clearPageError,
+    clearSelectedApplicationId,
+    deleteApplicationMutation,
+    modalController,
+    selectedApplicationId,
+  ]);
 
   const handleStageChange = useCallback(
     (application: Application, stage: ApplicationStage) => {
@@ -243,21 +362,22 @@ export const useApplicationsPageController = () => {
         }
 
         modalController.markSaveSucceeded();
+        openedDetailIdRef.current = null;
+        if (selectedApplicationId) {
+          suppressedDetailIdRef.current = selectedApplicationId;
+          clearSelectedApplicationId();
+        }
       } catch {
         // Mutation onError handles UI state side-effects.
       }
     },
-    [modalController, saveApplicationMutation],
+    [
+      clearSelectedApplicationId,
+      modalController,
+      saveApplicationMutation,
+      selectedApplicationId,
+    ],
   );
-
-  const filteredApplications = useMemo(() => {
-    return filterAndSortApplications({
-      applications: applicationsQuery.data ?? [],
-      searchQuery,
-      sort,
-      stageFilter,
-    });
-  }, [applicationsQuery.data, searchQuery, sort, stageFilter]);
 
   const stageUpdatingApplicationId = updateStageMutation.variables?.applicationId;
   const deletingApplicationId = deleteApplicationMutation.variables?.applicationId;
@@ -272,14 +392,27 @@ export const useApplicationsPageController = () => {
     !modalController.interviewsLoadedForEdit;
 
   const isListAuthError = isAuthError(applicationsQuery.error);
+  const isApplicationDetailAuthError = isAuthError(applicationDetailQuery.error);
+  const applicationDetailStatusMessage =
+    selectedApplicationId && applicationDetailQuery.isPending
+      ? "Loading application..."
+      : selectedApplicationId &&
+        applicationDetailQuery.isError &&
+        !isApplicationDetailAuthError
+        ? "Unable to open this application. It may have been deleted or you may not have access."
+        : null;
 
   return {
+    applicationDetailQuery,
+    applicationDetailStatusKind: applicationDetailQuery.isError ? "error" : "loading",
+    applicationDetailStatusMessage,
+    applications: applicationsQuery.data?.items ?? [],
     applicationToDelete,
     applicationsQuery,
     closeApplicationModal,
     deleteApplicationMutation,
     deletingApplicationId,
-    filteredApplications,
+    direction,
     handleDeleteConfirm,
     handleDeleteRequest,
     handleNextInterviewStatusChange,
@@ -292,14 +425,19 @@ export const useApplicationsPageController = () => {
     nextInterviewStatusApplicationId,
     openCreateApplicationModal,
     openEditApplicationModal,
+    page: applicationsQuery.data?.page ?? page,
     pageError,
     searchInput,
+    clearSearch,
     setApplicationToDelete,
     setFilters,
+    setPage,
     setSearchInput,
+    submitSearch,
     sort,
     stageFilter,
     stageUpdatingApplicationId,
+    totalPages: applicationsQuery.data?.totalPages ?? 0,
     updateInterviewStatusMutation,
     updateStageMutation,
     listErrorMessage:

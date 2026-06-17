@@ -2,19 +2,71 @@ import { z } from "zod";
 import { request } from "./client";
 import {
   applicationSchema,
-  applicationsSchema,
+  applicationsPageSchema,
   applicationWithInterviewsSchema,
 } from "./schemas";
-import {
+import type {
   Application,
+  ApplicationsListParams,
+  ApplicationsPage,
   ApplicationWithInterviews,
   CreateApplicationRequest,
   ReplaceApplicationRequest,
   UpdateApplicationStageRequest,
 } from "./types";
 
-export const listApplications = (): Promise<Application[]> => {
-  return request<Application[]>("/api/applications", applicationsSchema);
+export const APPLICATIONS_LIST_DEFAULTS: ApplicationsListParams = {
+  direction: "desc",
+  page: 0,
+  search: "",
+  size: 20,
+  sort: "updatedAt",
+  stage: null,
+};
+
+const buildApplicationsListPath = (params: ApplicationsListParams): string => {
+  const searchParams = new URLSearchParams();
+  const trimmedSearch = params.search.trim();
+
+  if (params.page !== APPLICATIONS_LIST_DEFAULTS.page) {
+    searchParams.set("page", String(params.page));
+  }
+
+  if (params.size !== APPLICATIONS_LIST_DEFAULTS.size) {
+    searchParams.set("size", String(params.size));
+  }
+
+  if (trimmedSearch !== "") {
+    searchParams.set("search", trimmedSearch);
+  }
+
+  if (params.stage !== null) {
+    searchParams.set("stage", params.stage);
+  }
+
+  if (params.sort !== APPLICATIONS_LIST_DEFAULTS.sort) {
+    searchParams.set("sort", params.sort);
+  }
+
+  if (params.direction !== APPLICATIONS_LIST_DEFAULTS.direction) {
+    searchParams.set("direction", params.direction);
+  }
+
+  const query = searchParams.toString();
+  return query ? `/api/applications?${query}` : "/api/applications";
+};
+
+export const listApplications = (
+  params: ApplicationsListParams,
+): Promise<ApplicationsPage> => {
+  return request<ApplicationsPage>(
+    buildApplicationsListPath(params),
+    applicationsPageSchema,
+  );
+};
+
+export const getApplication = (id: string): Promise<Application> => {
+  return request<Application>(`/api/applications/${id}`, applicationSchema);
 };
 
 export const createApplication = (

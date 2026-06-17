@@ -12,12 +12,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.JwtService;
 import com.offertrack.config.SecurityConfig;
 import jakarta.servlet.http.Cookie;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -273,16 +275,84 @@ class ApplicationControllerSecurityTest {
   }
 
   @Test
-  void removedGetByIdEndpointIsNotMapped() throws Exception {
+  void getReturnsApplicationForAuthenticatedUser() throws Exception {
     UUID applicationId = UUID.randomUUID();
+    when(applicationService.get(AUTHENTICATED_USER_ID, applicationId))
+        .thenReturn(sampleApplicationResponse(applicationId));
 
     mockMvc
         .perform(get("/api/applications/{id}", applicationId).cookie(accessTokenCookie()))
-        .andExpect(status().is4xxClientError());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(applicationId.toString()))
+        .andExpect(jsonPath("$.companyName").value("Acme"))
+        .andExpect(jsonPath("$.positionTitle").value("Backend Engineer"));
+  }
+
+  @Test
+  void getReturnsNotFoundWhenServiceThrowsNotFound() throws Exception {
+    UUID applicationId = UUID.randomUUID();
+    when(applicationService.get(AUTHENTICATED_USER_ID, applicationId))
+        .thenThrow(new ApplicationNotFoundException());
+
+    mockMvc
+        .perform(get("/api/applications/{id}", applicationId).cookie(accessTokenCookie()))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"))
+        .andExpect(jsonPath("$.path").value("/api/applications/" + applicationId));
+  }
+
+  @Test
+  void getReturnsBadRequestForInvalidPathType() throws Exception {
+    mockMvc
+        .perform(get("/api/applications/{id}", "not-a-uuid").cookie(accessTokenCookie()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.path").value("/api/applications/not-a-uuid"));
+  }
+
+  @Test
+  void listReturnsBadRequestForInvalidParams() throws Exception {
+    expectInvalidListParam("page", "-1");
+    expectInvalidListParam("size", "0");
+    expectInvalidListParam("size", "101");
+    expectInvalidListParam("stage", "");
+    expectInvalidListParam("stage", "unknown");
+    expectInvalidListParam("sort", "");
+    expectInvalidListParam("sort", "notes");
+    expectInvalidListParam("direction", "");
+    expectInvalidListParam("direction", "sideways");
   }
 
   private static Cookie accessTokenCookie() {
     return new Cookie(CookieService.ACCESS_TOKEN_COOKIE_NAME, TEST_TOKEN);
+  }
+
+  private static ApplicationResponse sampleApplicationResponse(UUID id) {
+    OffsetDateTime now = OffsetDateTime.parse("2026-05-01T10:15:00Z");
+
+    return new ApplicationResponse(
+        id,
+        "Acme",
+        "Backend Engineer",
+        null,
+        "Warsaw",
+        "hybrid",
+        ApplicationStage.APPLIED,
+        null,
+        null,
+        now,
+        now,
+        null);
+  }
+
+  private void expectInvalidListParam(String name, String value) throws Exception {
+    mockMvc
+        .perform(get("/api/applications").param(name, value).cookie(accessTokenCookie()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.path").value("/api/applications"));
   }
 
   private void expectPutJobUrlValidationError(String jobUrl) throws Exception {

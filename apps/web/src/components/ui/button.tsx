@@ -21,6 +21,8 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
 };
 
+const baseButtonClassName = "cursor-pointer disabled:cursor-not-allowed";
+
 export const Button = ({
   className,
   type,
@@ -29,7 +31,9 @@ export const Button = ({
 }: ButtonProps) => (
   <button
     {...props}
-    className={[buttonVariantClassNames[variant], className].filter(Boolean).join(" ")}
+    className={[baseButtonClassName, buttonVariantClassNames[variant], className]
+      .filter(Boolean)
+      .join(" ")}
     type={type ?? "button"}
   />
 );

@@ -1,127 +1,58 @@
-import { Application } from "@/lib/api";
 import {
-  filterAndSortApplications,
+  parseDirectionParam,
+  parsePageParam,
   parseSearchQueryParam,
+  parseSizeParam,
   parseSortParam,
   parseStageFilterParam,
+  writeApplicationsListParams,
 } from "./application-filters";
 
-const baseApplication = (overrides: Partial<Application>): Application => ({
-  appliedAt: null,
-  companyName: "Company",
-  createdAt: "2026-01-01T00:00:00.000Z",
-  id: "app",
-  jobUrl: null,
-  location: null,
-  nextInterview: null,
-  notes: null,
-  positionTitle: "Engineer",
-  stage: "initial",
-  updatedAt: "2026-01-01T00:00:00.000Z",
-  workMode: null,
-  ...overrides,
-});
-
 describe("application-filters", () => {
-  it("parses stage and sort params with defaults", () => {
+  it("parses list query params with defaults", () => {
     expect(parseStageFilterParam("offer")).toBe("offer");
     expect(parseStageFilterParam("invalid")).toBe("all");
-    expect(parseSortParam("created_asc")).toBe("created_asc");
-    expect(parseSortParam("invalid")).toBe("updated_desc");
+    expect(parseSortParam("companyName")).toBe("companyName");
+    expect(parseSortParam("invalid")).toBe("updatedAt");
+    expect(parseDirectionParam("asc")).toBe("asc");
+    expect(parseDirectionParam("invalid")).toBe("desc");
+    expect(parsePageParam("2")).toBe(2);
+    expect(parsePageParam("-1")).toBe(0);
+    expect(parseSizeParam("50")).toBe(50);
+    expect(parseSizeParam("101")).toBe(20);
     expect(parseSearchQueryParam("  acme  ")).toBe("acme");
     expect(parseSearchQueryParam(null)).toBe("");
   });
 
-  it("filters by stage and search query", () => {
-    const applications = [
-      baseApplication({
-        companyName: "Acme",
-        id: "1",
-        positionTitle: "Frontend Engineer",
-        stage: "interviewing",
-      }),
-      baseApplication({
-        companyName: "Beta",
-        id: "2",
-        positionTitle: "Data Analyst",
-        stage: "offer",
-      }),
-    ];
+  it("omits default list query params when writing URLs", () => {
+    const params = new URLSearchParams("id=app-1");
 
-    const result = filterAndSortApplications({
-      applications,
-      searchQuery: "front",
-      sort: "updated_desc",
-      stageFilter: "interviewing",
+    writeApplicationsListParams(params, {
+      direction: "desc",
+      page: 0,
+      search: "",
+      size: 20,
+      sort: "updatedAt",
+      stage: null,
     });
 
-    expect(result.map((item) => item.id)).toEqual(["1"]);
+    expect(params.toString()).toBe("id=app-1");
   });
 
-  it("does not include jobUrl in search matching", () => {
-    const applications = [
-      baseApplication({
-        companyName: "Acme",
-        id: "1",
-        jobUrl: "https://example.com/frontend-engineer",
-        positionTitle: "Backend Engineer",
-      }),
-    ];
+  it("writes non-default list query params while preserving unrelated params", () => {
+    const params = new URLSearchParams("id=app-1");
 
-    const result = filterAndSortApplications({
-      applications,
-      searchQuery: "frontend",
-      sort: "updated_desc",
-      stageFilter: "all",
+    writeApplicationsListParams(params, {
+      direction: "asc",
+      page: 2,
+      search: " acme ",
+      size: 50,
+      sort: "companyName",
+      stage: "applied",
     });
 
-    expect(result).toEqual([]);
-  });
-
-  it("sorts applications according to selected mode", () => {
-    const applications = [
-      baseApplication({
-        createdAt: "2026-01-01T00:00:00.000Z",
-        id: "1",
-        updatedAt: "2026-01-03T00:00:00.000Z",
-      }),
-      baseApplication({
-        createdAt: "2026-01-03T00:00:00.000Z",
-        id: "2",
-        updatedAt: "2026-01-02T00:00:00.000Z",
-      }),
-      baseApplication({
-        createdAt: "2026-01-02T00:00:00.000Z",
-        id: "3",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      }),
-    ];
-
-    expect(
-      filterAndSortApplications({
-        applications,
-        searchQuery: "",
-        sort: "updated_desc",
-        stageFilter: "all",
-      }).map((item) => item.id),
-    ).toEqual(["1", "2", "3"]);
-
-    expect(
-      filterAndSortApplications({
-        applications,
-        searchQuery: "",
-        sort: "updated_asc",
-        stageFilter: "all",
-      }).map((item) => item.id),
-    ).toEqual(["3", "2", "1"]);
-
-    expect(
-      filterAndSortApplications({
-        applications,
-        searchQuery: "",
-        sort: "created_desc",
-        stageFilter: "all",
-      }).map((item) => item.id),
-    ).toEqual(["2", "3", "1"]);
+    expect(params.toString()).toBe(
+      "id=app-1&page=2&size=50&search=acme&stage=applied&sort=companyName&direction=asc",
+    );
   });
 });
