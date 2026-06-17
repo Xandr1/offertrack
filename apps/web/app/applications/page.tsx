@@ -51,7 +51,9 @@ const ApplicationsPage = () => {
           onDirectionChange={(value) =>
             controller.setFilters({ direction: value })
           }
+          onSearchClear={controller.clearSearch}
           onSearchInputChange={controller.setSearchInput}
+          onSearchSubmit={controller.submitSearch}
           onSortChange={(value) => controller.setFilters({ sort: value })}
           onStageChange={(value) => controller.setFilters({ stage: value })}
         />

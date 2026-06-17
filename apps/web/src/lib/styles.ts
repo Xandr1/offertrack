@@ -155,10 +155,12 @@ export const modalStyles = {
     "w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl",
   softHeader:
     "flex items-start justify-between gap-4 border-b border-zinc-200 px-6 py-4",
+  compactHeader:
+    "flex items-start justify-between gap-4 px-6 py-4",
   softBody: "max-h-[82vh] overflow-y-auto px-6 pb-0 pt-4",
   compactBody: "px-6 py-4",
   softFooterBleedCompact:
-    "-mx-6 -mb-4 flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4",
+    "flex items-center justify-end gap-3 pt-1",
   softFooterBleed:
     "sticky bottom-0 -mx-6 mt-3 flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4",
 };
@@ -168,6 +170,10 @@ export const sectionStyles = {
     "grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 md:grid-cols-[170px_minmax(0,1fr)_190px_130px]",
   searchIcon:
     "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400",
+  searchIconButton:
+    "absolute left-1.5 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950",
+  clearSearchButton:
+    "absolute right-1.5 top-1/2 z-10 inline-flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950",
   softPanel: "rounded-xl border border-zinc-200 bg-zinc-50 p-3",
   accentPanel:
     "space-y-3 rounded-2xl border-2 border-violet-100/80 p-3.5",

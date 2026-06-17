@@ -1,5 +1,6 @@
 "use client";
 
+import { FormEvent } from "react";
 import { Input, Select } from "@/components/ui/input";
 import type { ApplicationSortField, SortDirection } from "@/lib/api";
 import { sectionStyles } from "@/lib/styles";
@@ -9,7 +10,7 @@ import {
   sortDirectionOptions,
   stageFilterOptions,
 } from "../helpers/constants";
-import { IconSearch } from "./ui-icons";
+import { IconClose, IconSearch } from "./ui-icons";
 
 type ApplicationToolbarProps = {
   direction: SortDirection;
@@ -17,6 +18,8 @@ type ApplicationToolbarProps = {
   sort: ApplicationSortField;
   stageFilter: StageFilter;
   onSearchInputChange: (value: string) => void;
+  onSearchClear: () => void;
+  onSearchSubmit: () => void;
   onDirectionChange: (value: SortDirection) => void;
   onSortChange: (value: ApplicationSortField) => void;
   onStageChange: (value: StageFilter) => void;
@@ -28,10 +31,17 @@ export const ApplicationToolbar = ({
   sort,
   stageFilter,
   onDirectionChange,
+  onSearchClear,
   onSearchInputChange,
+  onSearchSubmit,
   onSortChange,
   onStageChange,
 }: ApplicationToolbarProps) => {
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onSearchSubmit();
+  };
+
   return (
     <section className={sectionStyles.toolbar}>
       <div>
@@ -48,16 +58,33 @@ export const ApplicationToolbar = ({
         </Select>
       </div>
 
-      <div className="relative">
+      <form className="relative" onSubmit={handleSearchSubmit}>
         <label className="sr-only">Search</label>
-        <IconSearch className={sectionStyles.searchIcon} />
+        <button
+          aria-label="Search applications"
+          className={sectionStyles.searchIconButton}
+          type="submit"
+        >
+          <IconSearch className="h-4 w-4" />
+        </button>
         <Input
+          className="pr-10"
           placeholder="Search company or position..."
           variant="softWithIcon"
           value={searchInput}
           onChange={(event) => onSearchInputChange(event.target.value)}
         />
-      </div>
+        {searchInput.trim() !== "" && (
+          <button
+            aria-label="Clear search"
+            className={sectionStyles.clearSearchButton}
+            type="button"
+            onClick={onSearchClear}
+          >
+            <IconClose className="h-4 w-4" />
+          </button>
+        )}
+      </form>
 
       <div>
         <label className="sr-only">Sort</label>

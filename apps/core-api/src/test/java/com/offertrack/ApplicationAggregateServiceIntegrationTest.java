@@ -21,6 +21,7 @@ import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
 import com.offertrack.users.UserRepository;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
@@ -257,6 +258,27 @@ class ApplicationAggregateServiceIntegrationTest {
     assertThat(titleDesc.items())
         .extracting("positionTitle")
         .containsExactly("Engineer", "Analyst");
+  }
+
+  @Test
+  void listUsesIdAsSecondarySortForTiedPrimaryValues() {
+    UUID userId = createUser("list-sort-tie@example.com");
+    UUID firstId = createApplication(userId, "Acme", "Backend Engineer", ApplicationStage.APPLIED);
+    UUID secondId =
+        createApplication(userId, "Acme", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+    UUID thirdId = createApplication(userId, "Acme", "Platform Engineer", ApplicationStage.OFFER);
+    List<UUID> expectedIds =
+        List.of(firstId, secondId, thirdId).stream()
+            .sorted(Comparator.comparing(UUID::toString))
+            .toList();
+
+    var response =
+        applicationService.list(
+            userId,
+            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
+
+    assertThat(response.items().stream().map(item -> item.id()).toList())
+        .containsExactlyElementsOf(expectedIds);
   }
 
   @Test

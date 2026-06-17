@@ -35,8 +35,10 @@ export const useApplicationsPageController = () => {
   const suppressedDetailIdRef = useRef<string | null>(null);
 
   const {
+    clearPageParam,
     clearSelectedApplicationId,
     direction,
+    hasInvalidPageParam,
     listParams,
     page,
     searchInput,
@@ -70,6 +72,18 @@ export const useApplicationsPageController = () => {
 
     void redirectToLoginIfProtectedRoute(applicationsQuery.error, router);
   }, [applicationsQuery.error, router]);
+
+  useEffect(() => {
+    if (!applicationsQuery.data || applicationsQuery.data.totalPages === 0) {
+      return;
+    }
+
+    if (!hasInvalidPageParam && page < applicationsQuery.data.totalPages) {
+      return;
+    }
+
+    clearPageParam();
+  }, [applicationsQuery.data, clearPageParam, hasInvalidPageParam, page]);
 
   useEffect(() => {
     if (!applicationDetailQuery.error) {
@@ -218,6 +232,15 @@ export const useApplicationsPageController = () => {
     },
     [clearPageError, setSelectedApplicationId],
   );
+
+  const submitSearch = useCallback(() => {
+    setFilters({ search: searchInput });
+  }, [searchInput, setFilters]);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput("");
+    setFilters({ search: "" });
+  }, [setFilters, setSearchInput]);
 
   const closeApplicationModal = useCallback(() => {
     if (modalController.isSaving) {
@@ -401,10 +424,12 @@ export const useApplicationsPageController = () => {
     page: applicationsQuery.data?.page ?? page,
     pageError,
     searchInput,
+    clearSearch,
     setApplicationToDelete,
     setFilters,
     setPage,
     setSearchInput,
+    submitSearch,
     sort,
     stageFilter,
     stageUpdatingApplicationId,

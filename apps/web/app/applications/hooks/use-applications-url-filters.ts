@@ -33,12 +33,24 @@ const toUrl = (pathname: string, params: URLSearchParams): string => {
   return query ? `${pathname}?${query}` : pathname;
 };
 
+const isNonNegativeIntegerParam = (value: string | null): boolean => {
+  if (value === null || value.trim() === "") {
+    return false;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0;
+};
+
 export const useApplicationsUrlFilters = () => {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const page = parsePageParam(searchParams.get("page"));
+  const rawPageParam = searchParams.get("page");
+  const hasInvalidPageParam =
+    searchParams.has("page") && !isNonNegativeIntegerParam(rawPageParam);
+  const page = parsePageParam(rawPageParam);
   const size = parseSizeParam(searchParams.get("size"));
   const stageFilter = parseStageFilterParam(searchParams.get("stage"));
   const sort = parseSortParam(searchParams.get("sort"));
@@ -116,6 +128,12 @@ export const useApplicationsUrlFilters = () => {
     [listParams, replaceListParams],
   );
 
+  const clearPageParam = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("page");
+    router.replace(toUrl(pathname, params), { scroll: false });
+  }, [pathname, router, searchParams]);
+
   const setSelectedApplicationId = useCallback(
     (applicationId: string) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -131,23 +149,11 @@ export const useApplicationsUrlFilters = () => {
     router.replace(toUrl(pathname, params), { scroll: false });
   }, [pathname, router, searchParams]);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (searchInput === searchQuery) {
-        return;
-      }
-
-      setFilters({ search: searchInput });
-    }, 300);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [searchInput, searchQuery, setFilters]);
-
   return {
+    clearPageParam,
     clearSelectedApplicationId,
     direction,
+    hasInvalidPageParam,
     listParams,
     page,
     searchInput,

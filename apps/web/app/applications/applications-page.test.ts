@@ -2,7 +2,7 @@
 
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   getApplication,
@@ -186,20 +186,17 @@ describe("ApplicationsPage", () => {
     });
   });
 
-  it("search resets page and omits default params", async () => {
-    jest.useFakeTimers();
+  it("searches on Enter, resets page, and omits default params", async () => {
     currentUrl = "/applications?page=3";
     installApiMocks();
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const user = userEvent.setup();
     renderPage();
 
     await user.type(
       await screen.findByPlaceholderText("Search company or position..."),
       "acme",
     );
-    act(() => {
-      jest.advanceTimersByTime(300);
-    });
+    await user.keyboard("{Enter}");
 
     await waitFor(() => {
       const url = lastReplaceUrl();
@@ -207,6 +204,55 @@ describe("ApplicationsPage", () => {
       expect(url.searchParams.get("search")).toBe("acme");
       expect(url.searchParams.get("page")).toBeNull();
     });
+  });
+
+  it("searches when the search icon is clicked", async () => {
+    currentUrl = "/applications?page=2";
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(
+      await screen.findByPlaceholderText("Search company or position..."),
+      "globex",
+    );
+    await user.click(screen.getByRole("button", { name: "Search applications" }));
+
+    const url = lastReplaceUrl();
+    expect(url.searchParams.get("search")).toBe("globex");
+    expect(url.searchParams.get("page")).toBeNull();
+  });
+
+  it("clears search and refetches without search params", async () => {
+    currentUrl = "/applications?search=acme&page=3&stage=applied";
+    installApiMocks();
+    const user = userEvent.setup();
+    const view = renderPage();
+
+    await waitFor(() => {
+      expect(mockedListApplications).toHaveBeenCalled();
+    });
+    const initialListCalls = mockedListApplications.mock.calls.length;
+
+    await user.click(await screen.findByRole("button", { name: "Clear search" }));
+
+    const url = lastReplaceUrl();
+    expect(url.searchParams.get("search")).toBeNull();
+    expect(url.searchParams.get("page")).toBeNull();
+    expect(url.searchParams.get("stage")).toBe("applied");
+
+    view.rerenderPage();
+    await waitFor(() => {
+      expect(mockedListApplications.mock.calls.length).toBeGreaterThan(
+        initialListCalls,
+      );
+    });
+    expect(lastListParams()).toEqual(
+      expect.objectContaining({
+        search: "",
+        stage: "applied",
+      }),
+    );
   });
 
   it("stage changes reset page", async () => {
@@ -250,6 +296,67 @@ describe("ApplicationsPage", () => {
     const url = lastReplaceUrl();
     expect(url.searchParams.get("search")).toBe("acme");
     expect(url.searchParams.get("page")).toBe("2");
+  });
+
+  it("removes only page when the current page is out of range", async () => {
+    currentUrl =
+      "/applications?search=acme&stage=applied&page=99&size=10&sort=companyName&direction=asc&id=app-1";
+    installApiMocks({
+      detailMode: "pending",
+      listPage: makePage({
+        items: [],
+        page: 99,
+        size: 10,
+        totalItems: 11,
+        totalPages: 2,
+      }),
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      const url = lastReplaceUrl();
+      expect(url.searchParams.get("page")).toBeNull();
+      expect(url.searchParams.get("search")).toBe("acme");
+      expect(url.searchParams.get("stage")).toBe("applied");
+      expect(url.searchParams.get("size")).toBe("10");
+      expect(url.searchParams.get("sort")).toBe("companyName");
+      expect(url.searchParams.get("direction")).toBe("asc");
+      expect(url.searchParams.get("id")).toBe("app-1");
+    });
+  });
+
+  it("fetches page 0 and removes malformed page params", async () => {
+    currentUrl =
+      "/applications?search=acme&stage=applied&page=abc&size=10&sort=companyName&direction=asc&id=app-1";
+    installApiMocks({
+      detailMode: "pending",
+      listPage: makePage({
+        items: [],
+        page: 0,
+        size: 10,
+        totalItems: 11,
+        totalPages: 2,
+      }),
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(mockedListApplications).toHaveBeenCalled();
+    });
+    expect(lastListParams().page).toBe(0);
+
+    await waitFor(() => {
+      const url = lastReplaceUrl();
+      expect(url.searchParams.get("page")).toBeNull();
+      expect(url.searchParams.get("search")).toBe("acme");
+      expect(url.searchParams.get("stage")).toBe("applied");
+      expect(url.searchParams.get("size")).toBe("10");
+      expect(url.searchParams.get("sort")).toBe("companyName");
+      expect(url.searchParams.get("direction")).toBe("asc");
+      expect(url.searchParams.get("id")).toBe("app-1");
+    });
   });
 
   it("opening a list item adds id and opens the modal after detail fetch", async () => {

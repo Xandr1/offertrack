@@ -59,7 +59,7 @@ export const ApplicationModal = ({
           event.stopPropagation();
         }}
       >
-        <div className={modalStyles.softHeader}>
+        <div className={isCompact ? modalStyles.compactHeader : modalStyles.softHeader}>
           <div>
             <h2 className={textStyles.sectionTitle}>{title}</h2>
             {description && <p className={textStyles.subtitle}>{description}</p>}

@@ -58,7 +58,7 @@ public class ApplicationRepository {
     List<Application> items =
         dsl.selectFrom(JOB_APPLICATIONS)
             .where(condition)
-            .orderBy(sortField(query))
+            .orderBy(sortField(query), JOB_APPLICATIONS.ID.asc())
             .limit(query.size())
             .offset(query.offset())
             .fetch(ApplicationMapper::fromRecord);

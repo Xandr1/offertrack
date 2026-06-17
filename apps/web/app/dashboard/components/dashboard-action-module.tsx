@@ -72,14 +72,14 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => {
         <ul className="mt-4 space-y-3">
           {props.kind === "applications"
             ? props.items.map((item) => (
-                <ApplicationActionItem
-                  item={item}
-                  key={item.applicationId}
-                />
-              ))
+              <ApplicationActionItem
+                item={item}
+                key={item.applicationId}
+              />
+            ))
             : props.items.map((item) => (
-                <InterviewActionItem item={item} key={item.interviewId} />
-              ))}
+              <InterviewActionItem item={item} key={item.interviewId} />
+            ))}
         </ul>
       )}
 
@@ -105,7 +105,7 @@ const ApplicationActionItem = ({ item }: ApplicationActionItemProps) => {
   ].filter(Boolean);
 
   return (
-    <li className="grid min-h-[172px] grid-rows-[auto_1fr_auto] rounded-xl border border-zinc-200 bg-white px-4 py-3">
+    <li className="grid grid-rows-[auto_1fr_auto] rounded-xl border border-zinc-200 bg-white px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className={textStyles.strong}>{item.companyName}</p>
@@ -143,7 +143,7 @@ const InterviewActionItem = ({ item }: InterviewActionItemProps) => {
   ].filter(Boolean);
 
   return (
-    <li className="grid min-h-[172px] grid-rows-[auto_1fr_auto] rounded-xl border border-zinc-200 bg-white px-4 py-3">
+    <li className="grid grid-rows-[auto_1fr_auto] rounded-xl border border-zinc-200 bg-white px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className={textStyles.strong}>{item.companyName}</p>
