@@ -78,7 +78,11 @@ export const useApplicationsPageController = () => {
       return;
     }
 
-    if (!hasInvalidPageParam && page < applicationsQuery.data.totalPages) {
+    const totalPages = applicationsQuery.data.totalPages;
+    const isOutOfRangePage = totalPages > 0 && page >= totalPages;
+    const isNonDefaultEmptyPage = totalPages === 0 && page > 0;
+
+    if (!hasInvalidPageParam && !isOutOfRangePage && !isNonDefaultEmptyPage) {
       return;
     }
 
