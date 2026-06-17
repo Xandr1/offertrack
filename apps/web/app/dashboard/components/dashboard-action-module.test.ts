@@ -37,6 +37,8 @@ describe("DashboardActionModule", () => {
     expect(html).toContain("href=\"/applications?stage=initial\"");
     expect(html).toContain("Open job post");
     expect(html).toContain("href=\"https://example.com/job\"");
+    expect(html).not.toContain("min-h-full");
+    expect(html).not.toContain("grid-rows-[auto_1fr_auto]");
   });
 
   it("renders interview items", () => {

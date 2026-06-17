@@ -44,7 +44,7 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => {
   const { count, helperText, isLoading, title, viewAllHref } = props;
 
   return (
-    <Card className="flex min-h-full flex-col">
+    <Card className="flex flex-col self-start">
       <div className={sectionStyles.splitRow}>
         <div>
           <h2 className={textStyles.sectionTitle}>{title}</h2>
@@ -83,7 +83,7 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => {
         </ul>
       )}
 
-      <div className="mt-auto border-t border-zinc-100 pt-4">
+      <div className="mt-4 border-t border-zinc-100 pt-4">
         <Link className={buttonStyles.link} href={viewAllHref}>
           View all →
         </Link>
@@ -105,7 +105,7 @@ const ApplicationActionItem = ({ item }: ApplicationActionItemProps) => {
   ].filter(Boolean);
 
   return (
-    <li className="grid grid-rows-[auto_1fr_auto] rounded-xl border border-zinc-200 bg-white px-4 py-3">
+    <li className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className={textStyles.strong}>{item.companyName}</p>
@@ -143,7 +143,7 @@ const InterviewActionItem = ({ item }: InterviewActionItemProps) => {
   ].filter(Boolean);
 
   return (
-    <li className="grid grid-rows-[auto_1fr_auto] rounded-xl border border-zinc-200 bg-white px-4 py-3">
+    <li className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className={textStyles.strong}>{item.companyName}</p>
