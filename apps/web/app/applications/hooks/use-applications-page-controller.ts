@@ -74,7 +74,7 @@ export const useApplicationsPageController = () => {
   }, [applicationsQuery.error, router]);
 
   useEffect(() => {
-    if (!applicationsQuery.data || applicationsQuery.data.totalPages === 0) {
+    if (!applicationsQuery.data) {
       return;
     }
 
@@ -393,8 +393,8 @@ export const useApplicationsPageController = () => {
     selectedApplicationId && applicationDetailQuery.isPending
       ? "Loading application..."
       : selectedApplicationId &&
-          applicationDetailQuery.isError &&
-          !isApplicationDetailAuthError
+        applicationDetailQuery.isError &&
+        !isApplicationDetailAuthError
         ? "Unable to open this application. It may have been deleted or you may not have access."
         : null;
 
