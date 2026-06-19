@@ -136,14 +136,19 @@ public class GlobalExceptionHandler {
               "AI_PARSER_INVALID_URL" ->
           HttpStatus.BAD_REQUEST;
       case "AI_PARSER_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
-      case "AI_PARSER_UNAVAILABLE", "AI_PARSER_EXTRACTION_FAILED" -> HttpStatus.BAD_GATEWAY;
+      case "AI_PARSER_UNAVAILABLE", "AI_PARSER_FETCH_FAILED", "AI_PARSER_EXTRACTION_FAILED" ->
+          HttpStatus.BAD_GATEWAY;
       default -> HttpStatus.INTERNAL_SERVER_ERROR;
     };
   }
 
   private static boolean isSafeDependencyError(String code) {
     return switch (code) {
-      case "AI_PARSER_TIMEOUT", "AI_PARSER_UNAVAILABLE", "AI_PARSER_EXTRACTION_FAILED" -> true;
+      case "AI_PARSER_TIMEOUT",
+              "AI_PARSER_UNAVAILABLE",
+              "AI_PARSER_FETCH_FAILED",
+              "AI_PARSER_EXTRACTION_FAILED" ->
+          true;
       default -> false;
     };
   }

@@ -1,15 +1,27 @@
+import hmac
+import logging
+import time
 from collections.abc import Callable
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+import httpx
+from fastapi import FastAPI, Header
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import JSONResponse
 
 from app.draft_builder import build_draft_response
 from app.fetcher import JobFetchError, JobFetchTimeoutError, JobPageFetcher, UnsafeJobUrlError
 from app.html_extractor import extract_readable_text
-from app.models import DraftResponse, ParseJobRequest
-from app.openai_extractor import ExtractionError, OpenAiDraftExtractor
+from app.models import DraftResponse, HealthResponse, ParseJobRequest, ParserErrorResponse
+from app.openai_extractor import ExtractionError, OpenAiDraftExtractor, OpenAiTimeoutError
 from app.settings import Settings
+
+logger = logging.getLogger(__name__)
+
+
+class JobPageNotReadableError(ExtractionError):
+    pass
 
 
 def create_app(
@@ -17,41 +29,200 @@ def create_app(
     fetcher_factory: Callable[[Settings], JobPageFetcher] | None = None,
     extractor_factory: Callable[[Settings], OpenAiDraftExtractor] | None = None,
 ) -> FastAPI:
-  resolved_settings = settings or Settings.from_env()
-  fetcher = (
-      fetcher_factory(resolved_settings)
-      if fetcher_factory is not None
-      else JobPageFetcher(resolved_settings)
-  )
-  extractor = (
-      extractor_factory(resolved_settings)
-      if extractor_factory is not None
-      else OpenAiDraftExtractor(resolved_settings)
-  )
+    resolved_settings = settings or Settings.from_env()
+    fetcher = (
+        fetcher_factory(resolved_settings)
+        if fetcher_factory is not None
+        else JobPageFetcher(resolved_settings)
+    )
+    extractor = (
+        extractor_factory(resolved_settings)
+        if extractor_factory is not None
+        else OpenAiDraftExtractor(resolved_settings)
+    )
 
-  app = FastAPI(title="OfferTrack AI Parser")
+    app = FastAPI(title="OfferTrack AI Parser")
 
-  @app.post("/parse-job", response_model=DraftResponse)
-  async def parse_job(request: ParseJobRequest) -> DraftResponse:
-    try:
-      fetched_page = await fetcher.fetch(request.job_url)
-      page_text = extract_readable_text(fetched_page.body, fetched_page.content_type)
+    @app.get("/health", response_model=HealthResponse)
+    async def health() -> HealthResponse:
+        return HealthResponse()
 
-      if not page_text:
-        raise ExtractionError("Job page did not contain readable text.")
+    @app.post("/parse-job", response_model=DraftResponse)
+    async def parse_job(
+        request: ParseJobRequest,
+        x_internal_api_key: str | None = Header(default=None, alias="X-Internal-Api-Key"),
+        x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
+    ) -> DraftResponse | JSONResponse:
+        request_id = _request_id(x_request_id)
+        url_host = _url_host(request.job_url)
+        start = time.perf_counter()
 
-      extracted = await run_in_threadpool(extractor.extract, page_text)
-      return build_draft_response(request.job_url, extracted, page_text)
-    except UnsafeJobUrlError as exception:
-      raise HTTPException(status_code=400, detail="Job URL is invalid or unsafe.") from exception
-    except JobFetchTimeoutError as exception:
-      raise HTTPException(status_code=504, detail="Timed out fetching job URL.") from exception
-    except JobFetchError as exception:
-      raise HTTPException(status_code=502, detail="Could not fetch job URL.") from exception
-    except (ExtractionError, ValidationError) as exception:
-      raise HTTPException(status_code=502, detail="Could not extract application draft.") from exception
+        try:
+            auth_error = _authenticate(resolved_settings, x_internal_api_key)
+            if auth_error is not None:
+                status_code, code, message = auth_error
+                _log_failure(request_id, url_host, code, start)
+                return _error_response(status_code, code, message)
 
-  return app
+            fetched_page = await fetcher.fetch(request.job_url)
+            page_text = extract_readable_text(fetched_page.body, fetched_page.content_type)
+
+            if not page_text:
+                raise JobPageNotReadableError("Job page did not contain readable text.")
+
+            extracted = await run_in_threadpool(extractor.extract, page_text)
+            response = build_draft_response(request.job_url, extracted, page_text)
+            duration_ms = _duration_ms(start)
+            logger.info(
+                "ai_parser_parse_job_succeeded request_id=%s source_type=url "
+                "url_host=%s duration_ms=%s",
+                request_id,
+                url_host,
+                duration_ms,
+            )
+            return response
+        except UnsafeJobUrlError as exception:
+            return _log_and_error(
+                request_id,
+                url_host,
+                "INVALID_JOB_URL",
+                "Job URL is invalid or unsafe.",
+                400,
+                start,
+                exception,
+            )
+        except JobFetchTimeoutError as exception:
+            return _log_and_error(
+                request_id,
+                url_host,
+                "JOB_FETCH_TIMEOUT",
+                "Timed out fetching job URL.",
+                504,
+                start,
+                exception,
+            )
+        except JobFetchError as exception:
+            return _log_and_error(
+                request_id,
+                url_host,
+                "JOB_FETCH_FAILED",
+                "Could not fetch job URL.",
+                502,
+                start,
+                exception,
+            )
+        except JobPageNotReadableError as exception:
+            return _log_and_error(
+                request_id,
+                url_host,
+                "JOB_PAGE_NOT_READABLE",
+                "Job page did not contain readable text.",
+                502,
+                start,
+                exception,
+            )
+        except (OpenAiTimeoutError, ExtractionError, ValidationError) as exception:
+            return _log_and_error(
+                request_id,
+                url_host,
+                "AI_EXTRACTION_FAILED",
+                "Could not extract application draft.",
+                502,
+                start,
+                exception,
+            )
+        except Exception as exception:
+            return _log_and_error(
+                request_id,
+                url_host,
+                "AI_PARSER_INTERNAL_ERROR",
+                "AI parser service is misconfigured or unavailable.",
+                500,
+                start,
+                exception,
+            )
+
+    return app
 
 
 app = create_app()
+
+
+def _authenticate(settings: Settings, provided_api_key: str | None) -> tuple[int, str, str] | None:
+    if not settings.internal_api_key:
+        return 500, "AI_PARSER_INTERNAL_ERROR", "AI parser internal API key is not configured."
+
+    if provided_api_key is None or not provided_api_key.strip():
+        return 401, "MISSING_INTERNAL_API_KEY", "Internal API key is required."
+
+    if not hmac.compare_digest(provided_api_key, settings.internal_api_key):
+        return 403, "INVALID_INTERNAL_API_KEY", "Internal API key is invalid."
+
+    return None
+
+
+def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
+    error = ParserErrorResponse(code=code, message=message)
+    return JSONResponse(status_code=status_code, content=error.model_dump())
+
+
+def _log_and_error(
+    request_id: str,
+    url_host: str,
+    code: str,
+    message: str,
+    status_code: int,
+    start: float,
+    exception: Exception,
+) -> JSONResponse:
+    _log_failure(request_id, url_host, code, start, exception)
+    return _error_response(status_code, code, message)
+
+
+def _log_failure(
+    request_id: str,
+    url_host: str,
+    code: str,
+    start: float,
+    exception: Exception | None = None,
+) -> None:
+    duration_ms = _duration_ms(start)
+
+    if exception is None:
+        logger.warning(
+            "ai_parser_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
+            "duration_ms=%s",
+            request_id,
+            url_host,
+            code,
+            duration_ms,
+        )
+        return
+
+    logger.warning(
+        "ai_parser_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
+        "duration_ms=%s exception_type=%s",
+        request_id,
+        url_host,
+        code,
+        duration_ms,
+        type(exception).__name__,
+    )
+
+
+def _request_id(header_value: str | None) -> str:
+    if header_value is not None and header_value.strip():
+        return header_value.strip()[:128]
+
+    return str(uuid4())
+
+
+def _url_host(job_url: str) -> str:
+    try:
+        return httpx.URL(job_url).host or "unknown"
+    except httpx.InvalidURL:
+        return "invalid"
+
+
+def _duration_ms(start: float) -> int:
+    return int((time.perf_counter() - start) * 1000)

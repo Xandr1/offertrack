@@ -80,6 +80,12 @@ The backend runs on:
 http://localhost:8080
 ```
 
+The backend calls the internal AI parser at `AI_PARSER_BASE_URL`, which defaults to:
+
+```text
+http://localhost:8000
+```
+
 ## Development Checks
 
 Frontend:
@@ -102,6 +108,8 @@ AI parser:
 ```bash
 cd apps/ai-parser
 python -m pip install -e ".[test]"
+python -m ruff check .
+python -m ruff format --check .
 python -m pytest
 ```
 

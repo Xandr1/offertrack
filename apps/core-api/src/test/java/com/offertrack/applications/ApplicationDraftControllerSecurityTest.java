@@ -134,6 +134,22 @@ class ApplicationDraftControllerSecurityTest {
         .andExpect(jsonPath("$.message").value("AI parser service timed out."));
   }
 
+  @Test
+  void postDraftMapsParserFetchFailedToBadGateway() throws Exception {
+    when(applicationDraftService.createDraft(any())).thenThrow(new AiParserFetchFailedException());
+
+    mockMvc
+        .perform(
+            post("/api/applications/draft")
+                .cookie(accessTokenCookie())
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .content("{\"jobUrl\":\"https://example.com/jobs/123\"}"))
+        .andExpect(status().isBadGateway())
+        .andExpect(jsonPath("$.status").value(502))
+        .andExpect(jsonPath("$.code").value("AI_PARSER_FETCH_FAILED"))
+        .andExpect(jsonPath("$.message").value("AI parser could not fetch the job URL."));
+  }
+
   private static Cookie accessTokenCookie() {
     return new Cookie(CookieService.ACCESS_TOKEN_COOKIE_NAME, TEST_TOKEN);
   }

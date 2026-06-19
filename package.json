@@ -12,6 +12,7 @@
     "test": "bash scripts/test.sh",
     "test:web": "pnpm.cmd --dir apps/web run lint && pnpm.cmd --dir apps/web run typecheck && pnpm.cmd --dir apps/web run test",
     "test:api": "bash -c 'cd apps/core-api && ./mvnw.cmd test'",
+    "test:ai-parser": "bash -c 'cd apps/ai-parser && python -m pip install -e \".[test]\" && python -m ruff check . && python -m ruff format --check . && python -m pytest'",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d"

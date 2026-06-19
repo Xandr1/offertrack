@@ -2,7 +2,7 @@ from app.html_extractor import extract_readable_text
 
 
 def test_extracts_simple_html_content() -> None:
-  html = b"""
+    html = b"""
   <html>
     <head><style>.hidden{display:none}</style><script>ignore()</script></head>
     <body>
@@ -12,8 +12,8 @@ def test_extracts_simple_html_content() -> None:
   </html>
   """
 
-  text = extract_readable_text(html, "text/html")
+    text = extract_readable_text(html, "text/html")
 
-  assert "Backend Engineer" in text
-  assert "Acme builds developer tools." in text
-  assert "ignore()" not in text
+    assert "Backend Engineer" in text
+    assert "Acme builds developer tools." in text
+    assert "ignore()" not in text
