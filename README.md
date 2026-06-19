@@ -32,6 +32,7 @@ It helps track applications, stages, interview rounds, follow-ups, and the next 
 * Redis
 * Mailpit
 * MinIO
+* FastAPI AI parser
 
 ## Local Setup
 
@@ -94,6 +95,14 @@ Backend:
 ```bash
 cd apps/core-api
 ./mvnw.cmd test
+```
+
+AI parser:
+
+```bash
+cd apps/ai-parser
+python -m pip install -e ".[test]"
+python -m pytest
 ```
 
 ## Backend Codegen

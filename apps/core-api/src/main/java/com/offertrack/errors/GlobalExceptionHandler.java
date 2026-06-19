@@ -27,13 +27,18 @@ public class GlobalExceptionHandler {
       DomainException exception, HttpServletRequest request) {
     HttpStatus status = mapDomainStatus(exception.code());
 
-    if (status.is5xxServerError()) {
-      logUnexpected5xx(exception, request);
-      return buildResponse(status, INTERNAL_ERROR_CODE, INTERNAL_ERROR_MESSAGE, request);
-    }
-
     String code = exception.code();
     String message = exception.getMessage();
+
+    if (status.is5xxServerError()) {
+      logUnexpected5xx(exception, request, status, code);
+
+      if (isSafeDependencyError(code)) {
+        return buildResponse(status, code, message, request);
+      }
+
+      return buildResponse(status, INTERNAL_ERROR_CODE, INTERNAL_ERROR_MESSAGE, request);
+    }
 
     logExpected4xx(status, code, message, request);
     return buildResponse(status, code, message, request);
@@ -125,9 +130,21 @@ public class GlobalExceptionHandler {
     return switch (code) {
       case "APPLICATION_NOT_FOUND", "INTERVIEW_NOT_FOUND" -> HttpStatus.NOT_FOUND;
       case "EMAIL_NOT_VERIFIED" -> HttpStatus.FORBIDDEN;
-      case "INVALID_INTERVIEW_COUNT", "DUPLICATE_INTERVIEW_IDS", "INVALID_AUTH_TOKEN" ->
+      case "INVALID_INTERVIEW_COUNT",
+              "DUPLICATE_INTERVIEW_IDS",
+              "INVALID_AUTH_TOKEN",
+              "AI_PARSER_INVALID_URL" ->
           HttpStatus.BAD_REQUEST;
+      case "AI_PARSER_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
+      case "AI_PARSER_UNAVAILABLE", "AI_PARSER_EXTRACTION_FAILED" -> HttpStatus.BAD_GATEWAY;
       default -> HttpStatus.INTERNAL_SERVER_ERROR;
+    };
+  }
+
+  private static boolean isSafeDependencyError(String code) {
+    return switch (code) {
+      case "AI_PARSER_TIMEOUT", "AI_PARSER_UNAVAILABLE", "AI_PARSER_EXTRACTION_FAILED" -> true;
+      default -> false;
     };
   }
 
@@ -157,7 +174,17 @@ public class GlobalExceptionHandler {
   }
 
   private static void logUnexpected5xx(Exception exception, HttpServletRequest request) {
+    logUnexpected5xx(exception, request, HttpStatus.INTERNAL_SERVER_ERROR, INTERNAL_ERROR_CODE);
+  }
+
+  private static void logUnexpected5xx(
+      Exception exception, HttpServletRequest request, HttpStatus status, String code) {
     log.error(
-        "{} {} -> 500 INTERNAL_ERROR", request.getMethod(), request.getRequestURI(), exception);
+        "{} {} -> {} {}",
+        request.getMethod(),
+        request.getRequestURI(),
+        status.value(),
+        code,
+        exception);
   }
 }
