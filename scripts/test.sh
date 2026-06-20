@@ -32,9 +32,9 @@ echo "Running frontend unit tests..."
   pnpm.cmd test
 )
 
-echo "Running AI parser lint and tests..."
+echo "Running AI service lint and tests..."
 (
-  cd apps/ai-parser
+  cd apps/ai-service
   python -m pip install -e ".[test]"
   python -m ruff check .
   python -m ruff format --check .

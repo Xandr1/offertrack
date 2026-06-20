@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.offertrack.applications.AiParserClient;
+import com.offertrack.applications.AiServiceClient;
 import com.offertrack.applications.ApplicationStage;
 import com.offertrack.applications.dto.ApplicationDraftResponse;
 import com.offertrack.auth.CookieService;
@@ -40,7 +40,7 @@ class ApplicationDraftIntegrationTest {
   @Autowired private JwtService jwtService;
   @Autowired private DSLContext dsl;
 
-  @MockitoBean private AiParserClient aiParserClient;
+  @MockitoBean private AiServiceClient aiServiceClient;
 
   @BeforeEach
   void cleanDatabase() {
@@ -50,8 +50,8 @@ class ApplicationDraftIntegrationTest {
   }
 
   @Test
-  void authenticatedDraftRequestCallsParserAndDoesNotCreateRecords() throws Exception {
-    when(aiParserClient.parseJob(any()))
+  void authenticatedDraftRequestCallsAiServiceAndDoesNotCreateRecords() throws Exception {
+    when(aiServiceClient.parseJob(any()))
         .thenReturn(
             new ApplicationDraftResponse(
                 "Acme",
@@ -75,7 +75,7 @@ class ApplicationDraftIntegrationTest {
         .andExpect(jsonPath("$.jobUrl").value("https://example.com/jobs/123"))
         .andExpect(jsonPath("$.stage").value("initial"));
 
-    verify(aiParserClient).parseJob(any());
+    verify(aiServiceClient).parseJob(any());
     assertThat(dsl.fetchCount(JOB_APPLICATIONS)).isZero();
     assertThat(dsl.fetchCount(APPLICATION_INTERVIEWS)).isZero();
   }

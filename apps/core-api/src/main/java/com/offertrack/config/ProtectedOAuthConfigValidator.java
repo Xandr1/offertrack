@@ -14,6 +14,7 @@ public class ProtectedOAuthConfigValidator implements InitializingBean {
       Set.of("prod", "production", "staging", "stage");
   private static final String LOCAL_GOOGLE_CLIENT_ID = "local-google-client-id";
   private static final String LOCAL_GOOGLE_CLIENT_SECRET = "local-google-client-secret";
+  private static final String LOCAL_AI_SERVICE_INTERNAL_API_KEY = "local-dev-ai-service-key";
 
   private final Environment environment;
 
@@ -29,6 +30,7 @@ public class ProtectedOAuthConfigValidator implements InitializingBean {
 
     validateGoogleCredentials();
     validateOAuthCookieSecret();
+    validateAiServiceInternalApiKey();
   }
 
   private boolean hasProtectedProfile() {
@@ -63,6 +65,16 @@ public class ProtectedOAuthConfigValidator implements InitializingBean {
         || oauthCookieSecret.equals(jwtSecret)) {
       throw new IllegalStateException(
           "Protected profiles require a separate OAuth cookie signing secret");
+    }
+  }
+
+  private void validateAiServiceInternalApiKey() {
+    String internalApiKey = environment.getProperty("app.ai-service.internal-api-key");
+
+    if (!StringUtils.hasText(internalApiKey)
+        || LOCAL_AI_SERVICE_INTERNAL_API_KEY.equals(internalApiKey.trim())) {
+      throw new IllegalStateException(
+          "Protected profiles require a non-local AI service internal API key");
     }
   }
 }

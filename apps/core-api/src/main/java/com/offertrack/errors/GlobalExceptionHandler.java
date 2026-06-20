@@ -133,10 +133,10 @@ public class GlobalExceptionHandler {
       case "INVALID_INTERVIEW_COUNT",
               "DUPLICATE_INTERVIEW_IDS",
               "INVALID_AUTH_TOKEN",
-              "AI_PARSER_INVALID_URL" ->
+              "AI_SERVICE_INVALID_URL" ->
           HttpStatus.BAD_REQUEST;
-      case "AI_PARSER_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
-      case "AI_PARSER_UNAVAILABLE", "AI_PARSER_FETCH_FAILED", "AI_PARSER_EXTRACTION_FAILED" ->
+      case "AI_SERVICE_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
+      case "AI_SERVICE_UNAVAILABLE", "AI_SERVICE_FETCH_FAILED", "AI_SERVICE_EXTRACTION_FAILED" ->
           HttpStatus.BAD_GATEWAY;
       default -> HttpStatus.INTERNAL_SERVER_ERROR;
     };
@@ -144,10 +144,10 @@ public class GlobalExceptionHandler {
 
   private static boolean isSafeDependencyError(String code) {
     return switch (code) {
-      case "AI_PARSER_TIMEOUT",
-              "AI_PARSER_UNAVAILABLE",
-              "AI_PARSER_FETCH_FAILED",
-              "AI_PARSER_EXTRACTION_FAILED" ->
+      case "AI_SERVICE_TIMEOUT",
+              "AI_SERVICE_UNAVAILABLE",
+              "AI_SERVICE_FETCH_FAILED",
+              "AI_SERVICE_EXTRACTION_FAILED" ->
           true;
       default -> false;
     };

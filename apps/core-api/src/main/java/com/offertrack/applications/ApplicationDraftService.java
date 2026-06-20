@@ -6,13 +6,13 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ApplicationDraftService {
-  private final AiParserClient aiParserClient;
+  private final AiServiceClient aiServiceClient;
 
-  public ApplicationDraftService(AiParserClient aiParserClient) {
-    this.aiParserClient = aiParserClient;
+  public ApplicationDraftService(AiServiceClient aiServiceClient) {
+    this.aiServiceClient = aiServiceClient;
   }
 
   public ApplicationDraftResponse createDraft(ApplicationDraftRequest request) {
-    return aiParserClient.parseJob(request);
+    return aiServiceClient.parseJob(request);
   }
 }

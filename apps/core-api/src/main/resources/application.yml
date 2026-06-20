@@ -49,6 +49,6 @@ app:
   oauth:
     authorization-request-cookie-signing-secret: ${OAUTH_COOKIE_SECRET:${app.jwt.secret}}
   web-url: ${APP_WEB_URL:http://localhost:3000}
-  ai-parser:
-    base-url: ${AI_PARSER_BASE_URL:http://localhost:8000}
-    internal-api-key: ${AI_PARSER_INTERNAL_API_KEY:local-dev-ai-parser-key}
+  ai-service:
+    base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
+    internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:local-dev-ai-service-key}

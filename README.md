@@ -32,7 +32,7 @@ It helps track applications, stages, interview rounds, follow-ups, and the next 
 * Redis
 * Mailpit
 * MinIO
-* FastAPI AI parser
+* FastAPI AI service
 
 ## Local Setup
 
@@ -80,7 +80,7 @@ The backend runs on:
 http://localhost:8080
 ```
 
-The backend calls the internal AI parser at `AI_PARSER_BASE_URL`, which defaults to:
+The backend calls the internal AI service at `AI_SERVICE_BASE_URL`, which defaults to:
 
 ```text
 http://localhost:8000
@@ -103,10 +103,10 @@ cd apps/core-api
 ./mvnw.cmd test
 ```
 
-AI parser:
+AI service:
 
 ```bash
-cd apps/ai-parser
+cd apps/ai-service
 python -m pip install -e ".[test]"
 python -m ruff check .
 python -m ruff format --check .

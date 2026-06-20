@@ -22,7 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
-class HttpAiParserClientTest {
+class HttpAiServiceClientTest {
   private static final String INTERNAL_API_KEY = "test-internal-key";
 
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -41,42 +41,50 @@ class HttpAiParserClientTest {
 
   @Test
   void mapsBadRequestToInvalidUrl() throws Exception {
-    startServer(exchange -> sendJson(exchange, 400, parserError("INVALID_JOB_URL")));
+    startServer(exchange -> sendJson(exchange, 400, serviceError("INVALID_JOB_URL")));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserInvalidUrlException.class);
+        .isInstanceOf(AiServiceInvalidUrlException.class);
   }
 
   @Test
   void mapsUnprocessableEntityToInvalidUrl() throws Exception {
-    startServer(exchange -> sendJson(exchange, 422, parserError("INVALID_JOB_URL")));
+    startServer(exchange -> sendJson(exchange, 422, serviceError("INVALID_JOB_URL")));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserInvalidUrlException.class);
+        .isInstanceOf(AiServiceInvalidUrlException.class);
   }
 
   @Test
   void mapsStructuredFetchFailureToFetchException() throws Exception {
-    startServer(exchange -> sendJson(exchange, 502, parserError("JOB_FETCH_FAILED")));
+    startServer(exchange -> sendJson(exchange, 502, serviceError("JOB_FETCH_FAILED")));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserFetchFailedException.class);
+        .isInstanceOf(AiServiceFetchFailedException.class);
   }
 
   @Test
   void mapsStructuredExtractionFailureToExtractionException() throws Exception {
-    startServer(exchange -> sendJson(exchange, 502, parserError("AI_EXTRACTION_FAILED")));
+    startServer(exchange -> sendJson(exchange, 502, serviceError("AI_EXTRACTION_FAILED")));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserExtractionException.class);
+        .isInstanceOf(AiServiceExtractionException.class);
+  }
+
+  @Test
+  void mapsStructuredInternalErrorToUnavailableException() throws Exception {
+    startServer(exchange -> sendJson(exchange, 500, serviceError("AI_SERVICE_INTERNAL_ERROR")));
+
+    assertThatThrownBy(() -> client().parseJob(request()))
+        .isInstanceOf(AiServiceUnavailableException.class);
   }
 
   @Test
   void mapsGatewayTimeoutToTimeoutException() throws Exception {
-    startServer(exchange -> sendJson(exchange, 504, parserError("JOB_FETCH_TIMEOUT")));
+    startServer(exchange -> sendJson(exchange, 504, serviceError("JOB_FETCH_TIMEOUT")));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserTimeoutException.class);
+        .isInstanceOf(AiServiceTimeoutException.class);
   }
 
   @Test
@@ -88,38 +96,38 @@ class HttpAiParserClientTest {
         });
 
     assertThatThrownBy(() -> client(Duration.ofMillis(50)).parseJob(request()))
-        .isInstanceOf(AiParserTimeoutException.class);
+        .isInstanceOf(AiServiceTimeoutException.class);
   }
 
   @Test
   void mapsConnectionRefusedToUnavailableException() throws Exception {
     int unusedPort = unusedPort();
-    HttpAiParserClient client =
-        new HttpAiParserClient(
+    HttpAiServiceClient client =
+        new HttpAiServiceClient(
             restClient("http://127.0.0.1:" + unusedPort, Duration.ofMillis(100)),
             objectMapper,
             INTERNAL_API_KEY);
 
     assertThatThrownBy(() -> client.parseJob(request()))
-        .isInstanceOf(AiParserUnavailableException.class);
+        .isInstanceOf(AiServiceUnavailableException.class);
   }
 
   @Test
-  void mapsMissingInternalApiKeyToUnavailableBeforeCallingParser() throws Exception {
+  void mapsMissingInternalApiKeyToUnavailableBeforeCallingService() throws Exception {
     AtomicReference<Boolean> called = new AtomicReference<>(false);
     startServer(
         exchange -> {
           called.set(true);
           sendJson(exchange, 200, successBody());
         });
-    HttpAiParserClient client =
-        new HttpAiParserClient(
+    HttpAiServiceClient client =
+        new HttpAiServiceClient(
             restClient("http://127.0.0.1:" + server.getAddress().getPort(), Duration.ofSeconds(2)),
             objectMapper,
             "");
 
     assertThatThrownBy(() -> client.parseJob(request()))
-        .isInstanceOf(AiParserUnavailableException.class);
+        .isInstanceOf(AiServiceUnavailableException.class);
     assertThat(called).hasValue(false);
   }
 
@@ -128,7 +136,7 @@ class HttpAiParserClientTest {
     startServer(exchange -> send(exchange, 200, ""));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserExtractionException.class);
+        .isInstanceOf(AiServiceExtractionException.class);
   }
 
   @Test
@@ -136,7 +144,7 @@ class HttpAiParserClientTest {
     startServer(exchange -> send(exchange, 200, "not-json"));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserExtractionException.class);
+        .isInstanceOf(AiServiceExtractionException.class);
   }
 
   @Test
@@ -158,7 +166,7 @@ class HttpAiParserClientTest {
                 """));
 
     assertThatThrownBy(() -> client().parseJob(request()))
-        .isInstanceOf(AiParserExtractionException.class);
+        .isInstanceOf(AiServiceExtractionException.class);
   }
 
   @Test
@@ -179,12 +187,12 @@ class HttpAiParserClientTest {
     assertThat(requestIdHeader.get()).isNotBlank();
   }
 
-  private HttpAiParserClient client() {
+  private HttpAiServiceClient client() {
     return client(Duration.ofSeconds(2));
   }
 
-  private HttpAiParserClient client(Duration readTimeout) {
-    return new HttpAiParserClient(
+  private HttpAiServiceClient client(Duration readTimeout) {
+    return new HttpAiServiceClient(
         restClient("http://127.0.0.1:" + server.getAddress().getPort(), readTimeout),
         objectMapper,
         INTERNAL_API_KEY);
@@ -218,11 +226,11 @@ class HttpAiParserClientTest {
     exchange.close();
   }
 
-  private static String parserError(String code) {
+  private static String serviceError(String code) {
     return """
         {
           "code": "%s",
-          "message": "Parser failed."
+          "message": "Service failed."
         }
         """
         .formatted(code);

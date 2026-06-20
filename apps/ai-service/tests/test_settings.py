@@ -12,7 +12,7 @@ def test_default_model_is_gpt_5_4_mini_when_not_set(monkeypatch) -> None:
 
 
 def test_internal_api_key_is_blank_when_not_configured(monkeypatch) -> None:
-    monkeypatch.delenv("AI_PARSER_INTERNAL_API_KEY", raising=False)
+    monkeypatch.delenv("AI_SERVICE_INTERNAL_API_KEY", raising=False)
 
     settings = Settings.from_env()
 
@@ -20,7 +20,7 @@ def test_internal_api_key_is_blank_when_not_configured(monkeypatch) -> None:
 
 
 def test_reads_internal_api_key_from_env(monkeypatch) -> None:
-    monkeypatch.setenv("AI_PARSER_INTERNAL_API_KEY", " test-key ")
+    monkeypatch.setenv("AI_SERVICE_INTERNAL_API_KEY", " test-key ")
 
     settings = Settings.from_env()
 

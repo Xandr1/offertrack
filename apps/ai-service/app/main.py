@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse
 from app.draft_builder import build_draft_response
 from app.fetcher import JobFetchError, JobFetchTimeoutError, JobPageFetcher, UnsafeJobUrlError
 from app.html_extractor import extract_readable_text
-from app.models import DraftResponse, HealthResponse, ParseJobRequest, ParserErrorResponse
+from app.models import DraftResponse, HealthResponse, ParseJobRequest, ServiceErrorResponse
 from app.openai_extractor import ExtractionError, OpenAiDraftExtractor, OpenAiTimeoutError
 from app.settings import Settings
 
@@ -41,7 +41,7 @@ def create_app(
         else OpenAiDraftExtractor(resolved_settings)
     )
 
-    app = FastAPI(title="OfferTrack AI Parser")
+    app = FastAPI(title="OfferTrack AI Service")
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
@@ -74,7 +74,7 @@ def create_app(
             response = build_draft_response(request.job_url, extracted, page_text)
             duration_ms = _duration_ms(start)
             logger.info(
-                "ai_parser_parse_job_succeeded request_id=%s source_type=url "
+                "ai_service_parse_job_succeeded request_id=%s source_type=url "
                 "url_host=%s duration_ms=%s",
                 request_id,
                 url_host,
@@ -135,8 +135,8 @@ def create_app(
             return _log_and_error(
                 request_id,
                 url_host,
-                "AI_PARSER_INTERNAL_ERROR",
-                "AI parser service is misconfigured or unavailable.",
+                "AI_SERVICE_INTERNAL_ERROR",
+                "AI service is misconfigured or unavailable.",
                 500,
                 start,
                 exception,
@@ -150,7 +150,7 @@ app = create_app()
 
 def _authenticate(settings: Settings, provided_api_key: str | None) -> tuple[int, str, str] | None:
     if not settings.internal_api_key:
-        return 500, "AI_PARSER_INTERNAL_ERROR", "AI parser internal API key is not configured."
+        return 500, "AI_SERVICE_INTERNAL_ERROR", "AI service internal API key is not configured."
 
     if provided_api_key is None or not provided_api_key.strip():
         return 401, "MISSING_INTERNAL_API_KEY", "Internal API key is required."
@@ -162,7 +162,7 @@ def _authenticate(settings: Settings, provided_api_key: str | None) -> tuple[int
 
 
 def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
-    error = ParserErrorResponse(code=code, message=message)
+    error = ServiceErrorResponse(code=code, message=message)
     return JSONResponse(status_code=status_code, content=error.model_dump())
 
 
@@ -190,7 +190,7 @@ def _log_failure(
 
     if exception is None:
         logger.warning(
-            "ai_parser_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
+            "ai_service_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
             "duration_ms=%s",
             request_id,
             url_host,
@@ -200,7 +200,7 @@ def _log_failure(
         return
 
     logger.warning(
-        "ai_parser_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
+        "ai_service_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
         "duration_ms=%s exception_type=%s",
         request_id,
         url_host,

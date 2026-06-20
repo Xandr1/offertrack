@@ -107,8 +107,8 @@ def test_parse_job_returns_internal_error_when_runtime_key_is_missing() -> None:
 
     assert response.status_code == 500
     assert response.json() == {
-        "code": "AI_PARSER_INTERNAL_ERROR",
-        "message": "AI parser internal API key is not configured.",
+        "code": "AI_SERVICE_INTERNAL_ERROR",
+        "message": "AI service internal API key is not configured.",
     }
 
 

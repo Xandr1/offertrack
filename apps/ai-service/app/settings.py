@@ -20,7 +20,7 @@ class Settings:
         return cls(
             openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
             openai_model=os.getenv("OPENAI_MODEL", "").strip() or DEFAULT_OPENAI_MODEL,
-            internal_api_key=os.getenv("AI_PARSER_INTERNAL_API_KEY", "").strip(),
+            internal_api_key=os.getenv("AI_SERVICE_INTERNAL_API_KEY", "").strip(),
             openai_timeout_seconds=_float_from_env(
                 "OPENAI_TIMEOUT_SECONDS", DEFAULT_OPENAI_TIMEOUT_SECONDS
             ),

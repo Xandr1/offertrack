@@ -21,8 +21,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-public class HttpAiParserClient implements AiParserClient {
-  private static final Logger log = LoggerFactory.getLogger(HttpAiParserClient.class);
+public class HttpAiServiceClient implements AiServiceClient {
+  private static final Logger log = LoggerFactory.getLogger(HttpAiServiceClient.class);
   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
   private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
   private static final String INTERNAL_API_KEY_HEADER = "X-Internal-Api-Key";
@@ -33,14 +33,14 @@ public class HttpAiParserClient implements AiParserClient {
   private final String internalApiKey;
 
   @Autowired
-  public HttpAiParserClient(
-      @Value("${app.ai-parser.base-url}") String baseUrl,
-      @Value("${app.ai-parser.internal-api-key}") String internalApiKey,
+  public HttpAiServiceClient(
+      @Value("${app.ai-service.base-url}") String baseUrl,
+      @Value("${app.ai-service.internal-api-key}") String internalApiKey,
       ObjectMapper objectMapper) {
     this(createRestClient(baseUrl), objectMapper, internalApiKey);
   }
 
-  HttpAiParserClient(RestClient restClient, ObjectMapper objectMapper, String internalApiKey) {
+  HttpAiServiceClient(RestClient restClient, ObjectMapper objectMapper, String internalApiKey) {
     this.restClient = restClient;
     this.objectMapper = objectMapper;
     this.internalApiKey = internalApiKey == null ? "" : internalApiKey.trim();
@@ -52,9 +52,9 @@ public class HttpAiParserClient implements AiParserClient {
 
     if (internalApiKey.isBlank()) {
       log.warn(
-          "ai_parser_draft_failed request_id={} source_type=url error_code=AI_PARSER_UNAVAILABLE",
+          "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_UNAVAILABLE",
           requestId);
-      throw new AiParserUnavailableException();
+      throw new AiServiceUnavailableException();
     }
 
     try {
@@ -70,47 +70,47 @@ public class HttpAiParserClient implements AiParserClient {
               .body(ApplicationDraftResponse.class);
 
       if (response == null) {
-        throw new AiParserExtractionException();
+        throw new AiServiceExtractionException();
       }
 
-      log.info("ai_parser_draft_succeeded request_id={} source_type=url", requestId);
+      log.info("ai_service_draft_succeeded request_id={} source_type=url", requestId);
       return response;
     } catch (RestClientResponseException exception) {
       RuntimeException mappedException = mapResponseException(exception);
       log.warn(
-          "ai_parser_draft_failed request_id={} source_type=url error_code={}",
+          "ai_service_draft_failed request_id={} source_type=url error_code={}",
           requestId,
           errorCode(mappedException));
       throw mappedException;
     } catch (ResourceAccessException exception) {
       if (containsTimeout(exception)) {
         log.warn(
-            "ai_parser_draft_failed request_id={} source_type=url error_code=AI_PARSER_TIMEOUT",
+            "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_TIMEOUT",
             requestId);
-        throw new AiParserTimeoutException();
+        throw new AiServiceTimeoutException();
       }
 
       log.warn(
-          "ai_parser_draft_failed request_id={} source_type=url error_code=AI_PARSER_UNAVAILABLE",
+          "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_UNAVAILABLE",
           requestId);
-      throw new AiParserUnavailableException();
+      throw new AiServiceUnavailableException();
     } catch (HttpMessageConversionException exception) {
       log.warn(
-          "ai_parser_draft_failed request_id={} source_type=url error_code=AI_PARSER_EXTRACTION_FAILED",
+          "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_EXTRACTION_FAILED",
           requestId);
-      throw new AiParserExtractionException();
+      throw new AiServiceExtractionException();
     } catch (RestClientException exception) {
       if (containsTimeout(exception)) {
         log.warn(
-            "ai_parser_draft_failed request_id={} source_type=url error_code=AI_PARSER_TIMEOUT",
+            "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_TIMEOUT",
             requestId);
-        throw new AiParserTimeoutException();
+        throw new AiServiceTimeoutException();
       }
 
       log.warn(
-          "ai_parser_draft_failed request_id={} source_type=url error_code=AI_PARSER_EXTRACTION_FAILED",
+          "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_EXTRACTION_FAILED",
           requestId);
-      throw new AiParserExtractionException();
+      throw new AiServiceExtractionException();
     }
   }
 
@@ -127,42 +127,42 @@ public class HttpAiParserClient implements AiParserClient {
 
   private RuntimeException mapResponseException(RestClientResponseException exception) {
     HttpStatus status = HttpStatus.resolve(exception.getStatusCode().value());
-    AiParserErrorResponse parserErrorResponse = parseErrorResponse(exception);
+    AiServiceErrorResponse serviceErrorResponse = parseErrorResponse(exception);
 
     if (status == HttpStatus.BAD_REQUEST || status == HttpStatus.UNPROCESSABLE_ENTITY) {
-      return new AiParserInvalidUrlException();
+      return new AiServiceInvalidUrlException();
     }
 
     if (status == HttpStatus.GATEWAY_TIMEOUT) {
-      return new AiParserTimeoutException();
+      return new AiServiceTimeoutException();
     }
 
     if (status == HttpStatus.UNAUTHORIZED || status == HttpStatus.FORBIDDEN) {
-      return new AiParserUnavailableException();
+      return new AiServiceUnavailableException();
     }
 
-    if (parserErrorResponse != null) {
-      return switch (parserErrorResponse.code()) {
-        case "INVALID_JOB_URL" -> new AiParserInvalidUrlException();
-        case "JOB_FETCH_TIMEOUT" -> new AiParserTimeoutException();
-        case "JOB_FETCH_FAILED" -> new AiParserFetchFailedException();
-        case "JOB_PAGE_NOT_READABLE", "AI_EXTRACTION_FAILED", "AI_PARSER_INTERNAL_ERROR" ->
-            new AiParserExtractionException();
-        default -> new AiParserExtractionException();
+    if (serviceErrorResponse != null) {
+      return switch (serviceErrorResponse.code()) {
+        case "INVALID_JOB_URL" -> new AiServiceInvalidUrlException();
+        case "JOB_FETCH_TIMEOUT" -> new AiServiceTimeoutException();
+        case "JOB_FETCH_FAILED" -> new AiServiceFetchFailedException();
+        case "AI_SERVICE_INTERNAL_ERROR" -> new AiServiceUnavailableException();
+        case "JOB_PAGE_NOT_READABLE", "AI_EXTRACTION_FAILED" -> new AiServiceExtractionException();
+        default -> new AiServiceExtractionException();
       };
     }
 
-    return new AiParserExtractionException();
+    return new AiServiceExtractionException();
   }
 
-  private AiParserErrorResponse parseErrorResponse(RestClientResponseException exception) {
+  private AiServiceErrorResponse parseErrorResponse(RestClientResponseException exception) {
     byte[] responseBody = exception.getResponseBodyAsByteArray();
     if (responseBody.length == 0) {
       return null;
     }
 
     try {
-      return objectMapper.readValue(responseBody, AiParserErrorResponse.class);
+      return objectMapper.readValue(responseBody, AiServiceErrorResponse.class);
     } catch (Exception ignored) {
       return null;
     }
@@ -183,20 +183,20 @@ public class HttpAiParserClient implements AiParserClient {
   }
 
   private static String errorCode(RuntimeException exception) {
-    if (exception instanceof AiParserInvalidUrlException) {
-      return "AI_PARSER_INVALID_URL";
+    if (exception instanceof AiServiceInvalidUrlException) {
+      return "AI_SERVICE_INVALID_URL";
     }
-    if (exception instanceof AiParserTimeoutException) {
-      return "AI_PARSER_TIMEOUT";
+    if (exception instanceof AiServiceTimeoutException) {
+      return "AI_SERVICE_TIMEOUT";
     }
-    if (exception instanceof AiParserFetchFailedException) {
-      return "AI_PARSER_FETCH_FAILED";
+    if (exception instanceof AiServiceFetchFailedException) {
+      return "AI_SERVICE_FETCH_FAILED";
     }
-    if (exception instanceof AiParserUnavailableException) {
-      return "AI_PARSER_UNAVAILABLE";
+    if (exception instanceof AiServiceUnavailableException) {
+      return "AI_SERVICE_UNAVAILABLE";
     }
-    return "AI_PARSER_EXTRACTION_FAILED";
+    return "AI_SERVICE_EXTRACTION_FAILED";
   }
 
-  private record AiParserErrorResponse(String code, String message) {}
+  private record AiServiceErrorResponse(String code, String message) {}
 }

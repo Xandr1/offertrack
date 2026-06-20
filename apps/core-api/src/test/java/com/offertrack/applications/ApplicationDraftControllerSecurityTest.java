@@ -103,8 +103,8 @@ class ApplicationDraftControllerSecurityTest {
   }
 
   @Test
-  void postDraftMapsParserUnavailableToBadGateway() throws Exception {
-    when(applicationDraftService.createDraft(any())).thenThrow(new AiParserUnavailableException());
+  void postDraftMapsAiServiceUnavailableToBadGateway() throws Exception {
+    when(applicationDraftService.createDraft(any())).thenThrow(new AiServiceUnavailableException());
 
     mockMvc
         .perform(
@@ -114,13 +114,13 @@ class ApplicationDraftControllerSecurityTest {
                 .content("{\"jobUrl\":\"https://example.com/jobs/123\"}"))
         .andExpect(status().isBadGateway())
         .andExpect(jsonPath("$.status").value(502))
-        .andExpect(jsonPath("$.code").value("AI_PARSER_UNAVAILABLE"))
-        .andExpect(jsonPath("$.message").value("AI parser service is unavailable."));
+        .andExpect(jsonPath("$.code").value("AI_SERVICE_UNAVAILABLE"))
+        .andExpect(jsonPath("$.message").value("AI service is unavailable."));
   }
 
   @Test
-  void postDraftMapsParserTimeoutToGatewayTimeout() throws Exception {
-    when(applicationDraftService.createDraft(any())).thenThrow(new AiParserTimeoutException());
+  void postDraftMapsAiServiceTimeoutToGatewayTimeout() throws Exception {
+    when(applicationDraftService.createDraft(any())).thenThrow(new AiServiceTimeoutException());
 
     mockMvc
         .perform(
@@ -130,13 +130,13 @@ class ApplicationDraftControllerSecurityTest {
                 .content("{\"jobUrl\":\"https://example.com/jobs/123\"}"))
         .andExpect(status().isGatewayTimeout())
         .andExpect(jsonPath("$.status").value(504))
-        .andExpect(jsonPath("$.code").value("AI_PARSER_TIMEOUT"))
-        .andExpect(jsonPath("$.message").value("AI parser service timed out."));
+        .andExpect(jsonPath("$.code").value("AI_SERVICE_TIMEOUT"))
+        .andExpect(jsonPath("$.message").value("AI service timed out."));
   }
 
   @Test
-  void postDraftMapsParserFetchFailedToBadGateway() throws Exception {
-    when(applicationDraftService.createDraft(any())).thenThrow(new AiParserFetchFailedException());
+  void postDraftMapsAiServiceFetchFailedToBadGateway() throws Exception {
+    when(applicationDraftService.createDraft(any())).thenThrow(new AiServiceFetchFailedException());
 
     mockMvc
         .perform(
@@ -146,8 +146,8 @@ class ApplicationDraftControllerSecurityTest {
                 .content("{\"jobUrl\":\"https://example.com/jobs/123\"}"))
         .andExpect(status().isBadGateway())
         .andExpect(jsonPath("$.status").value(502))
-        .andExpect(jsonPath("$.code").value("AI_PARSER_FETCH_FAILED"))
-        .andExpect(jsonPath("$.message").value("AI parser could not fetch the job URL."));
+        .andExpect(jsonPath("$.code").value("AI_SERVICE_FETCH_FAILED"))
+        .andExpect(jsonPath("$.message").value("AI service could not fetch the job URL."));
   }
 
   private static Cookie accessTokenCookie() {

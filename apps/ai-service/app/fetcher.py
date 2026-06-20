@@ -11,7 +11,7 @@ from app.settings import Settings
 Resolver = Callable[[str, int], Iterable[str]]
 
 SAFE_HEADERS = {
-    "User-Agent": "OfferTrackAIParser/0.1",
+    "User-Agent": "OfferTrackAIService/0.1",
     "Accept": "text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.1",
 }
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
