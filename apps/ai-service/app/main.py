@@ -2,6 +2,7 @@ import hmac
 import logging
 import time
 from collections.abc import Callable
+from typing import Protocol
 from uuid import uuid4
 
 import httpx
@@ -11,10 +12,17 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
 from app.draft_builder import build_draft_response
-from app.fetcher import JobFetchError, JobFetchTimeoutError, JobPageFetcher, UnsafeJobUrlError
+from app.fetcher import (
+    FetchResult,
+    JobFetchError,
+    JobFetchTimeoutError,
+    JobPageFetcher,
+    UnsafeJobUrlError,
+)
 from app.html_extractor import extract_readable_text
 from app.models import (
     DraftResponse,
+    ExtractedDraft,
     HealthResponse,
     ParseJobRequest,
     ServiceErrorCode,
@@ -30,10 +38,18 @@ class JobPageNotReadableError(ExtractionError):
     pass
 
 
+class JobPageFetcherProtocol(Protocol):
+    async def fetch(self, job_url: str) -> FetchResult: ...
+
+
+class DraftExtractorProtocol(Protocol):
+    def extract(self, job_text: str) -> ExtractedDraft: ...
+
+
 def create_app(
     settings: Settings | None = None,
-    fetcher_factory: Callable[[Settings], JobPageFetcher] | None = None,
-    extractor_factory: Callable[[Settings], OpenAiDraftExtractor] | None = None,
+    fetcher_factory: Callable[[Settings], JobPageFetcherProtocol] | None = None,
+    extractor_factory: Callable[[Settings], DraftExtractorProtocol] | None = None,
 ) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
     fetcher = (

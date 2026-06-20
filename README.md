@@ -110,6 +110,7 @@ cd apps/ai-service
 python -m pip install -e ".[test]"
 python -m ruff check .
 python -m ruff format --check .
+python -m pyright
 python -m pytest
 ```
 

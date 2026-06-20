@@ -71,7 +71,7 @@ def resolve_host_ips(host: str, port: int) -> list[str]:
     except socket.gaierror as exception:
         raise UnsafeJobUrlError("Job URL host could not be resolved.") from exception
 
-    return sorted({record[4][0] for record in records})
+    return sorted({str(record[4][0]) for record in records})
 
 
 def validate_public_url(raw_url: str, resolver: Resolver = resolve_host_ips) -> httpx.URL:
