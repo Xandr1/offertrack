@@ -133,6 +133,27 @@ export const applicationWithInterviewsSchema = z.object({
   interviews: applicationInterviewsSchema,
 });
 
+export const applicationDraftInterviewSchema = z.object({
+  type: interviewTypeSchema,
+  status: z.literal("planned"),
+  scheduledAt: z.preprocess((value) => (value === undefined ? null : value), z.null()),
+});
+
+export const applicationDraftResponseSchema = z.object({
+  companyName: optionalNullableStringSchema,
+  positionTitle: optionalNullableStringSchema,
+  jobUrl: z.string(),
+  location: optionalNullableStringSchema,
+  workMode: z.preprocess(
+    (value) => (value === undefined ? null : value),
+    workModeSchema.nullable(),
+  ),
+  stage: z.literal("initial"),
+  notes: optionalNullableStringSchema,
+  interviews: z.array(applicationDraftInterviewSchema),
+  warnings: z.array(z.string()),
+});
+
 export const dashboardApplicationItemSchema = z.object({
   applicationId: z.string(),
   companyName: z.string(),

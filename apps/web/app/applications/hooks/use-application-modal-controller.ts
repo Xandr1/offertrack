@@ -34,6 +34,12 @@ const createNewInterviewDraftRow = (): InterviewDraftRow => {
   };
 };
 
+type OpenCreateModalOptions = {
+  form?: ApplicationFormState;
+  rows?: InterviewDraftRow[];
+  warnings?: string[];
+};
+
 export const useApplicationModalController = () => {
   const [state, dispatch] = useReducer(
     applicationModalReducer,
@@ -77,9 +83,14 @@ export const useApplicationModalController = () => {
       !state.isInterviewsLoading &&
       state.interviewsError === null);
 
-  const openCreateModal = () => {
+  const openCreateModal = (options: OpenCreateModalOptions = {}) => {
     undoTimersRef.current.clearAll();
-    dispatch({ type: "OPEN_CREATE" });
+    dispatch({
+      type: "OPEN_CREATE",
+      form: options.form,
+      rows: options.rows,
+      warnings: options.warnings,
+    });
   };
 
   const openEditModal = (application: Application) => {
@@ -184,6 +195,7 @@ export const useApplicationModalController = () => {
     form: state.form,
     formMode: state.mode,
     hasInvalidRow,
+    draftWarnings: state.draftWarnings,
     initialInterviewRows: state.initialInterviewRows,
     interviewsError: state.interviewsError,
     interviewsLoadedForEdit,

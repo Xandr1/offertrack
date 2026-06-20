@@ -12,8 +12,9 @@ import { ApplicationModalBody } from "./components/application-modal-body";
 import { ApplicationToolbar } from "./components/application-toolbar";
 import { ApplicationsPagination } from "./components/applications-pagination";
 import { ApplicationsList } from "./components/applications-list";
+import { CreateWithAiModal } from "./components/create-with-ai-modal";
 import { DeleteApplicationConfirmModal } from "./components/delete-application-confirm-modal";
-import { IconPlus } from "./components/ui-icons";
+import { IconPlus, IconSparkles } from "./components/ui-icons";
 import { useApplicationsPageController } from "./hooks/use-applications-page-controller";
 
 const ApplicationsPage = () => {
@@ -33,13 +34,22 @@ const ApplicationsPage = () => {
           </p>
         </div>
 
-        <Button
-          onClick={controller.openCreateApplicationModal}
-          variant="primarySoft"
-        >
-          <IconPlus className="mr-2 h-4 w-4" />
-          Add application
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={controller.openCreateWithAiModal}
+            variant="secondarySoftAccent"
+          >
+            <IconSparkles className="mr-2 h-4 w-4" />
+            Create with AI
+          </Button>
+          <Button
+            onClick={controller.openCreateApplicationModal}
+            variant="primarySoft"
+          >
+            <IconPlus className="mr-2 h-4 w-4" />
+            Add application
+          </Button>
+        </div>
       </header>
 
       <div className={layoutStyles.section}>
@@ -140,6 +150,7 @@ const ApplicationsPage = () => {
               form: modalController.form,
               onFieldChange: modalController.updateFormField,
             }}
+            draftWarnings={modalController.draftWarnings}
             interviewsSection={{
               disabled: isModalFormDisabled,
               hasInvalidRow: modalController.hasInvalidRow,
@@ -161,6 +172,16 @@ const ApplicationsPage = () => {
           />
         )}
       </ApplicationModal>
+
+      <CreateWithAiModal
+        errorMessage={controller.createWithAiError}
+        isGenerating={controller.isCreateWithAiGenerating}
+        isOpen={controller.isCreateWithAiModalOpen}
+        jobUrl={controller.createWithAiJobUrl}
+        onClose={controller.closeCreateWithAiModal}
+        onJobUrlChange={controller.setCreateWithAiJobUrl}
+        onSubmit={controller.handleCreateWithAiSubmit}
+      />
 
       <DeleteApplicationConfirmModal
         isDeleting={controller.deleteApplicationMutation.isPending}

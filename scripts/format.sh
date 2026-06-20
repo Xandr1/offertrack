@@ -17,4 +17,11 @@ echo "Formatting frontend..."
   pnpm.cmd lint --fix
 )
 
+echo "Formatting AI service..."
+(
+  cd apps/ai-service
+  python -m ruff check . --fix
+  python -m ruff format .
+)
+
 echo "Formatting completed."

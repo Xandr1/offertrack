@@ -7,6 +7,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const withDefaults = (Icon: LucideIcon) => {
 };
 
 export const IconPlus = withDefaults(Plus);
+export const IconSparkles = withDefaults(Sparkles);
 export const IconSearch = withDefaults(Search);
 export const IconCalendar = withDefaults(Calendar);
 export const IconPencil = withDefaults(Pencil);

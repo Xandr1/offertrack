@@ -5,12 +5,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
+  ApiError,
+  createApplication,
+  createApplicationDraft,
   getApplication,
   listApplicationInterviews,
   listApplications,
 } from "@/lib/api";
 import type {
   Application,
+  ApplicationDraftResponse,
+  ApplicationWithInterviews,
   ApplicationsListParams,
   ApplicationsPage as ApplicationsPageResponse,
 } from "@/lib/api";
@@ -39,6 +44,8 @@ jest.mock("@/lib/api", () => {
 
   return {
     ...actual,
+    createApplication: jest.fn(),
+    createApplicationDraft: jest.fn(),
     getApplication: jest.fn(),
     listApplicationInterviews: jest.fn(),
     listApplications: jest.fn(),
@@ -47,6 +54,12 @@ jest.mock("@/lib/api", () => {
 
 const mockedListApplications = listApplications as jest.MockedFunction<
   typeof listApplications
+>;
+const mockedCreateApplication = createApplication as jest.MockedFunction<
+  typeof createApplication
+>;
+const mockedCreateApplicationDraft = createApplicationDraft as jest.MockedFunction<
+  typeof createApplicationDraft
 >;
 const mockedGetApplication = getApplication as jest.MockedFunction<
   typeof getApplication
@@ -76,6 +89,13 @@ const makeApplication = (overrides: Partial<Application> = {}): Application => (
   ...overrides,
 });
 
+const makeApplicationWithInterviews = (
+  application: Application = makeApplication(),
+): ApplicationWithInterviews => ({
+  application,
+  interviews: [],
+});
+
 const makePage = (
   overrides: Partial<ApplicationsPageResponse> = {},
 ): ApplicationsPageResponse => ({
@@ -96,6 +116,7 @@ const installApiMocks = ({
 } = {}) => {
   mockedListApplications.mockResolvedValue(listPage);
   mockedListApplicationInterviews.mockResolvedValue([]);
+  mockedCreateApplication.mockResolvedValue(makeApplicationWithInterviews());
 
   if (detailMode === "pending") {
     mockedGetApplication.mockReturnValue(
@@ -111,6 +132,28 @@ const installApiMocks = ({
 
   mockedGetApplication.mockResolvedValue(makeApplication());
 };
+
+const makeDraft = (
+  overrides: Partial<ApplicationDraftResponse> = {},
+): ApplicationDraftResponse => ({
+  companyName: "Globex",
+  positionTitle: "Senior Product Engineer",
+  jobUrl: "https://example.com/jobs/123",
+  location: "Remote",
+  workMode: "remote",
+  stage: "initial",
+  notes:
+    "Globex is hiring a senior product engineer for platform work. The role is remote.",
+  interviews: [
+    {
+      type: "recruiter",
+      status: "planned",
+      scheduledAt: null,
+    },
+  ],
+  warnings: [],
+  ...overrides,
+});
 
 const renderPage = () => {
   const queryClient = new QueryClient({
@@ -158,6 +201,8 @@ describe("ApplicationsPage", () => {
     currentUrl = "/applications";
     jest.useRealTimers();
     mockReplace.mockClear();
+    mockedCreateApplication.mockReset();
+    mockedCreateApplicationDraft.mockReset();
     mockedGetApplication.mockReset();
     mockedListApplicationInterviews.mockReset();
     mockedListApplications.mockReset();
@@ -430,5 +475,159 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("page")).toBe("2");
     expect(url.searchParams.get("sort")).toBe("companyName");
     expect(url.searchParams.get("direction")).toBe("asc");
+  });
+
+  it("opens the Create with AI modal", async () => {
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Create with AI" }),
+    ).toBeTruthy();
+    expect(screen.getByPlaceholderText("https://company.com/jobs/123")).toBeTruthy();
+  });
+
+  it("handles empty and invalid AI job URLs safely", async () => {
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(screen.getByText("Enter a job URL.")).toBeTruthy();
+
+    await user.type(
+      screen.getByPlaceholderText("https://company.com/jobs/123"),
+      "ftp://example.com/jobs/123",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(screen.getByText("Enter a valid http or https job URL.")).toBeTruthy();
+    expect(mockedCreateApplicationDraft).not.toHaveBeenCalled();
+  });
+
+  it("shows loading while generating an AI draft and ignores the result after close", async () => {
+    installApiMocks();
+    const user = userEvent.setup();
+    let resolveDraft: (draft: ApplicationDraftResponse) => void = () => undefined;
+    mockedCreateApplicationDraft.mockReturnValue(
+      new Promise<ApplicationDraftResponse>((resolve) => {
+        resolveDraft = resolve;
+      }),
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.type(
+      screen.getByPlaceholderText("https://company.com/jobs/123"),
+      "https://example.com/jobs/123",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(
+      (screen.getByRole("button", { name: "Generating..." }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await user.click(screen.getByRole("button", { name: "Create with AI" }));
+    expect(
+      (screen.getByRole("button", { name: "Generate draft" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    resolveDraft(makeDraft());
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Create application" }),
+      ).toBeNull();
+    });
+  });
+
+  it("shows a safe error when draft generation fails", async () => {
+    installApiMocks();
+    mockedCreateApplicationDraft.mockRejectedValue(
+      new ApiError(502, '{"code":"AI_SERVICE_UNAVAILABLE"}'),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.type(
+      screen.getByPlaceholderText("https://company.com/jobs/123"),
+      "https://example.com/jobs/123",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(
+      await screen.findByText(
+        "AI draft generation is temporarily unavailable. Try again.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Create with AI" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Create application" })).toBeNull();
+    expect(mockedCreateApplication).not.toHaveBeenCalled();
+  });
+
+  it("opens the application modal prefilled with an AI draft and warnings", async () => {
+    installApiMocks();
+    mockedCreateApplicationDraft.mockResolvedValue(
+      makeDraft({
+        warnings: ["Company name was inferred from page metadata."],
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.type(
+      screen.getByPlaceholderText("https://company.com/jobs/123"),
+      "example.com/jobs/123",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Create application" }),
+    ).toBeTruthy();
+    expect(mockedCreateApplicationDraft.mock.calls[0]?.[0]).toEqual({
+      jobUrl: "https://example.com/jobs/123",
+    });
+    expect(screen.getByDisplayValue("Globex")).toBeTruthy();
+    expect(screen.getByDisplayValue("Senior Product Engineer")).toBeTruthy();
+    expect(screen.getByDisplayValue("https://example.com/jobs/123")).toBeTruthy();
+    expect(screen.getAllByDisplayValue("Remote")).toHaveLength(2);
+    expect(
+      screen.getByDisplayValue(
+        "Globex is hiring a senior product engineer for platform work. The role is remote.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByDisplayValue("Recruiter")).toBeTruthy();
+    expect(screen.getByDisplayValue("Planned")).toBeTruthy();
+    expect(screen.getByText("AI draft warnings")).toBeTruthy();
+    expect(
+      screen.getByText("Company name was inferred from page metadata."),
+    ).toBeTruthy();
+    expect(mockedCreateApplication).not.toHaveBeenCalled();
+  });
+
+  it("manual Add application still opens an empty create modal", async () => {
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Create application" }),
+    ).toBeTruthy();
+    expect(screen.queryByText("AI draft warnings")).toBeNull();
+    expect(screen.queryByDisplayValue("Globex")).toBeNull();
   });
 });
