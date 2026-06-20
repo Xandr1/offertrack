@@ -567,7 +567,9 @@ describe("ApplicationsPage", () => {
     await user.click(screen.getByRole("button", { name: "Generate draft" }));
 
     expect(
-      await screen.findByText("Something went wrong on the server. Try again."),
+      await screen.findByText(
+        "AI draft generation is temporarily unavailable. Try again.",
+      ),
     ).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Create with AI" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Create application" })).toBeNull();

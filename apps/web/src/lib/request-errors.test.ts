@@ -95,6 +95,37 @@ describe("request-errors", () => {
     );
   });
 
+  it("returns AI draft-specific request error messages", () => {
+    expect(
+      getRequestErrorMessage(
+        new ApiError(400, JSON.stringify({ code: "AI_SERVICE_INVALID_URL" })),
+      ),
+    ).toBe("Enter a valid job URL.");
+    expect(
+      getRequestErrorMessage(
+        new ApiError(502, JSON.stringify({ code: "AI_SERVICE_FETCH_FAILED" })),
+      ),
+    ).toBe("We couldn't fetch that job page. Check the URL or try again.");
+    expect(
+      getRequestErrorMessage(
+        new ApiError(
+          502,
+          JSON.stringify({ code: "AI_SERVICE_EXTRACTION_FAILED" }),
+        ),
+      ),
+    ).toBe("We couldn't generate a draft from that job page. Try another job URL.");
+    expect(
+      getRequestErrorMessage(
+        new ApiError(504, JSON.stringify({ code: "AI_SERVICE_TIMEOUT" })),
+      ),
+    ).toBe("AI draft generation timed out. Try again.");
+    expect(
+      getRequestErrorMessage(
+        new ApiError(502, JSON.stringify({ code: "AI_SERVICE_UNAVAILABLE" })),
+      ),
+    ).toBe("AI draft generation is temporarily unavailable. Try again.");
+  });
+
   it("redirects to login for protected-route auth errors", async () => {
     const router = { replace: jest.fn() };
 

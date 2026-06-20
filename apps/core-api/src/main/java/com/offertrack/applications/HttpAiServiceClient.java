@@ -152,6 +152,10 @@ public class HttpAiServiceClient implements AiServiceClient {
       };
     }
 
+    if (status == HttpStatus.INTERNAL_SERVER_ERROR) {
+      return new AiServiceUnavailableException();
+    }
+
     return new AiServiceExtractionException();
   }
 

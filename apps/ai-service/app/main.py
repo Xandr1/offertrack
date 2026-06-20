@@ -13,7 +13,13 @@ from starlette.responses import JSONResponse
 from app.draft_builder import build_draft_response
 from app.fetcher import JobFetchError, JobFetchTimeoutError, JobPageFetcher, UnsafeJobUrlError
 from app.html_extractor import extract_readable_text
-from app.models import DraftResponse, HealthResponse, ParseJobRequest, ServiceErrorResponse
+from app.models import (
+    DraftResponse,
+    HealthResponse,
+    ParseJobRequest,
+    ServiceErrorCode,
+    ServiceErrorResponse,
+)
 from app.openai_extractor import ExtractionError, OpenAiDraftExtractor, OpenAiTimeoutError
 from app.settings import Settings
 
@@ -148,7 +154,9 @@ def create_app(
 app = create_app()
 
 
-def _authenticate(settings: Settings, provided_api_key: str | None) -> tuple[int, str, str] | None:
+def _authenticate(
+    settings: Settings, provided_api_key: str | None
+) -> tuple[int, ServiceErrorCode, str] | None:
     if not settings.internal_api_key:
         return 500, "AI_SERVICE_INTERNAL_ERROR", "AI service internal API key is not configured."
 
@@ -161,7 +169,7 @@ def _authenticate(settings: Settings, provided_api_key: str | None) -> tuple[int
     return None
 
 
-def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
+def _error_response(status_code: int, code: ServiceErrorCode, message: str) -> JSONResponse:
     error = ServiceErrorResponse(code=code, message=message)
     return JSONResponse(status_code=status_code, content=error.model_dump())
 
@@ -169,7 +177,7 @@ def _error_response(status_code: int, code: str, message: str) -> JSONResponse:
 def _log_and_error(
     request_id: str,
     url_host: str,
-    code: str,
+    code: ServiceErrorCode,
     message: str,
     status_code: int,
     start: float,
@@ -182,7 +190,7 @@ def _log_and_error(
 def _log_failure(
     request_id: str,
     url_host: str,
-    code: str,
+    code: ServiceErrorCode,
     start: float,
     exception: Exception | None = None,
 ) -> None:

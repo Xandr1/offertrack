@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -12,6 +12,16 @@ InterviewType = Literal[
     "home_assignment",
     "behavioral",
     "other",
+]
+ServiceErrorCode: TypeAlias = Literal[
+    "INVALID_JOB_URL",
+    "JOB_FETCH_TIMEOUT",
+    "JOB_FETCH_FAILED",
+    "JOB_PAGE_NOT_READABLE",
+    "AI_EXTRACTION_FAILED",
+    "AI_SERVICE_INTERNAL_ERROR",
+    "MISSING_INTERNAL_API_KEY",
+    "INVALID_INTERNAL_API_KEY",
 ]
 
 
@@ -79,16 +89,7 @@ class DraftResponse(BaseModel):
 
 
 class ServiceErrorResponse(BaseModel):
-    code: Literal[
-        "INVALID_JOB_URL",
-        "JOB_FETCH_TIMEOUT",
-        "JOB_FETCH_FAILED",
-        "JOB_PAGE_NOT_READABLE",
-        "AI_EXTRACTION_FAILED",
-        "AI_SERVICE_INTERNAL_ERROR",
-        "MISSING_INTERNAL_API_KEY",
-        "INVALID_INTERNAL_API_KEY",
-    ]
+    code: ServiceErrorCode
     message: str
 
 

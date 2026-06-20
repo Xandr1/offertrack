@@ -3,6 +3,17 @@ import { apiErrorResponseSchema } from "./schemas";
 export const EMAIL_NOT_VERIFIED_ERROR_CODE = "EMAIL_NOT_VERIFIED";
 export const INVALID_AUTH_TOKEN_ERROR_CODE = "INVALID_AUTH_TOKEN";
 
+const aiDraftErrorMessages: Record<string, string> = {
+  AI_SERVICE_EXTRACTION_FAILED:
+    "We couldn't generate a draft from that job page. Try another job URL.",
+  AI_SERVICE_FETCH_FAILED:
+    "We couldn't fetch that job page. Check the URL or try again.",
+  AI_SERVICE_INVALID_URL: "Enter a valid job URL.",
+  AI_SERVICE_TIMEOUT: "AI draft generation timed out. Try again.",
+  AI_SERVICE_UNAVAILABLE:
+    "AI draft generation is temporarily unavailable. Try again.",
+};
+
 export class ApiError extends Error {
   status: number;
   body: string;
@@ -48,7 +59,7 @@ export const hasApiErrorCode = (error: unknown, code: string): boolean => {
 
 export const getErrorMessage = (error: unknown): string => {
   if (error instanceof NetworkError) {
-    return "Cannot connect to the server. Check that the API is running.";
+    return "Cannot connect to the server";
   }
 
   if (error instanceof ResponseValidationError) {
@@ -64,6 +75,10 @@ export const getErrorMessage = (error: unknown): string => {
 
     if (code === INVALID_AUTH_TOKEN_ERROR_CODE) {
       return "Link is invalid or expired.";
+    }
+
+    if (code && aiDraftErrorMessages[code]) {
+      return aiDraftErrorMessages[code];
     }
 
     if (error.status === 400) {

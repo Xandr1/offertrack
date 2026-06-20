@@ -80,6 +80,14 @@ class HttpAiServiceClientTest {
   }
 
   @Test
+  void mapsPlainInternalServerErrorToUnavailableException() throws Exception {
+    startServer(exchange -> send(exchange, 500, "Internal Server Error"));
+
+    assertThatThrownBy(() -> client().parseJob(request()))
+        .isInstanceOf(AiServiceUnavailableException.class);
+  }
+
+  @Test
   void mapsGatewayTimeoutToTimeoutException() throws Exception {
     startServer(exchange -> sendJson(exchange, 504, serviceError("JOB_FETCH_TIMEOUT")));
 
