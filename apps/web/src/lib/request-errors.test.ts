@@ -105,7 +105,7 @@ describe("request-errors", () => {
       getRequestErrorMessage(
         new ApiError(502, JSON.stringify({ code: "AI_SERVICE_FETCH_FAILED" })),
       ),
-    ).toBe("We couldn't fetch that job page. Check the URL or try again.");
+    ).toBe("We couldn't access this job page automatically. Check URL or try again.");
     expect(
       getRequestErrorMessage(
         new ApiError(

@@ -80,8 +80,28 @@ def test_rejects_redirect_to_private_ip() -> None:
         transport=httpx.MockTransport(handler),
     )
 
-    with pytest.raises(UnsafeJobUrlError):
+    with pytest.raises(UnsafeJobUrlError) as exception_info:
         asyncio.run(fetcher.fetch("https://example.com/jobs/1"))
+
+    assert exception_info.value.reason == "unsafe_redirect_target"
+    assert exception_info.value.redirect_target_host == "169.254.169.254"
+
+
+def test_fetch_error_includes_status_and_content_type_diagnostics() -> None:
+    fetcher = _fetcher_for_response(
+        httpx.Response(
+            403,
+            headers={"content-type": "text/html; charset=utf-8"},
+            content=b"forbidden",
+        )
+    )
+
+    with pytest.raises(JobFetchError) as exception_info:
+        asyncio.run(fetcher.fetch("https://example.com/jobs/1"))
+
+    assert exception_info.value.reason == "http_status_error"
+    assert exception_info.value.status_code == 403
+    assert exception_info.value.content_type == "text/html; charset=utf-8"
 
 
 def test_rejects_unsupported_content_type() -> None:

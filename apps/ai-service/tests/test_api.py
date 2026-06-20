@@ -1,3 +1,5 @@
+import logging
+
 from fastapi.testclient import TestClient
 
 from app.fetcher import FetchResult, JobFetchError, JobFetchTimeoutError
@@ -177,6 +179,29 @@ def test_returns_fetch_failed_error() -> None:
         "code": "JOB_FETCH_FAILED",
         "message": "Could not fetch job URL.",
     }
+
+
+def test_logs_fetch_failure_diagnostics(caplog) -> None:
+    client = _client_with_fetcher(
+        FailingFetcher(
+            JobFetchError(
+                "failed",
+                reason="http_status_error",
+                status_code=403,
+                content_type="text/html; charset=utf-8",
+                redirect_target_host="jobs.example.com",
+            )
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="app.main")
+
+    response = _post_parse(client)
+
+    assert response.status_code == 502
+    assert "reason=http_status_error" in caplog.text
+    assert "status_code=403" in caplog.text
+    assert "content_type=text/html; charset=utf-8" in caplog.text
+    assert "redirect_target_host=jobs.example.com" in caplog.text
 
 
 def test_returns_page_not_readable_error_for_empty_page() -> None:

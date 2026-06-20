@@ -207,13 +207,23 @@ def _log_failure(
         )
         return
 
+    reason = _safe_log_value(getattr(exception, "reason", None))
+    status_code = _safe_status_code(getattr(exception, "status_code", None))
+    content_type = _safe_log_value(getattr(exception, "content_type", None))
+    redirect_target_host = _safe_log_value(getattr(exception, "redirect_target_host", None))
+
     logger.warning(
         "ai_service_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
-        "duration_ms=%s exception_type=%s",
+        "duration_ms=%s reason=%s status_code=%s content_type=%s redirect_target_host=%s "
+        "exception_type=%s",
         request_id,
         url_host,
         code,
         duration_ms,
+        reason,
+        status_code,
+        content_type,
+        redirect_target_host,
         type(exception).__name__,
     )
 
@@ -234,3 +244,18 @@ def _url_host(job_url: str) -> str:
 
 def _duration_ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
+
+
+def _safe_log_value(value: object) -> str:
+    if value is None:
+        return "-"
+
+    text = " ".join(str(value).split())
+    return text[:120] if text else "-"
+
+
+def _safe_status_code(value: object) -> str:
+    if isinstance(value, int):
+        return str(value)
+
+    return "-"

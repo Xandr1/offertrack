@@ -23,11 +23,35 @@ SUPPORTED_CONTENT_TYPES = (
 
 
 class UnsafeJobUrlError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str = "unsafe_job_url",
+        redirect_target_host: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.status_code: int | None = None
+        self.content_type: str | None = None
+        self.redirect_target_host = redirect_target_host
 
 
 class JobFetchError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str = "fetch_failed",
+        status_code: int | None = None,
+        content_type: str | None = None,
+        redirect_target_host: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.status_code = status_code
+        self.content_type = content_type
+        self.redirect_target_host = redirect_target_host
 
 
 class JobFetchTimeoutError(JobFetchError):
@@ -54,26 +78,28 @@ def validate_public_url(raw_url: str, resolver: Resolver = resolve_host_ips) -> 
     try:
         url = httpx.URL(raw_url)
     except httpx.InvalidURL as exception:
-        raise UnsafeJobUrlError("Job URL is malformed.") from exception
+        raise UnsafeJobUrlError("Job URL is malformed.", reason="malformed_url") from exception
 
     if url.scheme.lower() not in {"http", "https"}:
-        raise UnsafeJobUrlError("Job URL must use http or https.")
+        raise UnsafeJobUrlError("Job URL must use http or https.", reason="unsupported_scheme")
 
     if not url.host:
-        raise UnsafeJobUrlError("Job URL must include a host.")
+        raise UnsafeJobUrlError("Job URL must include a host.", reason="missing_host")
 
     if url.username or url.password:
-        raise UnsafeJobUrlError("Job URL must not include credentials.")
+        raise UnsafeJobUrlError("Job URL must not include credentials.", reason="url_credentials")
 
     port = url.port or (443 if url.scheme.lower() == "https" else 80)
     ips = _resolve_url_ips(url.host, port, resolver)
 
     if not ips:
-        raise UnsafeJobUrlError("Job URL host could not be resolved.")
+        raise UnsafeJobUrlError("Job URL host could not be resolved.", reason="host_not_resolved")
 
     for address in ips:
         if not _is_public_ip(address):
-            raise UnsafeJobUrlError("Job URL resolves to a non-public address.")
+            raise UnsafeJobUrlError(
+                "Job URL resolves to a non-public address.", reason="non_public_ip"
+            )
 
     # TODO: This strict pre-request DNS validation does not fully prevent DNS rebinding because
     # httpx resolves again when opening the connection. Full mitigation belongs in future
@@ -108,35 +134,74 @@ class JobPageFetcher:
                 try:
                     response = await client.send(request, stream=True)
                 except httpx.TimeoutException as exception:
-                    raise JobFetchTimeoutError("Timed out fetching job URL.") from exception
+                    raise JobFetchTimeoutError(
+                        "Timed out fetching job URL.", reason="fetch_timeout"
+                    ) from exception
                 except httpx.HTTPError as exception:
-                    raise JobFetchError("Could not fetch job URL.") from exception
+                    raise JobFetchError(
+                        "Could not fetch job URL.", reason="http_client_error"
+                    ) from exception
 
                 try:
                     if response.status_code in REDIRECT_STATUSES:
                         location = response.headers.get("location")
                         if not location:
-                            raise JobFetchError("Redirect response did not include a target.")
-
-                        if redirect_count >= self.settings.max_redirects:
-                            raise JobFetchError("Too many redirects while fetching job URL.")
+                            raise JobFetchError(
+                                "Redirect response did not include a target.",
+                                reason="redirect_missing_location",
+                                status_code=response.status_code,
+                                content_type=response.headers.get("content-type"),
+                            )
 
                         redirected_url = urljoin(str(current_url), location)
-                        current_url = validate_public_url(redirected_url, self.resolver)
+                        redirect_target_host = _safe_url_host(redirected_url)
+
+                        if redirect_count >= self.settings.max_redirects:
+                            raise JobFetchError(
+                                "Too many redirects while fetching job URL.",
+                                reason="too_many_redirects",
+                                status_code=response.status_code,
+                                content_type=response.headers.get("content-type"),
+                                redirect_target_host=redirect_target_host,
+                            )
+
+                        try:
+                            current_url = validate_public_url(redirected_url, self.resolver)
+                        except UnsafeJobUrlError as exception:
+                            raise UnsafeJobUrlError(
+                                "Redirect target is invalid or unsafe.",
+                                reason="unsafe_redirect_target",
+                                redirect_target_host=redirect_target_host,
+                            ) from exception
                         continue
 
                     if response.status_code >= 400:
-                        raise JobFetchError("Job URL returned an unsuccessful status.")
+                        raise JobFetchError(
+                            "Job URL returned an unsuccessful status.",
+                            reason="http_status_error",
+                            status_code=response.status_code,
+                            content_type=response.headers.get("content-type"),
+                        )
 
                     content_type = response.headers.get("content-type")
                     if not _is_supported_content_type(content_type):
-                        raise JobFetchError("Job URL returned an unsupported content type.")
+                        raise JobFetchError(
+                            "Job URL returned an unsupported content type.",
+                            reason="unsupported_content_type",
+                            status_code=response.status_code,
+                            content_type=content_type,
+                        )
 
                     content_length = response.headers.get("content-length")
                     if _is_oversized_content_length(
                         content_length, self.settings.max_response_bytes
                     ):
-                        raise JobFetchError("Job URL response was too large.")
+                        raise JobFetchError(
+                            "Job URL response was too large.",
+                            reason="content_length_too_large",
+                            status_code=response.status_code,
+                            content_type=content_type,
+                        )
 
                     body = await _read_limited_response(response, self.settings.max_response_bytes)
                     return FetchResult(
@@ -147,7 +212,9 @@ class JobPageFetcher:
                 finally:
                     await response.aclose()
 
-        raise JobFetchError("Too many redirects while fetching job URL.")
+        raise JobFetchError(
+            "Too many redirects while fetching job URL.", reason="too_many_redirects"
+        )
 
 
 def _resolve_url_ips(host: str, port: int, resolver: Resolver) -> list[str]:
@@ -197,8 +264,20 @@ async def _read_limited_response(response: httpx.Response, max_bytes: int) -> by
         total += len(chunk)
 
         if total > max_bytes:
-            raise JobFetchError("Job URL response was too large.")
+            raise JobFetchError(
+                "Job URL response was too large.",
+                reason="response_too_large",
+                status_code=response.status_code,
+                content_type=response.headers.get("content-type"),
+            )
 
         chunks.append(chunk)
 
     return b"".join(chunks)
+
+
+def _safe_url_host(raw_url: str) -> str | None:
+    try:
+        return httpx.URL(raw_url).host
+    except httpx.InvalidURL:
+        return None

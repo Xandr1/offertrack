@@ -7,7 +7,7 @@ const aiDraftErrorMessages: Record<string, string> = {
   AI_SERVICE_EXTRACTION_FAILED:
     "We couldn't generate a draft from that job page. Try another job URL.",
   AI_SERVICE_FETCH_FAILED:
-    "We couldn't fetch that job page. Check the URL or try again.",
+    "We couldn't access this job page automatically. Check URL or try again.",
   AI_SERVICE_INVALID_URL: "Enter a valid job URL.",
   AI_SERVICE_TIMEOUT: "AI draft generation timed out. Try again.",
   AI_SERVICE_UNAVAILABLE:
