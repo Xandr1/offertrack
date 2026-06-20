@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   applicationSchema,
+  applicationDraftInterviewSchema,
+  applicationDraftResponseSchema,
   applicationWithInterviewsSchema,
   applicationInterviewSchema,
   applicationInterviewsSchema,
@@ -33,6 +35,12 @@ export type InterviewType = z.infer<typeof interviewTypeSchema>;
 export type InterviewStatus = z.infer<typeof interviewStatusSchema>;
 export type NextInterview = z.infer<typeof nextInterviewSchema>;
 export type Application = z.infer<typeof applicationSchema>;
+export type ApplicationDraftInterview = z.infer<
+  typeof applicationDraftInterviewSchema
+>;
+export type ApplicationDraftResponse = z.infer<
+  typeof applicationDraftResponseSchema
+>;
 export type ApplicationWithInterviews = z.infer<
   typeof applicationWithInterviewsSchema
 >;
@@ -85,6 +93,10 @@ export type CreateApplicationRequest = {
   appliedAt?: string | null;
   notes?: string | null;
   interviews?: CreateApplicationInterviewItemRequest[];
+};
+
+export type ApplicationDraftRequest = {
+  jobUrl: string;
 };
 
 export type ReplaceApplicationRequest = {

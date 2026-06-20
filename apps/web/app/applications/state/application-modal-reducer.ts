@@ -28,6 +28,7 @@ export type ApplicationModalState = {
   hasLoadedInterviews: boolean;
   isInterviewsLoading: boolean;
   interviewsError: string | null;
+  draftWarnings: string[];
   isSaving: boolean;
   saveError: string | null;
 };
@@ -44,12 +45,18 @@ export const initialApplicationModalState: ApplicationModalState = {
   hasLoadedInterviews: false,
   isInterviewsLoading: false,
   interviewsError: null,
+  draftWarnings: [],
   isSaving: false,
   saveError: null,
 };
 
 type ApplicationModalAction =
-  | { type: "OPEN_CREATE" }
+  | {
+      type: "OPEN_CREATE";
+      form?: ApplicationFormState;
+      rows?: InterviewDraftRow[];
+      warnings?: string[];
+    }
   | { type: "OPEN_EDIT"; application: Application }
   | { type: "CLOSE_MODAL" }
   | { type: "INTERVIEWS_LOADING" }
@@ -140,6 +147,11 @@ export const applicationModalReducer = (
       return {
         ...initialApplicationModalState,
         mode: "create",
+        form: action.form ?? initialApplicationFormState,
+        initialInterviewRows: action.rows ?? [],
+        draftInterviewRows: action.rows ?? [],
+        rowOrderByRowId: buildRowOrderByRowId(action.rows ?? []),
+        draftWarnings: action.warnings ?? [],
       };
     case "OPEN_EDIT":
       return {

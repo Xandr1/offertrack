@@ -1,12 +1,15 @@
 import { z } from "zod";
 import { request } from "./client";
 import {
+  applicationDraftResponseSchema,
   applicationSchema,
   applicationsPageSchema,
   applicationWithInterviewsSchema,
 } from "./schemas";
 import type {
   Application,
+  ApplicationDraftRequest,
+  ApplicationDraftResponse,
   ApplicationsListParams,
   ApplicationsPage,
   ApplicationWithInterviews,
@@ -75,6 +78,19 @@ export const createApplication = (
   return request<ApplicationWithInterviews>(
     "/api/applications",
     applicationWithInterviewsSchema,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+};
+
+export const createApplicationDraft = (
+  payload: ApplicationDraftRequest,
+): Promise<ApplicationDraftResponse> => {
+  return request<ApplicationDraftResponse>(
+    "/api/applications/draft",
+    applicationDraftResponseSchema,
     {
       method: "POST",
       body: JSON.stringify(payload),

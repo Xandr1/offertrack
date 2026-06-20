@@ -2,10 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { getErrorMessage } from "@/lib/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createApplicationDraft, getErrorMessage } from "@/lib/api";
 import type {
   Application,
+  ApplicationDraftResponse,
   ApplicationStage,
   InterviewStatus,
 } from "@/lib/api";
@@ -22,15 +23,122 @@ import { useApplicationSave } from "./use-application-save";
 import { useApplicationsQuery } from "./use-applications-query";
 import { useApplicationsUrlFilters } from "./use-applications-url-filters";
 import { useInterviewMutations } from "./use-interview-mutations";
+import {
+  ApplicationFormState,
+  initialApplicationFormState,
+} from "../models/application-form-model";
+import {
+  InterviewDraftRow,
+  MAX_INTERVIEW_ROWS,
+} from "../models/interview-row-model";
+
+const MAX_JOB_URL_LENGTH = 2048;
+const explicitSchemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
+const ipv4HostPattern = /^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$/;
+
+const looksLikeHostPath = (value: string): boolean => {
+  const hostCandidate = value.split(/[/?#]/, 1)[0];
+  if (!hostCandidate || hostCandidate.includes(" ")) {
+    return false;
+  }
+
+  const hostWithoutPort = hostCandidate.replace(/:\d+$/, "");
+  if (hostCandidate.includes(":") && hostWithoutPort === hostCandidate) {
+    return false;
+  }
+
+  return (
+    hostWithoutPort.toLowerCase() === "localhost" ||
+    hostWithoutPort.includes(".") ||
+    ipv4HostPattern.test(hostCandidate)
+  );
+};
+
+const normalizeAiJobUrlInput = (
+  value: string,
+): { jobUrl: string; error: null } | { jobUrl: null; error: string } => {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return { jobUrl: null, error: "Enter a job URL." };
+  }
+
+  if (trimmedValue.length > MAX_JOB_URL_LENGTH) {
+    return { jobUrl: null, error: "Job URL must be 2048 characters or fewer." };
+  }
+
+  const candidate = explicitSchemePattern.test(trimmedValue)
+    ? trimmedValue
+    : looksLikeHostPath(trimmedValue)
+      ? `https://${trimmedValue}`
+      : null;
+
+  if (!candidate) {
+    return { jobUrl: null, error: "Enter a valid http or https job URL." };
+  }
+
+  try {
+    const url = new URL(candidate);
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) {
+      return { jobUrl: null, error: "Enter a valid http or https job URL." };
+    }
+
+    return { jobUrl: url.toString(), error: null };
+  } catch {
+    return { jobUrl: null, error: "Enter a valid http or https job URL." };
+  }
+};
+
+const createDraftRowId = (index: number): string => {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `ai-draft-row-${Date.now()}-${index}-${Math.random()
+    .toString(16)
+    .slice(2)}`;
+};
+
+const toInitialDraftForm = (
+  draft: ApplicationDraftResponse,
+): ApplicationFormState => {
+  return {
+    ...initialApplicationFormState,
+    companyName: draft.companyName ?? "",
+    positionTitle: draft.positionTitle ?? "",
+    jobUrl: draft.jobUrl,
+    location: draft.location ?? "",
+    workMode: draft.workMode ?? "",
+    stage: "initial",
+    notes: draft.notes ?? "",
+  };
+};
+
+const toInitialDraftRows = (
+  draft: ApplicationDraftResponse,
+): InterviewDraftRow[] => {
+  return draft.interviews.slice(0, MAX_INTERVIEW_ROWS).map((interview, index) => ({
+    rowId: createDraftRowId(index),
+    interviewId: null,
+    type: interview.type,
+    status: "planned",
+    scheduledAt: "",
+  }));
+};
 
 export const useApplicationsPageController = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const [pageError, setPageError] = useState<string | null>(null);
+  const [isCreateWithAiModalOpen, setIsCreateWithAiModalOpen] = useState(false);
+  const [isCreateWithAiGenerating, setIsCreateWithAiGenerating] = useState(false);
+  const [createWithAiJobUrl, setCreateWithAiJobUrl] = useState("");
+  const [createWithAiError, setCreateWithAiError] = useState<string | null>(null);
   const [applicationToDelete, setApplicationToDelete] = useState<Application | null>(
     null,
   );
+  const activeAiDraftRequestRef = useRef(0);
   const openedDetailIdRef = useRef<string | null>(null);
   const suppressedDetailIdRef = useRef<string | null>(null);
 
@@ -212,6 +320,9 @@ export const useApplicationsPageController = () => {
     onMutationError: onSaveMutationError,
     queryClient,
   });
+  const createApplicationDraftMutation = useMutation({
+    mutationFn: createApplicationDraft,
+  });
 
   const openCreateApplicationModal = useCallback(() => {
     clearPageError();
@@ -227,6 +338,104 @@ export const useApplicationsPageController = () => {
     modalController,
     selectedApplicationId,
   ]);
+
+  const openCreateApplicationModalWithDraft = useCallback(
+    (draft: ApplicationDraftResponse) => {
+      clearPageError();
+      openedDetailIdRef.current = null;
+      if (selectedApplicationId) {
+        suppressedDetailIdRef.current = selectedApplicationId;
+        clearSelectedApplicationId();
+      }
+
+      modalController.openCreateModal({
+        form: toInitialDraftForm(draft),
+        rows: toInitialDraftRows(draft),
+        warnings: draft.warnings
+          .map((warning) => warning.trim())
+          .filter((warning) => warning !== ""),
+      });
+    },
+    [
+      clearPageError,
+      clearSelectedApplicationId,
+      modalController,
+      selectedApplicationId,
+    ],
+  );
+
+  const openCreateWithAiModal = useCallback(() => {
+    clearPageError();
+    activeAiDraftRequestRef.current += 1;
+    setIsCreateWithAiGenerating(false);
+    setCreateWithAiError(null);
+    setCreateWithAiJobUrl("");
+    setIsCreateWithAiModalOpen(true);
+  }, [clearPageError]);
+
+  const closeCreateWithAiModal = useCallback(() => {
+    activeAiDraftRequestRef.current += 1;
+    setIsCreateWithAiModalOpen(false);
+    setIsCreateWithAiGenerating(false);
+    setCreateWithAiError(null);
+  }, []);
+
+  const updateCreateWithAiJobUrl = useCallback((value: string) => {
+    setCreateWithAiJobUrl(value);
+    setCreateWithAiError(null);
+  }, []);
+
+  const handleCreateWithAiSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const normalized = normalizeAiJobUrlInput(createWithAiJobUrl);
+      if (normalized.error !== null) {
+        setCreateWithAiError(normalized.error);
+        return;
+      }
+
+      const jobUrl = normalized.jobUrl;
+      const requestId = activeAiDraftRequestRef.current + 1;
+      activeAiDraftRequestRef.current = requestId;
+      setCreateWithAiError(null);
+      setIsCreateWithAiGenerating(true);
+
+      try {
+        const draft = await createApplicationDraftMutation.mutateAsync({
+          jobUrl,
+        });
+
+        if (activeAiDraftRequestRef.current !== requestId) {
+          return;
+        }
+
+        setIsCreateWithAiModalOpen(false);
+        setCreateWithAiJobUrl("");
+        openCreateApplicationModalWithDraft(draft);
+      } catch (error) {
+        if (activeAiDraftRequestRef.current !== requestId) {
+          return;
+        }
+
+        if (await redirectToLoginIfProtectedRoute(error, router)) {
+          return;
+        }
+
+        setCreateWithAiError(getRequestErrorMessage(error));
+      } finally {
+        if (activeAiDraftRequestRef.current === requestId) {
+          setIsCreateWithAiGenerating(false);
+        }
+      }
+    },
+    [
+      createApplicationDraftMutation,
+      createWithAiJobUrl,
+      openCreateApplicationModalWithDraft,
+      router,
+    ],
+  );
 
   const openEditApplicationModal = useCallback(
     (application: Application) => {
@@ -410,26 +619,35 @@ export const useApplicationsPageController = () => {
     applicationToDelete,
     applicationsQuery,
     closeApplicationModal,
+    closeCreateWithAiModal,
+    createApplicationDraftMutation,
+    createWithAiError,
+    createWithAiJobUrl,
     deleteApplicationMutation,
     deletingApplicationId,
     direction,
+    handleCreateWithAiSubmit,
     handleDeleteConfirm,
     handleDeleteRequest,
     handleNextInterviewStatusChange,
     handleSaveModal,
     handleStageChange,
     interviewsQuery,
+    isCreateWithAiGenerating,
     isListAuthError,
+    isCreateWithAiModalOpen,
     isModalSaveDisabled,
     modalController,
     nextInterviewStatusApplicationId,
     openCreateApplicationModal,
+    openCreateWithAiModal,
     openEditApplicationModal,
     page: applicationsQuery.data?.page ?? page,
     pageError,
     searchInput,
     clearSearch,
     setApplicationToDelete,
+    setCreateWithAiJobUrl: updateCreateWithAiJobUrl,
     setFilters,
     setPage,
     setSearchInput,
