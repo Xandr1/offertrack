@@ -114,7 +114,7 @@ def test_parse_job_returns_internal_error_when_runtime_key_is_missing() -> None:
     }
 
 
-def test_maps_mocked_openai_structured_output_to_draft_response() -> None:
+def test_maps_extracted_structured_output_to_draft_response() -> None:
     client = _client(
         b"<html><body>Acme Backend Engineer remote role.</body></html>",
         _successful_extractor(),
@@ -134,6 +134,34 @@ def test_maps_mocked_openai_structured_output_to_draft_response() -> None:
         "interviews": [],
         "warnings": [],
     }
+
+
+def test_adds_warnings_for_missing_draft_fields() -> None:
+    client = _client(
+        b"<html><body>Partial job page content is available.</body></html>",
+        FakeExtractor(
+            ExtractedDraft(
+                warnings=["Page content appears partial.", "Page content appears partial."]
+            )
+        ),
+    )
+
+    response = _post_parse(client)
+
+    assert response.status_code == 200
+    assert response.json()["companyName"] is None
+    assert response.json()["positionTitle"] is None
+    assert response.json()["location"] is None
+    assert response.json()["workMode"] is None
+    assert response.json()["notes"] is None
+    assert response.json()["warnings"] == [
+        "Page content appears partial.",
+        "Company name could not be determined.",
+        "Position title could not be determined.",
+        "Location could not be determined.",
+        "Work mode could not be determined.",
+        "Vacancy summary could not be determined.",
+    ]
 
 
 def test_handles_invalid_model_output_safely() -> None:
