@@ -58,9 +58,10 @@ Work mode:
 - Return null if work mode is not clear.
 
 Notes:
-- Write exactly 2 concise sentences.
+- If enough role information is present, write exactly 2 concise sentences.
+- If the page does not contain enough role-specific information, return null.
 - Summarize role scope, core responsibilities, notable technologies or domain,
-  and salary when present.
+  and salary when it is clearly stated.
 - Do not include generic company marketing, benefits, equal opportunity text,
   legal disclaimers, or application instructions.
 - Do not invent missing responsibilities, technologies, or salary.
