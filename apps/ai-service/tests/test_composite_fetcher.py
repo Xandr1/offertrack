@@ -80,6 +80,36 @@ def test_uses_browser_fallback_when_primary_text_is_too_short() -> None:
     assert browser.calls == ["https://example.com/jobs/1"]
 
 
+def test_returns_primary_when_browser_text_is_too_short_after_short_primary_text(
+    caplog,
+) -> None:
+    primary_result = _result(b"<html><body>Apply</body></html>")
+    primary = FakeFetcher(primary_result)
+    browser = FakeFetcher(_result(b"<html><body>Login</body></html>"))
+    caplog.set_level(logging.INFO, logger="app.composite_fetcher")
+
+    result = asyncio.run(
+        _fetch(
+            Settings(
+                openai_api_key="",
+                openai_model="test",
+                browser_min_text_length=20,
+            ),
+            primary,
+            browser,
+        )
+    )
+
+    assert result is primary_result
+    assert browser.calls == ["https://example.com/jobs/1"]
+    assert "browser_reason=browser_text_too_short" in caplog.text
+    assert "primary_readable_text_length=5" in caplog.text
+    assert "browser_readable_text_length=5" in caplog.text
+    assert "outcome=failed" in caplog.text
+    assert "url_host=example.com" in caplog.text
+    assert "https://example.com/jobs/1" not in caplog.text
+
+
 @pytest.mark.parametrize(
     "exception_factory",
     [
@@ -113,6 +143,7 @@ def test_uses_browser_fallback_for_retryable_primary_fetch_errors(
             Settings(
                 openai_api_key="",
                 openai_model="test",
+                browser_min_text_length=20,
             ),
             primary,
             browser,
@@ -133,6 +164,7 @@ def test_uses_browser_fallback_for_primary_fetch_timeout() -> None:
             Settings(
                 openai_api_key="",
                 openai_model="test",
+                browser_min_text_length=20,
             ),
             primary,
             browser,
@@ -141,6 +173,34 @@ def test_uses_browser_fallback_for_primary_fetch_timeout() -> None:
 
     assert result is browser_result
     assert browser.calls == ["https://example.com/jobs/1"]
+
+
+def test_browser_text_too_short_preserves_retryable_primary_error(caplog) -> None:
+    primary_exception = JobFetchError("client failed", reason="http_client_error")
+    primary = FakeFetcher(exception=primary_exception)
+    browser = FakeFetcher(_result(b"<html><body>Login</body></html>"))
+    caplog.set_level(logging.INFO, logger="app.composite_fetcher")
+
+    with pytest.raises(JobFetchError) as exception_info:
+        asyncio.run(
+            _fetch(
+                Settings(
+                    openai_api_key="",
+                    openai_model="test",
+                    browser_min_text_length=20,
+                ),
+                primary,
+                browser,
+            )
+        )
+
+    assert exception_info.value is primary_exception
+    assert browser.calls == ["https://example.com/jobs/1"]
+    assert "browser_reason=browser_text_too_short" in caplog.text
+    assert "browser_readable_text_length=5" in caplog.text
+    assert "outcome=failed" in caplog.text
+    assert "url_host=example.com" in caplog.text
+    assert "https://example.com/jobs/1" not in caplog.text
 
 
 def test_does_not_use_browser_fallback_for_unsafe_url_errors() -> None:

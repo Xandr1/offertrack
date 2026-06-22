@@ -73,6 +73,14 @@ class BrowserJobPageFetcher:
                         except PlaywrightTimeoutError:
                             pass
 
+                        try:
+                            await page.wait_for_selector(
+                                "body",
+                                timeout=min(NETWORK_IDLE_TIMEOUT_MS, timeout_ms),
+                            )
+                        except PlaywrightTimeoutError:
+                            pass
+
                         body = (await page.content()).encode("utf-8")
 
                         if len(body) > self.settings.browser_max_response_bytes:

@@ -22,6 +22,16 @@ class JobPageFetcherProtocol(Protocol):
     async def fetch(self, job_url: str) -> FetchResult: ...
 
 
+class _BrowserTextTooShortError(JobFetchError):
+    def __init__(self, content_type: str | None, readable_text_length: int) -> None:
+        super().__init__(
+            "Browser-rendered job page did not contain enough readable text.",
+            reason="browser_text_too_short",
+            content_type=content_type,
+        )
+        self.readable_text_length = readable_text_length
+
+
 class CompositeJobPageFetcher:
     def __init__(
         self,
@@ -60,6 +70,10 @@ class CompositeJobPageFetcher:
 
         try:
             result = await self.browser_fetcher.fetch(job_url)
+            result, browser_text_length = _validate_browser_result(
+                result,
+                self.settings.browser_min_text_length,
+            )
         except JobFetchError as browser_exception:
             _log_browser_fallback(
                 host,
@@ -69,7 +83,12 @@ class CompositeJobPageFetcher:
             )
             raise primary_exception from browser_exception
 
-        _log_browser_fallback(host, fallback_reason, "succeeded")
+        _log_browser_fallback(
+            host,
+            fallback_reason,
+            "succeeded",
+            browser_readable_text_length=browser_text_length,
+        )
         return result
 
     async def _try_browser_after_short_text(
@@ -85,18 +104,22 @@ class CompositeJobPageFetcher:
             host,
             fallback_reason,
             "attempted",
-            readable_text_length=readable_text_length,
+            primary_readable_text_length=readable_text_length,
         )
 
         try:
             result = await self.browser_fetcher.fetch(job_url)
+            result, browser_text_length = _validate_browser_result(
+                result,
+                self.settings.browser_min_text_length,
+            )
         except JobFetchError as browser_exception:
             _log_browser_fallback(
                 host,
                 fallback_reason,
                 "failed",
                 browser_exception,
-                readable_text_length=readable_text_length,
+                primary_readable_text_length=readable_text_length,
             )
             return primary_result
 
@@ -104,9 +127,23 @@ class CompositeJobPageFetcher:
             host,
             fallback_reason,
             "succeeded",
-            readable_text_length=readable_text_length,
+            primary_readable_text_length=readable_text_length,
+            browser_readable_text_length=browser_text_length,
         )
         return result
+
+
+def _validate_browser_result(
+    result: FetchResult,
+    min_text_length: int,
+) -> tuple[FetchResult, int]:
+    readable_text = extract_readable_text(result.body, result.content_type)
+    readable_text_length = len(readable_text)
+
+    if readable_text_length < min_text_length:
+        raise _BrowserTextTooShortError(result.content_type, readable_text_length)
+
+    return result, readable_text_length
 
 
 def _is_retryable_fetch_error(exception: JobFetchError) -> bool:
@@ -122,21 +159,31 @@ def _log_browser_fallback(
     outcome: str,
     browser_exception: JobFetchError | None = None,
     *,
-    readable_text_length: int | None = None,
+    primary_readable_text_length: int | None = None,
+    browser_readable_text_length: int | None = None,
 ) -> None:
     browser_reason = _safe_log_value(getattr(browser_exception, "reason", None))
     status_code = _safe_status_code(getattr(browser_exception, "status_code", None))
-    text_length = str(readable_text_length) if readable_text_length is not None else "-"
+    if browser_readable_text_length is None:
+        browser_readable_text_length = getattr(
+            browser_exception,
+            "readable_text_length",
+            None,
+        )
+    primary_text_length = _safe_text_length(primary_readable_text_length)
+    browser_text_length = _safe_text_length(browser_readable_text_length)
 
     logger.info(
         "ai_service_browser_fallback url_host=%s reason=%s outcome=%s "
-        "browser_reason=%s status_code=%s readable_text_length=%s",
+        "browser_reason=%s status_code=%s primary_readable_text_length=%s "
+        "browser_readable_text_length=%s",
         host,
         reason,
         outcome,
         browser_reason,
         status_code,
-        text_length,
+        primary_text_length,
+        browser_text_length,
     )
 
 
@@ -156,6 +203,13 @@ def _safe_log_value(value: object) -> str:
 
 
 def _safe_status_code(value: object) -> str:
+    if isinstance(value, int):
+        return str(value)
+
+    return "-"
+
+
+def _safe_text_length(value: object) -> str:
     if isinstance(value, int):
         return str(value)
 
