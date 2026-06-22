@@ -49,3 +49,45 @@ def test_ignores_invalid_openai_timeout_seconds(monkeypatch) -> None:
     settings = Settings.from_env()
 
     assert settings.openai_timeout_seconds == DEFAULT_OPENAI_TIMEOUT_SECONDS
+
+
+def test_browser_settings_default_to_safe_values(monkeypatch) -> None:
+    monkeypatch.delenv("AI_SERVICE_BROWSER_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("AI_SERVICE_BROWSER_MAX_RESPONSE_BYTES", raising=False)
+    monkeypatch.delenv("AI_SERVICE_BROWSER_MIN_TEXT_LENGTH", raising=False)
+    monkeypatch.delenv("AI_SERVICE_BROWSER_MAX_CONCURRENCY", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.browser_timeout_seconds == 12.0
+    assert settings.browser_max_response_bytes == 1_000_000
+    assert settings.browser_min_text_length == 500
+    assert settings.browser_max_concurrency == 1
+
+
+def test_reads_browser_settings_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("AI_SERVICE_BROWSER_TIMEOUT_SECONDS", "8.5")
+    monkeypatch.setenv("AI_SERVICE_BROWSER_MAX_RESPONSE_BYTES", "2000000")
+    monkeypatch.setenv("AI_SERVICE_BROWSER_MIN_TEXT_LENGTH", "750")
+    monkeypatch.setenv("AI_SERVICE_BROWSER_MAX_CONCURRENCY", "2")
+
+    settings = Settings.from_env()
+
+    assert settings.browser_timeout_seconds == 8.5
+    assert settings.browser_max_response_bytes == 2_000_000
+    assert settings.browser_min_text_length == 750
+    assert settings.browser_max_concurrency == 2
+
+
+def test_ignores_invalid_browser_settings(monkeypatch) -> None:
+    monkeypatch.setenv("AI_SERVICE_BROWSER_TIMEOUT_SECONDS", "nan")
+    monkeypatch.setenv("AI_SERVICE_BROWSER_MAX_RESPONSE_BYTES", "0")
+    monkeypatch.setenv("AI_SERVICE_BROWSER_MIN_TEXT_LENGTH", "-1")
+    monkeypatch.setenv("AI_SERVICE_BROWSER_MAX_CONCURRENCY", "1.5")
+
+    settings = Settings.from_env()
+
+    assert settings.browser_timeout_seconds == 12.0
+    assert settings.browser_max_response_bytes == 1_000_000
+    assert settings.browser_min_text_length == 500
+    assert settings.browser_max_concurrency == 1
