@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from app.composite_fetcher import CompositeJobPageFetcher
-from app.fetcher import FetchResult, JobFetchError, UnsafeJobUrlError
+from app.fetcher import FetchResult, JobFetchError, JobFetchTimeoutError, UnsafeJobUrlError
 from app.settings import Settings
 
 
@@ -106,6 +106,26 @@ def test_uses_browser_fallback_for_retryable_primary_fetch_errors(
 ) -> None:
     browser_result = _result(b"<html><body>Rendered vacancy content.</body></html>")
     primary = FakeFetcher(exception=exception_factory())
+    browser = FakeFetcher(browser_result)
+
+    result = asyncio.run(
+        _fetch(
+            Settings(
+                openai_api_key="",
+                openai_model="test",
+            ),
+            primary,
+            browser,
+        )
+    )
+
+    assert result is browser_result
+    assert browser.calls == ["https://example.com/jobs/1"]
+
+
+def test_uses_browser_fallback_for_primary_fetch_timeout() -> None:
+    browser_result = _result(b"<html><body>Rendered vacancy content.</body></html>")
+    primary = FakeFetcher(exception=JobFetchTimeoutError("fetch timed out", reason="fetch_timeout"))
     browser = FakeFetcher(browser_result)
 
     result = asyncio.run(

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS_CODES = {403, 429}
 RETRYABLE_REASONS = {
+    "fetch_timeout",
     "http_client_error",
     "unsupported_content_type",
 }
