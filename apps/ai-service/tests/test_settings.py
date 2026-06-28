@@ -1,4 +1,10 @@
-from app.settings import DEFAULT_OPENAI_MODEL, DEFAULT_OPENAI_TIMEOUT_SECONDS, Settings
+from app.settings import (
+    DEFAULT_MAX_JOB_TEXT_CHARS,
+    DEFAULT_MAX_RESPONSE_BYTES,
+    DEFAULT_OPENAI_MODEL,
+    DEFAULT_OPENAI_TIMEOUT_SECONDS,
+    Settings,
+)
 
 
 def test_default_model_is_gpt_5_4_mini_when_not_set(monkeypatch) -> None:
@@ -49,3 +55,35 @@ def test_ignores_invalid_openai_timeout_seconds(monkeypatch) -> None:
     settings = Settings.from_env()
 
     assert settings.openai_timeout_seconds == DEFAULT_OPENAI_TIMEOUT_SECONDS
+
+
+def test_fetch_and_text_limits_default_to_safe_values(monkeypatch) -> None:
+    monkeypatch.delenv("AI_SERVICE_MAX_RESPONSE_BYTES", raising=False)
+    monkeypatch.delenv("AI_SERVICE_MAX_JOB_TEXT_CHARS", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.max_response_bytes == DEFAULT_MAX_RESPONSE_BYTES
+    assert settings.max_response_bytes == 10_000_000
+    assert settings.max_job_text_chars == DEFAULT_MAX_JOB_TEXT_CHARS
+    assert settings.max_job_text_chars == 18_000
+
+
+def test_reads_fetch_and_text_limits_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("AI_SERVICE_MAX_RESPONSE_BYTES", "12000000")
+    monkeypatch.setenv("AI_SERVICE_MAX_JOB_TEXT_CHARS", "15000")
+
+    settings = Settings.from_env()
+
+    assert settings.max_response_bytes == 12_000_000
+    assert settings.max_job_text_chars == 15_000
+
+
+def test_ignores_invalid_fetch_and_text_limits(monkeypatch) -> None:
+    monkeypatch.setenv("AI_SERVICE_MAX_RESPONSE_BYTES", "invalid")
+    monkeypatch.setenv("AI_SERVICE_MAX_JOB_TEXT_CHARS", "0")
+
+    settings = Settings.from_env()
+
+    assert settings.max_response_bytes == DEFAULT_MAX_RESPONSE_BYTES
+    assert settings.max_job_text_chars == DEFAULT_MAX_JOB_TEXT_CHARS

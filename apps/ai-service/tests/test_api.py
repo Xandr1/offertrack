@@ -35,6 +35,16 @@ class FakeExtractor:
         return self.extracted
 
 
+class CapturingExtractor(FakeExtractor):
+    def __init__(self, extracted: ExtractedDraft) -> None:
+        super().__init__(extracted)
+        self.job_text: str | None = None
+
+    def extract(self, job_text: str) -> ExtractedDraft:
+        self.job_text = job_text
+        return super().extract(job_text)
+
+
 class InvalidExtractor:
     def extract(self, job_text: str) -> ExtractedDraft:
         return ExtractedDraft.model_validate(
@@ -114,7 +124,7 @@ def test_parse_job_returns_internal_error_when_runtime_key_is_missing() -> None:
     }
 
 
-def test_maps_mocked_openai_structured_output_to_draft_response() -> None:
+def test_maps_extracted_structured_output_to_draft_response() -> None:
     client = _client(
         b"<html><body>Acme Backend Engineer remote role.</body></html>",
         _successful_extractor(),
@@ -134,6 +144,56 @@ def test_maps_mocked_openai_structured_output_to_draft_response() -> None:
         "interviews": [],
         "warnings": [],
     }
+
+
+def test_sends_only_bounded_clean_text_to_extractor() -> None:
+    extractor = CapturingExtractor(_successful_extractor().extracted)
+    settings = Settings(
+        openai_api_key="",
+        openai_model="test-model",
+        internal_api_key=TEST_INTERNAL_API_KEY,
+        max_job_text_chars=12,
+    )
+    app = create_app(
+        settings=settings,
+        fetcher_factory=lambda resolved_settings: FakeFetcher(
+            b"<script>ignored()</script><p>" + (b"R" * 30) + b"</p>"
+        ),
+        extractor_factory=lambda resolved_settings: extractor,
+    )
+
+    response = _post_parse(TestClient(app))
+
+    assert response.status_code == 200
+    assert extractor.job_text == "R" * 12
+
+
+def test_adds_warnings_for_missing_draft_fields() -> None:
+    client = _client(
+        b"<html><body>Partial job page content is available.</body></html>",
+        FakeExtractor(
+            ExtractedDraft(
+                warnings=["Page content appears partial.", "Page content appears partial."]
+            )
+        ),
+    )
+
+    response = _post_parse(client)
+
+    assert response.status_code == 200
+    assert response.json()["companyName"] is None
+    assert response.json()["positionTitle"] is None
+    assert response.json()["location"] is None
+    assert response.json()["workMode"] is None
+    assert response.json()["notes"] is None
+    assert response.json()["warnings"] == [
+        "Page content appears partial.",
+        "Company name could not be determined.",
+        "Position title could not be determined.",
+        "Location could not be determined.",
+        "Work mode could not be determined.",
+        "Vacancy summary could not be determined.",
+    ]
 
 
 def test_handles_invalid_model_output_safely() -> None:

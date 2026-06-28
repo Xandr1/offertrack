@@ -87,7 +87,11 @@ def create_app(
                 return _error_response(status_code, code, message)
 
             fetched_page = await fetcher.fetch(request.job_url)
-            page_text = extract_readable_text(fetched_page.body, fetched_page.content_type)
+            page_text = extract_readable_text(
+                fetched_page.body,
+                fetched_page.content_type,
+                max_chars=resolved_settings.max_job_text_chars,
+            )
 
             if not page_text:
                 raise JobPageNotReadableError("Job page did not contain readable text.")
