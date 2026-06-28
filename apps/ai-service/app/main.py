@@ -11,12 +11,12 @@ from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
-from app.composite_fetcher import CompositeJobPageFetcher
 from app.draft_builder import build_draft_response
 from app.fetcher import (
     FetchResult,
     JobFetchError,
     JobFetchTimeoutError,
+    JobPageFetcher,
     UnsafeJobUrlError,
 )
 from app.html_extractor import extract_readable_text
@@ -55,7 +55,7 @@ def create_app(
     fetcher = (
         fetcher_factory(resolved_settings)
         if fetcher_factory is not None
-        else CompositeJobPageFetcher(resolved_settings)
+        else JobPageFetcher(resolved_settings)
     )
     extractor = (
         extractor_factory(resolved_settings)
@@ -87,7 +87,11 @@ def create_app(
                 return _error_response(status_code, code, message)
 
             fetched_page = await fetcher.fetch(request.job_url)
-            page_text = extract_readable_text(fetched_page.body, fetched_page.content_type)
+            page_text = extract_readable_text(
+                fetched_page.body,
+                fetched_page.content_type,
+                max_chars=resolved_settings.max_job_text_chars,
+            )
 
             if not page_text:
                 raise JobPageNotReadableError("Job page did not contain readable text.")

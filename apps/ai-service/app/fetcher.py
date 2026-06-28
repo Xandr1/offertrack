@@ -63,6 +63,7 @@ class FetchResult:
     url: str
     body: bytes
     content_type: str | None
+    status_code: int | None = None
 
 
 def resolve_host_ips(host: str, port: int) -> list[str]:
@@ -175,7 +176,7 @@ class JobPageFetcher:
                             ) from exception
                         continue
 
-                    if response.status_code >= 400:
+                    if not 200 <= response.status_code < 300:
                         raise JobFetchError(
                             "Job URL returned an unsuccessful status.",
                             reason="http_status_error",
@@ -208,6 +209,7 @@ class JobPageFetcher:
                         url=str(current_url),
                         body=body,
                         content_type=content_type,
+                        status_code=response.status_code,
                     )
                 finally:
                     await response.aclose()

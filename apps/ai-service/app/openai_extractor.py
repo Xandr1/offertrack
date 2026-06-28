@@ -40,12 +40,22 @@ Position title:
 
 Location:
 - Prefer the explicit job location from the vacancy text.
-- Preserve multiple locations if explicitly listed.
-- If no city or location is listed but the role is explicitly remote, use the
-  country only when it is clearly stated for the vacancy or company.
+- Return location as a concise string using only city and country information
+explicitly present in the vacancy text.
+- If one city and one country are clearly stated, use: City, Country.
+- If multiple cities in the same country are clearly stated, use:
+City 1, City 2, Country.
+- If multiple countries are clearly stated and city names are not clear or not
+mentioned, use: Country 1, Country 2.
+- If multiple city-country pairs are clearly stated, preserve them in a concise
+format, such as: City 1, Country 1; City 2, Country 2.
+- If no city is listed but one or more countries are clearly stated for the
+vacancy, return only the country or countries.
 - If the role is remote and no country can be determined from the text, return
-  null.
-- Do not infer location from the URL or outside knowledge.
+null.
+- If neither city nor country is clearly specified, return null.
+- Do not infer location from the URL, page host, company headquarters, or outside
+knowledge.
 
 Work mode:
 - Use only remote, hybrid, onsite, or null.
