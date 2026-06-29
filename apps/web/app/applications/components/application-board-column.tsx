@@ -9,7 +9,7 @@ import { ApplicationBoardCard } from "./application-board-card";
 
 type ApplicationBoardColumnProps = {
   column: BoardColumn;
-  dragDisabled: boolean;
+  isStageUpdatePending: boolean;
   loadState: BoardLoadMoreState[BoardColumn["stage"]];
   onDelete: (application: Application) => void;
   onEdit: (application: Application) => void;
@@ -18,7 +18,7 @@ type ApplicationBoardColumnProps = {
 
 export const ApplicationBoardColumn = ({
   column,
-  dragDisabled,
+  isStageUpdatePending,
   loadState,
   onDelete,
   onEdit,
@@ -35,13 +35,18 @@ export const ApplicationBoardColumn = ({
       }`}
       ref={setNodeRef}
     >
-      <header className="mb-3 flex items-center justify-between px-1">
-        <h2 className="text-sm font-semibold text-zinc-950">
-          {applicationStageLabels[column.stage]}
-        </h2>
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-600 shadow-sm">
-          {column.totalCount}
-        </span>
+      <header className="mb-3 px-1">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-950">
+            {applicationStageLabels[column.stage]}
+          </h2>
+          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-zinc-600 shadow-sm">
+            {column.totalCount}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          Showing {column.items.length} of {column.totalCount}
+        </p>
       </header>
 
       <div className="flex min-h-24 flex-col gap-2">
@@ -53,7 +58,7 @@ export const ApplicationBoardColumn = ({
         {column.items.map((application) => (
           <ApplicationBoardCard
             application={application}
-            dragDisabled={dragDisabled}
+            dragDisabled={isStageUpdatePending}
             key={application.id}
             onDelete={onDelete}
             onEdit={onEdit}
@@ -67,7 +72,7 @@ export const ApplicationBoardColumn = ({
       {column.hasMore && (
         <Button
           className="mt-3 w-full"
-          disabled={loadState?.isLoading}
+          disabled={loadState?.isLoading || isStageUpdatePending}
           onClick={() => onLoadMore(column.stage)}
           variant="secondarySoft"
         >

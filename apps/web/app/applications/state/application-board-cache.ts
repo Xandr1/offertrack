@@ -28,11 +28,13 @@ export const appendBoardColumn = (
 
     const existingIds = new Set(column.items.map((item) => item.id));
     const appendedItems = page.items.filter((item) => !existingIds.has(item.id));
-    return withPagination(
-      column,
-      [...column.items, ...appendedItems],
-      page.totalCount,
-    );
+    return {
+      ...column,
+      items: [...column.items, ...appendedItems],
+      totalCount: page.totalCount,
+      nextOffset: page.nextOffset,
+      hasMore: page.hasMore,
+    };
   }),
 });
 

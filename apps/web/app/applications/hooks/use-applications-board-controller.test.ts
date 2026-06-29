@@ -51,9 +51,9 @@ const makeBoard = (): ApplicationBoard => ({
   columns: [
     {
       stage: "applied",
-      totalCount: 2,
+      totalCount: 50,
       items: [makeApplication("app-1", "applied")],
-      nextOffset: 1,
+      nextOffset: 20,
       hasMore: true,
     },
     {
@@ -94,13 +94,13 @@ describe("useApplicationsBoardController", () => {
     mockedUpdateStage.mockReset();
   });
 
-  it("loads the next page for one stage using its current item count", async () => {
+  it("loads the next page using backend nextOffset", async () => {
     mockedGetColumn.mockResolvedValue({
       stage: "applied",
-      totalCount: 2,
+      totalCount: 50,
       items: [makeApplication("app-2", "applied")],
-      nextOffset: 2,
-      hasMore: false,
+      nextOffset: 40,
+      hasMore: true,
     });
     const { result, queryClient } = renderController();
 
@@ -110,7 +110,7 @@ describe("useApplicationsBoardController", () => {
     await waitFor(() => expect(mockedGetColumn).toHaveBeenCalledWith({
       stage: "applied",
       search: "",
-      offset: 1,
+      offset: 20,
     }));
     await waitFor(() =>
       expect(
@@ -123,6 +123,30 @@ describe("useApplicationsBoardController", () => {
       isLoading: false,
       error: null,
     });
+  });
+
+  it("blocks load more while a stage update is pending", async () => {
+    let resolveStageUpdate: (application: Application) => void = () => undefined;
+    mockedUpdateStage.mockReturnValue(
+      new Promise<Application>((resolve) => {
+        resolveStageUpdate = resolve;
+      }),
+    );
+    const { result } = renderController();
+
+    act(() =>
+      result.current.handleDragEnd({
+        active: { id: "app-1" },
+        over: { id: "interviewing" },
+      } as never),
+    );
+    await waitFor(() => expect(result.current.isStageUpdatePending).toBe(true));
+
+    act(() => result.current.loadMore("applied"));
+    expect(mockedGetColumn).not.toHaveBeenCalled();
+
+    resolveStageUpdate(makeApplication("app-1", "interviewing"));
+    await waitFor(() => expect(result.current.isStageUpdatePending).toBe(false));
   });
 
   it("optimistically moves across stages and ignores same-stage drops", async () => {
@@ -175,5 +199,24 @@ describe("useApplicationsBoardController", () => {
     );
     expect(current?.columns[0].items[0].stage).toBe("applied");
     expect(current?.columns[1].items).toHaveLength(0);
+  });
+
+  it("keeps the stale cache and reports a board refresh failure", async () => {
+    mockedGetBoard.mockRejectedValue(new Error("refresh failed"));
+    const { result, queryClient, onMutationError } = renderController();
+    const previousBoard = queryClient.getQueryData<ApplicationBoard>(
+      queryKeys.applications.board(""),
+    );
+
+    await act(async () => {
+      await result.current.refreshPreservingLoadedCounts();
+    });
+
+    expect(onMutationError).toHaveBeenCalledWith(expect.any(Error));
+    expect(
+      queryClient.getQueryData<ApplicationBoard>(
+        queryKeys.applications.board(""),
+      ),
+    ).toEqual(previousBoard);
   });
 });

@@ -16,6 +16,7 @@ import type {
 import { queryKeys } from "@/lib/query-keys";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { applicationStages } from "../helpers/constants";
+import { refreshApplicationsBoardPreservingLoadedCounts } from "../services/applications-board-refresh";
 import {
   appendBoardColumn,
   moveBoardApplication,
@@ -142,27 +143,6 @@ export const useApplicationsBoardController = ({
     },
   });
 
-  const loadMore = useCallback(
-    (stage: ApplicationStage) => {
-      if (loadingRequestKeysRef.current.has(`${normalizedSearch}:${stage}`)) {
-        return;
-      }
-
-      const board = queryClient.getQueryData<ApplicationBoard>(boardQueryKey);
-      const column = board?.columns.find((item) => item.stage === stage);
-      if (!column?.hasMore) {
-        return;
-      }
-
-      loadMoreMutation.mutate({
-        stage,
-        search: normalizedSearch,
-        offset: column.items.length,
-      });
-    },
-    [boardQueryKey, loadMoreMutation, normalizedSearch, queryClient],
-  );
-
   const updateStageMutation = useMutation<
     Awaited<ReturnType<typeof updateApplicationStage>>,
     unknown,
@@ -209,6 +189,52 @@ export const useApplicationsBoardController = ({
     },
   });
 
+  const loadMore = useCallback(
+    (stage: ApplicationStage) => {
+      if (
+        updateStageMutation.isPending ||
+        loadingRequestKeysRef.current.has(`${normalizedSearch}:${stage}`)
+      ) {
+        return;
+      }
+
+      const board = queryClient.getQueryData<ApplicationBoard>(boardQueryKey);
+      const column = board?.columns.find((item) => item.stage === stage);
+      if (!column?.hasMore) {
+        return;
+      }
+
+      loadMoreMutation.mutate({
+        stage,
+        search: normalizedSearch,
+        offset: column.nextOffset,
+      });
+    },
+    [
+      boardQueryKey,
+      loadMoreMutation,
+      normalizedSearch,
+      queryClient,
+      updateStageMutation.isPending,
+    ],
+  );
+
+  const refreshPreservingLoadedCounts = useCallback(async () => {
+    const currentBoard =
+      queryClient.getQueryData<ApplicationBoard>(boardQueryKey);
+
+    try {
+      const refreshedBoard =
+        await refreshApplicationsBoardPreservingLoadedCounts({
+          currentBoard,
+          search: normalizedSearch,
+        });
+      queryClient.setQueryData(boardQueryKey, refreshedBoard);
+    } catch (error) {
+      await onMutationError(error);
+    }
+  }, [boardQueryKey, normalizedSearch, onMutationError, queryClient]);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const applicationId = String(event.active.id);
@@ -243,5 +269,6 @@ export const useApplicationsBoardController = ({
     isStageUpdatePending: updateStageMutation.isPending,
     loadMore,
     loadMoreState,
+    refreshPreservingLoadedCounts,
   };
 };

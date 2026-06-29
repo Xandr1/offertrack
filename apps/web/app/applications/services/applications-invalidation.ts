@@ -13,7 +13,10 @@ export const invalidateApplicationsFeatureQueries = (
   const shouldRefetchInterviews = input.refetchInterviews ?? true;
 
   void queryClient.invalidateQueries({ queryKey: queryKeys.applications.list() });
-  void queryClient.invalidateQueries({ queryKey: queryKeys.applications.board() });
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.applications.board(),
+    refetchType: "none",
+  });
   void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardSummary });
 
   if (!input.applicationId) {

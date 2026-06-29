@@ -76,7 +76,14 @@ export const ApplicationToolbar = ({
         </div>
       )}
 
-      <form className="relative" onSubmit={handleSearchSubmit}>
+      <form
+        className={
+          view === "board"
+            ? "relative w-full md:max-w-md"
+            : "relative w-full"
+        }
+        onSubmit={handleSearchSubmit}
+      >
         <label className="sr-only">Search</label>
         <button
           aria-label="Search applications"

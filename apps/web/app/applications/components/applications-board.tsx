@@ -77,7 +77,7 @@ export const ApplicationsBoard = ({
         {board.columns.map((column) => (
           <ApplicationBoardColumn
             column={column}
-            dragDisabled={isStageUpdatePending}
+            isStageUpdatePending={isStageUpdatePending}
             key={column.stage}
             loadState={loadMoreState[column.stage]}
             onDelete={onDelete}

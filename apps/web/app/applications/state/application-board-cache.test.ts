@@ -40,21 +40,39 @@ const board = (): ApplicationBoard => ({
 });
 
 describe("application board cache", () => {
-  it("appends and deduplicates one column page", () => {
+  it("appends unique items and adopts backend pagination metadata", () => {
     const result = appendBoardColumn(board(), {
       stage: "applied",
-      totalCount: 2,
+      totalCount: 57,
       items: [application("app-1", "applied"), application("app-2", "applied")],
-      nextOffset: 2,
-      hasMore: false,
+      nextOffset: 40,
+      hasMore: true,
     });
 
     expect(result.columns[0].items.map((item) => item.id)).toEqual([
       "app-1",
       "app-2",
     ]);
-    expect(result.columns[0].nextOffset).toBe(2);
-    expect(result.columns[0].hasMore).toBe(false);
+    expect(result.columns[0].totalCount).toBe(57);
+    expect(result.columns[0].nextOffset).toBe(40);
+    expect(result.columns[0].hasMore).toBe(true);
+  });
+
+  it("adopts backend metadata when a page contains only duplicates", () => {
+    const result = appendBoardColumn(board(), {
+      stage: "applied",
+      totalCount: 57,
+      items: [application("app-1", "applied")],
+      nextOffset: 40,
+      hasMore: true,
+    });
+
+    expect(result.columns[0].items).toHaveLength(1);
+    expect(result.columns[0]).toMatchObject({
+      totalCount: 57,
+      nextOffset: 40,
+      hasMore: true,
+    });
   });
 
   it("moves a card and updates both column counts and offsets", () => {

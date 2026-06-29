@@ -8,11 +8,13 @@ import {
   ApiError,
   createApplication,
   createApplicationDraft,
+  deleteApplication,
   getApplication,
   getApplicationBoardColumn,
   getApplicationsBoard,
   listApplicationInterviews,
   listApplications,
+  replaceApplication,
 } from "@/lib/api";
 import type {
   Application,
@@ -49,11 +51,13 @@ jest.mock("@/lib/api", () => {
     ...actual,
     createApplication: jest.fn(),
     createApplicationDraft: jest.fn(),
+    deleteApplication: jest.fn(),
     getApplication: jest.fn(),
     getApplicationBoardColumn: jest.fn(),
     getApplicationsBoard: jest.fn(),
     listApplicationInterviews: jest.fn(),
     listApplications: jest.fn(),
+    replaceApplication: jest.fn(),
   };
 });
 
@@ -65,6 +69,9 @@ const mockedCreateApplication = createApplication as jest.MockedFunction<
 >;
 const mockedCreateApplicationDraft = createApplicationDraft as jest.MockedFunction<
   typeof createApplicationDraft
+>;
+const mockedDeleteApplication = deleteApplication as jest.MockedFunction<
+  typeof deleteApplication
 >;
 const mockedGetApplication = getApplication as jest.MockedFunction<
   typeof getApplication
@@ -80,6 +87,9 @@ const mockedListApplicationInterviews =
   listApplicationInterviews as jest.MockedFunction<
     typeof listApplicationInterviews
   >;
+const mockedReplaceApplication = replaceApplication as jest.MockedFunction<
+  typeof replaceApplication
+>;
 
 const baseApplication: Application = {
   appliedAt: null,
@@ -178,6 +188,8 @@ const installApiMocks = ({
   });
   mockedListApplicationInterviews.mockResolvedValue([]);
   mockedCreateApplication.mockResolvedValue(makeApplicationWithInterviews());
+  mockedDeleteApplication.mockResolvedValue();
+  mockedReplaceApplication.mockResolvedValue(makeApplicationWithInterviews());
 
   if (detailMode === "pending") {
     mockedGetApplication.mockReturnValue(
@@ -264,11 +276,13 @@ describe("ApplicationsPage", () => {
     mockReplace.mockClear();
     mockedCreateApplication.mockReset();
     mockedCreateApplicationDraft.mockReset();
+    mockedDeleteApplication.mockReset();
     mockedGetApplication.mockReset();
     mockedGetApplicationBoardColumn.mockReset();
     mockedGetApplicationsBoard.mockReset();
     mockedListApplicationInterviews.mockReset();
     mockedListApplications.mockReset();
+    mockedReplaceApplication.mockReset();
   });
 
   it("sends URL params to the applications list API", async () => {
@@ -324,6 +338,8 @@ describe("ApplicationsPage", () => {
     expect(mockedListApplications).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Applied" })).toBeTruthy();
     expect(screen.getByText("Backend Engineer")).toBeTruthy();
+    expect(screen.getByText("Showing 1 of 1")).toBeTruthy();
+    expect(screen.getAllByText("Showing 0 of 0")).toHaveLength(4);
     expect(
       screen.getByRole("button", { name: "Move Acme application" }),
     ).toBeTruthy();
@@ -382,6 +398,57 @@ describe("ApplicationsPage", () => {
         "This will remove the application and all its interview rounds.",
       ),
     ).toBeTruthy();
+  });
+
+  it("refreshes board data after a successful board delete", async () => {
+    currentUrl = "/applications?view=board";
+    installApiMocks();
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete application" }));
+
+    await waitFor(() => expect(mockedDeleteApplication).toHaveBeenCalledWith("app-1"));
+    await waitFor(() => expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Delete application?")).toBeNull();
+  });
+
+  it("keeps delete successful and shows a page error when board refresh fails", async () => {
+    currentUrl = "/applications?view=board";
+    installApiMocks();
+    mockedGetApplicationsBoard
+      .mockResolvedValueOnce(makeBoard())
+      .mockRejectedValueOnce(new Error("refresh failed"));
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete application" }));
+
+    expect(
+      await screen.findByText("Something went wrong. Please try again."),
+    ).toBeTruthy();
+    expect(mockedDeleteApplication).toHaveBeenCalledWith("app-1");
+    expect(screen.queryByText("Delete application?")).toBeNull();
+  });
+
+  it("closes edit and refreshes board data after a successful board save", async () => {
+    currentUrl = "/applications?view=board";
+    installApiMocks();
+    const user = userEvent.setup();
+    const view = renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    view.rerenderPage();
+    await screen.findByRole("heading", { name: "Edit application" });
+    const saveButton = await screen.findByRole("button", { name: "Save changes" });
+    await waitFor(() => expect((saveButton as HTMLButtonElement).disabled).toBe(false));
+    await user.click(saveButton);
+
+    await waitFor(() => expect(mockedReplaceApplication).toHaveBeenCalled());
+    await waitFor(() => expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("heading", { name: "Edit application" })).toBeNull();
   });
 
   it("searches on Enter, resets page, and omits default params", async () => {

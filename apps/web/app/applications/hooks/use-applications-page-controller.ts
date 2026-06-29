@@ -494,7 +494,7 @@ export const useApplicationsPageController = () => {
     [clearPageError],
   );
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (!applicationToDelete) {
       return;
     }
@@ -510,14 +510,23 @@ export const useApplicationsPageController = () => {
       clearSelectedApplicationId();
     }
 
-    deleteApplicationMutation.mutate({ applicationId });
+    try {
+      await deleteApplicationMutation.mutateAsync({ applicationId });
+      if (view === "board") {
+        void boardController.refreshPreservingLoadedCounts();
+      }
+    } catch {
+      // Mutation onError handles page-level error state.
+    }
   }, [
     applicationToDelete,
+    boardController,
     clearPageError,
     clearSelectedApplicationId,
     deleteApplicationMutation,
     modalController,
     selectedApplicationId,
+    view,
   ]);
 
   const handleStageChange = useCallback(
@@ -594,15 +603,20 @@ export const useApplicationsPageController = () => {
           suppressedDetailIdRef.current = selectedApplicationId;
           clearSelectedApplicationId();
         }
+        if (view === "board") {
+          void boardController.refreshPreservingLoadedCounts();
+        }
       } catch {
         // Mutation onError handles UI state side-effects.
       }
     },
     [
       clearSelectedApplicationId,
+      boardController,
       modalController,
       saveApplicationMutation,
       selectedApplicationId,
+      view,
     ],
   );
 

@@ -15,12 +15,12 @@ export const ApplicationsViewToggle = ({
 }: ApplicationsViewToggleProps) => (
   <div
     aria-label="Applications view"
-    className="flex rounded-xl border border-zinc-200 bg-white p-1"
+    className="flex h-10 items-center rounded-xl border border-zinc-200 bg-white p-1"
     role="group"
   >
     <Button
       aria-pressed={view === "list"}
-      className="px-3 py-1.5"
+      className="!h-8 px-3 py-0"
       variant={view === "list" ? "secondarySoftAccent" : "ghost"}
       onClick={() => onChange("list")}
     >
@@ -29,7 +29,7 @@ export const ApplicationsViewToggle = ({
     </Button>
     <Button
       aria-pressed={view === "board"}
-      className="px-3 py-1.5"
+      className="!h-8 px-3 py-0"
       variant={view === "board" ? "secondarySoftAccent" : "ghost"}
       onClick={() => onChange("board")}
     >
