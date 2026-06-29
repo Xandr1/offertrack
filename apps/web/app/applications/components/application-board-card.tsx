@@ -63,7 +63,7 @@ export const ApplicationBoardCard = ({
             {application.positionTitle}
           </p>
           {(application.location || workMode) && (
-            <p className="mt-1 truncate text-xs text-zinc-500">
+            <p className="truncate text-sm text-zinc-500">
               {[application.location, workMode].filter(Boolean).join(" · ")}
             </p>
           )}
@@ -72,7 +72,7 @@ export const ApplicationBoardCard = ({
           </span>
         </div>
 
-        <div className="mt-1 flex items-center justify-between gap-1 border-t border-zinc-100 pt-2">
+        <div className="flex items-center justify-between border-t border-zinc-100 pt-2">
           <div className="flex shrink-0 items-center gap-0.5">
             <Button
               className="px-2 py-1 text-xs"
