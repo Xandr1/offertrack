@@ -9,9 +9,12 @@ import type {
   SortDirection,
 } from "@/lib/api";
 import {
+  APPLICATIONS_VIEW_DEFAULT,
   STAGE_FILTER_DEFAULT,
   ApplicationsView,
-  parseApplicationsViewParam,
+  canonicalizeApplicationsViewParams,
+  getStoredApplicationsView,
+  storeApplicationsView,
   StageFilter,
   parseDirectionParam,
   parsePageParam,
@@ -59,7 +62,8 @@ export const useApplicationsUrlFilters = () => {
   const direction = parseDirectionParam(searchParams.get("direction"));
   const searchQuery = parseSearchQueryParam(searchParams.get("search"));
   const selectedApplicationId = searchParams.get("id")?.trim() || null;
-  const view = parseApplicationsViewParam(searchParams.get("view"));
+  const [view, setViewState] = useState<ApplicationsView>(APPLICATIONS_VIEW_DEFAULT);
+  const [isViewInitialized, setIsViewInitialized] = useState(false);
   const [searchInput, setSearchInput] = useState(searchQuery);
 
   const listParams: ApplicationsListParams = useMemo(
@@ -74,6 +78,17 @@ export const useApplicationsUrlFilters = () => {
       }),
     [direction, page, searchQuery, size, sort, stageFilter],
   );
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setViewState(getStoredApplicationsView());
+      setIsViewInitialized(true);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, []);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -154,12 +169,13 @@ export const useApplicationsUrlFilters = () => {
 
   const setView = useCallback(
     (nextView: ApplicationsView) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (nextView === "board") {
-        params.set("view", "board");
-      } else {
-        params.delete("view");
-      }
+      setViewState(nextView);
+      storeApplicationsView(nextView);
+
+      const params = canonicalizeApplicationsViewParams(
+        new URLSearchParams(searchParams.toString()),
+        nextView,
+      );
       router.replace(toUrl(pathname, params), { scroll: false });
     },
     [pathname, router, searchParams],
@@ -170,6 +186,7 @@ export const useApplicationsUrlFilters = () => {
     clearSelectedApplicationId,
     direction,
     hasInvalidPageParam,
+    isViewInitialized,
     listParams,
     page,
     searchInput,

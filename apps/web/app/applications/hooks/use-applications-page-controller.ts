@@ -148,6 +148,7 @@ export const useApplicationsPageController = () => {
     clearSelectedApplicationId,
     direction,
     hasInvalidPageParam,
+    isViewInitialized,
     listParams,
     page,
     searchInput,
@@ -163,7 +164,10 @@ export const useApplicationsPageController = () => {
     view,
   } = useApplicationsUrlFilters();
   const modalController = useApplicationModalController();
-  const applicationsQuery = useApplicationsQuery(listParams, view === "list");
+  const applicationsQuery = useApplicationsQuery(
+    listParams,
+    isViewInitialized && view === "list",
+  );
   const applicationDetailQuery = useApplicationQuery(
     selectedApplicationId,
     selectedApplicationId !== null,
@@ -313,7 +317,7 @@ export const useApplicationsPageController = () => {
   );
 
   const boardController = useApplicationsBoardController({
-    enabled: view === "board",
+    enabled: isViewInitialized && view === "board",
     search: searchQuery,
     onMutationError: onPageMutationError,
   });

@@ -24,6 +24,10 @@ import type {
   ApplicationsPage as ApplicationsPageResponse,
   ApplicationBoard,
 } from "@/lib/api";
+import {
+  getStoredApplicationsView,
+  storeApplicationsView,
+} from "./helpers/application-filters";
 import ApplicationsPage from "./page";
 
 let currentUrl = "/applications";
@@ -272,6 +276,7 @@ const lastReplaceUrl = (): URL => {
 describe("ApplicationsPage", () => {
   beforeEach(() => {
     currentUrl = "/applications";
+    window.localStorage.clear();
     jest.useRealTimers();
     mockReplace.mockClear();
     mockedCreateApplication.mockReset();
@@ -308,9 +313,11 @@ describe("ApplicationsPage", () => {
     });
   });
 
-  it("defaults to list and preserves URL state when selecting board", async () => {
-    currentUrl = "/applications?search=acme&stage=offer&page=2&id=app-1";
+  it("stores board view and keeps only canonical board URL params", async () => {
+    currentUrl =
+      "/applications?search=acme&id=app-1&stage=offer&page=2&size=10&sort=createdAt&direction=asc";
     installApiMocks({
+      detailMode: "pending",
       listPage: makePage({ page: 2, totalPages: 3 }),
     });
     const user = userEvent.setup();
@@ -320,15 +327,62 @@ describe("ApplicationsPage", () => {
     await user.click(screen.getByRole("button", { name: "Board" }));
 
     const url = lastReplaceUrl();
-    expect(url.searchParams.get("view")).toBe("board");
+    expect(getStoredApplicationsView()).toBe("board");
+    expect(url.searchParams.get("view")).toBeNull();
     expect(url.searchParams.get("search")).toBe("acme");
-    expect(url.searchParams.get("stage")).toBe("offer");
-    expect(url.searchParams.get("page")).toBe("2");
     expect(url.searchParams.get("id")).toBe("app-1");
+    expect(url.searchParams.get("sort")).toBe("createdAt");
+    expect(url.searchParams.get("direction")).toBe("asc");
+    expect(url.searchParams.get("stage")).toBeNull();
+    expect(url.searchParams.get("page")).toBeNull();
+    expect(url.searchParams.get("size")).toBeNull();
+  });
+
+  it("removes invalid legacy sort and direction when selecting board", async () => {
+    currentUrl =
+      "/applications?search=react&sort=companyName&direction=asc&page=3";
+    installApiMocks({
+      listPage: makePage({ page: 3, totalPages: 4 }),
+    });
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText("Acme");
+    await user.click(screen.getByRole("button", { name: "Board" }));
+
+    const url = lastReplaceUrl();
+    expect(`${url.pathname}${url.search}`).toBe("/applications?search=react");
+  });
+
+  it("keeps canonical list params when selecting list", async () => {
+    currentUrl =
+      "/applications?search=react&id=app-1&stage=applied&page=2&size=10&sort=createdAt&direction=asc&view=board";
+    storeApplicationsView("board");
+    installApiMocks({
+      detailMode: "pending",
+      listPage: makePage({ page: 2, size: 10, totalPages: 3 }),
+    });
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByRole("heading", { name: "Initial" });
+    await user.click(screen.getByRole("button", { name: "List" }));
+
+    const url = lastReplaceUrl();
+    expect(getStoredApplicationsView()).toBe("list");
+    expect(url.searchParams.get("view")).toBeNull();
+    expect(url.searchParams.get("search")).toBe("react");
+    expect(url.searchParams.get("id")).toBe("app-1");
+    expect(url.searchParams.get("stage")).toBe("applied");
+    expect(url.searchParams.get("page")).toBe("2");
+    expect(url.searchParams.get("size")).toBe("10");
+    expect(url.searchParams.get("sort")).toBe("createdAt");
+    expect(url.searchParams.get("direction")).toBe("asc");
   });
 
   it("loads board columns with search and does not call the list endpoint", async () => {
-    currentUrl = "/applications?view=board&search=acme&stage=offer&page=2";
+    currentUrl = "/applications?search=acme&stage=offer&page=2";
+    storeApplicationsView("board");
     installApiMocks();
 
     renderPage();
@@ -348,7 +402,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("loads more into only the selected board column", async () => {
-    currentUrl = "/applications?view=board";
+    storeApplicationsView("board");
     const initialBoard = makeBoard();
     initialBoard.columns[1] = {
       ...initialBoard.columns[1],
@@ -385,7 +439,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("opens the existing delete confirmation from a board card", async () => {
-    currentUrl = "/applications?view=board";
+    storeApplicationsView("board");
     installApiMocks();
     const user = userEvent.setup();
 
@@ -401,7 +455,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("refreshes board data after a successful board delete", async () => {
-    currentUrl = "/applications?view=board";
+    storeApplicationsView("board");
     installApiMocks();
     const user = userEvent.setup();
 
@@ -415,7 +469,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("keeps delete successful and shows a page error when board refresh fails", async () => {
-    currentUrl = "/applications?view=board";
+    storeApplicationsView("board");
     installApiMocks();
     mockedGetApplicationsBoard
       .mockResolvedValueOnce(makeBoard())
@@ -434,7 +488,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("closes edit and refreshes board data after a successful board save", async () => {
-    currentUrl = "/applications?view=board";
+    storeApplicationsView("board");
     installApiMocks();
     const user = userEvent.setup();
     const view = renderPage();
@@ -556,7 +610,11 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Next" }));
+    const nextButton = await screen.findByRole("button", { name: "Next" });
+    await waitFor(() =>
+      expect((nextButton as HTMLButtonElement).disabled).toBe(false),
+    );
+    await user.click(nextButton);
 
     const url = lastReplaceUrl();
     expect(url.searchParams.get("search")).toBe("acme");
