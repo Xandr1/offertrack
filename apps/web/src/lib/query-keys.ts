@@ -8,6 +8,10 @@ export const queryKeys = {
   applications: {
     list: (params?: ApplicationsListParams) =>
       params ? (["applications", "list", params] as const) : (["applications", "list"] as const),
+    board: (search?: string) =>
+      search === undefined
+        ? (["applications", "board"] as const)
+        : (["applications", "board", { search }] as const),
     detail: (applicationId: string) =>
       ["applications", "detail", applicationId] as const,
     interviews: (applicationId: string) =>

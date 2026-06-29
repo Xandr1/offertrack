@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.offertrack.applications.dto.ApplicationBoardColumnResponse;
+import com.offertrack.applications.dto.ApplicationBoardResponse;
 import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieService;
@@ -20,6 +22,7 @@ import com.offertrack.auth.JwtService;
 import com.offertrack.config.SecurityConfig;
 import jakarta.servlet.http.Cookie;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -325,6 +328,52 @@ class ApplicationControllerSecurityTest {
     expectInvalidListParam("direction", "sideways");
   }
 
+  @Test
+  void boardReturnsColumnsForAuthenticatedUser() throws Exception {
+    ApplicationResponse application = sampleApplicationResponse(UUID.randomUUID());
+    when(applicationService.board(eq(AUTHENTICATED_USER_ID), any()))
+        .thenReturn(
+            new ApplicationBoardResponse(
+                List.of(
+                    new ApplicationBoardColumnResponse(
+                        ApplicationStage.APPLIED, 21, List.of(application), 1, true))));
+
+    mockMvc
+        .perform(
+            get("/api/applications/board").param("search", " acme ").cookie(accessTokenCookie()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.columns[0].stage").value("applied"))
+        .andExpect(jsonPath("$.columns[0].totalCount").value(21))
+        .andExpect(jsonPath("$.columns[0].items[0].companyName").value("Acme"))
+        .andExpect(jsonPath("$.columns[0].nextOffset").value(1))
+        .andExpect(jsonPath("$.columns[0].hasMore").value(true));
+  }
+
+  @Test
+  void boardColumnReturnsRequestedPage() throws Exception {
+    when(applicationService.boardColumn(
+            eq(AUTHENTICATED_USER_ID), eq(ApplicationStage.OFFER), any()))
+        .thenReturn(
+            new ApplicationBoardColumnResponse(ApplicationStage.OFFER, 25, List.of(), 20, true));
+
+    mockMvc
+        .perform(
+            get("/api/applications/board/columns/offer")
+                .param("offset", "20")
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.stage").value("offer"))
+        .andExpect(jsonPath("$.totalCount").value(25))
+        .andExpect(jsonPath("$.nextOffset").value(20));
+  }
+
+  @Test
+  void boardColumnReturnsBadRequestForInvalidStageOrOffset() throws Exception {
+    expectInvalidBoardColumn("unknown", "0");
+    expectInvalidBoardColumn("applied", "-1");
+    expectInvalidBoardColumn("applied", "not-a-number");
+  }
+
   private static Cookie accessTokenCookie() {
     return new Cookie(CookieService.ACCESS_TOKEN_COOKIE_NAME, TEST_TOKEN);
   }
@@ -353,6 +402,17 @@ class ApplicationControllerSecurityTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.status").value(400))
         .andExpect(jsonPath("$.path").value("/api/applications"));
+  }
+
+  private void expectInvalidBoardColumn(String stage, String offset) throws Exception {
+    mockMvc
+        .perform(
+            get("/api/applications/board/columns/{stage}", stage)
+                .param("offset", offset)
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.path").value("/api/applications/board/columns/" + stage));
   }
 
   private void expectPutJobUrlValidationError(String jobUrl) throws Exception {

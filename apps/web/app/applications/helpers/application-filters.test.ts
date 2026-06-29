@@ -1,5 +1,6 @@
 import {
   parseDirectionParam,
+  parseApplicationsViewParam,
   parsePageParam,
   parseSearchQueryParam,
   parseSizeParam,
@@ -22,6 +23,8 @@ describe("application-filters", () => {
     expect(parseSizeParam("101")).toBe(20);
     expect(parseSearchQueryParam("  acme  ")).toBe("acme");
     expect(parseSearchQueryParam(null)).toBe("");
+    expect(parseApplicationsViewParam("board")).toBe("board");
+    expect(parseApplicationsViewParam("invalid")).toBe("list");
   });
 
   it("omits default list query params when writing URLs", () => {

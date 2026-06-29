@@ -9,6 +9,8 @@ import {
   createApplication,
   createApplicationDraft,
   getApplication,
+  getApplicationBoardColumn,
+  getApplicationsBoard,
   listApplicationInterviews,
   listApplications,
 } from "@/lib/api";
@@ -18,6 +20,7 @@ import type {
   ApplicationWithInterviews,
   ApplicationsListParams,
   ApplicationsPage as ApplicationsPageResponse,
+  ApplicationBoard,
 } from "@/lib/api";
 import ApplicationsPage from "./page";
 
@@ -47,6 +50,8 @@ jest.mock("@/lib/api", () => {
     createApplication: jest.fn(),
     createApplicationDraft: jest.fn(),
     getApplication: jest.fn(),
+    getApplicationBoardColumn: jest.fn(),
+    getApplicationsBoard: jest.fn(),
     listApplicationInterviews: jest.fn(),
     listApplications: jest.fn(),
   };
@@ -63,6 +68,13 @@ const mockedCreateApplicationDraft = createApplicationDraft as jest.MockedFuncti
 >;
 const mockedGetApplication = getApplication as jest.MockedFunction<
   typeof getApplication
+>;
+const mockedGetApplicationBoardColumn =
+  getApplicationBoardColumn as jest.MockedFunction<
+    typeof getApplicationBoardColumn
+  >;
+const mockedGetApplicationsBoard = getApplicationsBoard as jest.MockedFunction<
+  typeof getApplicationsBoard
 >;
 const mockedListApplicationInterviews =
   listApplicationInterviews as jest.MockedFunction<
@@ -107,6 +119,47 @@ const makePage = (
   ...overrides,
 });
 
+const makeBoard = (overrides: Partial<ApplicationBoard> = {}): ApplicationBoard => ({
+  columns: [
+    {
+      stage: "initial",
+      totalCount: 0,
+      items: [],
+      nextOffset: 0,
+      hasMore: false,
+    },
+    {
+      stage: "applied",
+      totalCount: 1,
+      items: [makeApplication()],
+      nextOffset: 1,
+      hasMore: false,
+    },
+    {
+      stage: "interviewing",
+      totalCount: 0,
+      items: [],
+      nextOffset: 0,
+      hasMore: false,
+    },
+    {
+      stage: "offer",
+      totalCount: 0,
+      items: [],
+      nextOffset: 0,
+      hasMore: false,
+    },
+    {
+      stage: "rejected",
+      totalCount: 0,
+      items: [],
+      nextOffset: 0,
+      hasMore: false,
+    },
+  ],
+  ...overrides,
+});
+
 const installApiMocks = ({
   detailMode = "success",
   listPage = makePage(),
@@ -115,6 +168,14 @@ const installApiMocks = ({
   listPage?: ApplicationsPageResponse;
 } = {}) => {
   mockedListApplications.mockResolvedValue(listPage);
+  mockedGetApplicationsBoard.mockResolvedValue(makeBoard());
+  mockedGetApplicationBoardColumn.mockResolvedValue({
+    stage: "applied",
+    totalCount: 1,
+    items: [],
+    nextOffset: 1,
+    hasMore: false,
+  });
   mockedListApplicationInterviews.mockResolvedValue([]);
   mockedCreateApplication.mockResolvedValue(makeApplicationWithInterviews());
 
@@ -204,6 +265,8 @@ describe("ApplicationsPage", () => {
     mockedCreateApplication.mockReset();
     mockedCreateApplicationDraft.mockReset();
     mockedGetApplication.mockReset();
+    mockedGetApplicationBoardColumn.mockReset();
+    mockedGetApplicationsBoard.mockReset();
     mockedListApplicationInterviews.mockReset();
     mockedListApplications.mockReset();
   });
@@ -229,6 +292,96 @@ describe("ApplicationsPage", () => {
       sort: "companyName",
       stage: "offer",
     });
+  });
+
+  it("defaults to list and preserves URL state when selecting board", async () => {
+    currentUrl = "/applications?search=acme&stage=offer&page=2&id=app-1";
+    installApiMocks({
+      listPage: makePage({ page: 2, totalPages: 3 }),
+    });
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByText("Acme");
+    await user.click(screen.getByRole("button", { name: "Board" }));
+
+    const url = lastReplaceUrl();
+    expect(url.searchParams.get("view")).toBe("board");
+    expect(url.searchParams.get("search")).toBe("acme");
+    expect(url.searchParams.get("stage")).toBe("offer");
+    expect(url.searchParams.get("page")).toBe("2");
+    expect(url.searchParams.get("id")).toBe("app-1");
+  });
+
+  it("loads board columns with search and does not call the list endpoint", async () => {
+    currentUrl = "/applications?view=board&search=acme&stage=offer&page=2";
+    installApiMocks();
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Initial" });
+    expect(mockedGetApplicationsBoard).toHaveBeenCalledWith("acme");
+    expect(mockedListApplications).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Applied" })).toBeTruthy();
+    expect(screen.getByText("Backend Engineer")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Move Acme application" }),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Stage")).toBeNull();
+    expect(screen.queryByLabelText("Sort")).toBeNull();
+  });
+
+  it("loads more into only the selected board column", async () => {
+    currentUrl = "/applications?view=board";
+    const initialBoard = makeBoard();
+    initialBoard.columns[1] = {
+      ...initialBoard.columns[1],
+      totalCount: 2,
+      hasMore: true,
+    };
+    installApiMocks();
+    mockedGetApplicationsBoard.mockResolvedValue(initialBoard);
+    mockedGetApplicationBoardColumn.mockResolvedValue({
+      stage: "applied",
+      totalCount: 2,
+      items: [
+        makeApplication({
+          id: "app-2",
+          companyName: "Globex",
+          positionTitle: "Platform Engineer",
+        }),
+      ],
+      nextOffset: 2,
+      hasMore: false,
+    });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Load more" }));
+
+    await screen.findByText("Globex");
+    expect(mockedGetApplicationBoardColumn).toHaveBeenCalledWith({
+      stage: "applied",
+      search: "",
+      offset: 1,
+    });
+    expect(screen.getAllByText("No applications")).toHaveLength(4);
+  });
+
+  it("opens the existing delete confirmation from a board card", async () => {
+    currentUrl = "/applications?view=board";
+    installApiMocks();
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Delete" }));
+
+    expect(screen.getByText("Delete application?")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "This will remove the application and all its interview rounds.",
+      ),
+    ).toBeTruthy();
   });
 
   it("searches on Enter, resets page, and omits default params", async () => {

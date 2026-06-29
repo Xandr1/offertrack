@@ -14,8 +14,14 @@ import {
 } from "./constants";
 
 export type StageFilter = "all" | ApplicationStage;
+export type ApplicationsView = "list" | "board";
 
 export const STAGE_FILTER_DEFAULT: StageFilter = "all";
+export const APPLICATIONS_VIEW_DEFAULT: ApplicationsView = "list";
+
+export const parseApplicationsViewParam = (
+  value: string | null,
+): ApplicationsView => (value === "board" ? "board" : APPLICATIONS_VIEW_DEFAULT);
 
 const validStageFilters = new Set<StageFilter>(
   stageFilterOptions.map((option) => option.value),

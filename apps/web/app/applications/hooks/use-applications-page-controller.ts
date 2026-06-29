@@ -21,6 +21,7 @@ import { useApplicationMutations } from "./use-application-mutations";
 import { useApplicationQuery } from "./use-application-query";
 import { useApplicationSave } from "./use-application-save";
 import { useApplicationsQuery } from "./use-applications-query";
+import { useApplicationsBoardController } from "./use-applications-board-controller";
 import { useApplicationsUrlFilters } from "./use-applications-url-filters";
 import { useInterviewMutations } from "./use-interview-mutations";
 import {
@@ -150,16 +151,19 @@ export const useApplicationsPageController = () => {
     listParams,
     page,
     searchInput,
+    searchQuery,
     selectedApplicationId,
     setFilters,
     setPage,
     setSearchInput,
     setSelectedApplicationId,
+    setView,
     sort,
     stageFilter,
+    view,
   } = useApplicationsUrlFilters();
   const modalController = useApplicationModalController();
-  const applicationsQuery = useApplicationsQuery(listParams);
+  const applicationsQuery = useApplicationsQuery(listParams, view === "list");
   const applicationDetailQuery = useApplicationQuery(
     selectedApplicationId,
     selectedApplicationId !== null,
@@ -182,7 +186,7 @@ export const useApplicationsPageController = () => {
   }, [applicationsQuery.error, router]);
 
   useEffect(() => {
-    if (!applicationsQuery.data) {
+    if (view !== "list" || !applicationsQuery.data) {
       return;
     }
 
@@ -195,7 +199,7 @@ export const useApplicationsPageController = () => {
     }
 
     clearPageParam();
-  }, [applicationsQuery.data, clearPageParam, hasInvalidPageParam, page]);
+  }, [applicationsQuery.data, clearPageParam, hasInvalidPageParam, page, view]);
 
   useEffect(() => {
     if (!applicationDetailQuery.error) {
@@ -307,6 +311,20 @@ export const useApplicationsPageController = () => {
     },
     [modalController, router],
   );
+
+  const boardController = useApplicationsBoardController({
+    enabled: view === "board",
+    search: searchQuery,
+    onMutationError: onPageMutationError,
+  });
+
+  useEffect(() => {
+    if (!boardController.boardQuery.error) {
+      return;
+    }
+
+    void redirectToLoginIfProtectedRoute(boardController.boardQuery.error, router);
+  }, [boardController.boardQuery.error, router]);
 
   const { deleteApplicationMutation, updateStageMutation } = useApplicationMutations({
     onMutationError: onPageMutationError,
@@ -601,6 +619,7 @@ export const useApplicationsPageController = () => {
     !modalController.interviewsLoadedForEdit;
 
   const isListAuthError = isAuthError(applicationsQuery.error);
+  const isBoardAuthError = isAuthError(boardController.boardQuery.error);
   const isApplicationDetailAuthError = isAuthError(applicationDetailQuery.error);
   const applicationDetailStatusMessage =
     selectedApplicationId && applicationDetailQuery.isPending
@@ -618,6 +637,11 @@ export const useApplicationsPageController = () => {
     applications: applicationsQuery.data?.items ?? [],
     applicationToDelete,
     applicationsQuery,
+    boardController,
+    boardErrorMessage:
+      isBoardAuthError || !boardController.boardQuery.error
+        ? null
+        : getErrorMessage(boardController.boardQuery.error),
     closeApplicationModal,
     closeCreateWithAiModal,
     createApplicationDraftMutation,
@@ -650,12 +674,14 @@ export const useApplicationsPageController = () => {
     setCreateWithAiJobUrl: updateCreateWithAiJobUrl,
     setFilters,
     setPage,
+    setView,
     setSearchInput,
     submitSearch,
     sort,
     stageFilter,
     stageUpdatingApplicationId,
     totalPages: applicationsQuery.data?.totalPages ?? 0,
+    view,
     updateInterviewStatusMutation,
     updateStageMutation,
     listErrorMessage:

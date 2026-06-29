@@ -1,5 +1,6 @@
 import {
   applicationsPageSchema,
+  applicationBoardSchema,
   dashboardSummarySchema,
   genericSuccessResponseSchema,
   registerResponseSchema,
@@ -132,6 +133,29 @@ describe("applicationsPageSchema", () => {
 
     expect(parsed.items[0].stage).toBe("applied");
     expect(parsed.totalItems).toBe(1);
+  });
+});
+
+describe("applicationBoardSchema", () => {
+  it("parses board columns and pagination metadata", () => {
+    const parsed = applicationBoardSchema.parse({
+      columns: [
+        {
+          stage: "applied",
+          totalCount: 21,
+          items: [],
+          nextOffset: 20,
+          hasMore: true,
+        },
+      ],
+    });
+
+    expect(parsed.columns[0]).toMatchObject({
+      stage: "applied",
+      totalCount: 21,
+      nextOffset: 20,
+      hasMore: true,
+    });
   });
 });
 

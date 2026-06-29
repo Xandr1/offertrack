@@ -10,6 +10,8 @@ import type {
 } from "@/lib/api";
 import {
   STAGE_FILTER_DEFAULT,
+  ApplicationsView,
+  parseApplicationsViewParam,
   StageFilter,
   parseDirectionParam,
   parsePageParam,
@@ -57,6 +59,7 @@ export const useApplicationsUrlFilters = () => {
   const direction = parseDirectionParam(searchParams.get("direction"));
   const searchQuery = parseSearchQueryParam(searchParams.get("search"));
   const selectedApplicationId = searchParams.get("id")?.trim() || null;
+  const view = parseApplicationsViewParam(searchParams.get("view"));
   const [searchInput, setSearchInput] = useState(searchQuery);
 
   const listParams: ApplicationsListParams = useMemo(
@@ -149,6 +152,19 @@ export const useApplicationsUrlFilters = () => {
     router.replace(toUrl(pathname, params), { scroll: false });
   }, [pathname, router, searchParams]);
 
+  const setView = useCallback(
+    (nextView: ApplicationsView) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (nextView === "board") {
+        params.set("view", "board");
+      } else {
+        params.delete("view");
+      }
+      router.replace(toUrl(pathname, params), { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   return {
     clearPageParam,
     clearSelectedApplicationId,
@@ -163,8 +179,10 @@ export const useApplicationsUrlFilters = () => {
     setPage,
     setSearchInput,
     setSelectedApplicationId,
+    setView,
     size,
     sort,
     stageFilter,
+    view,
   };
 };

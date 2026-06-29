@@ -3,6 +3,7 @@ package com.offertrack;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.offertrack.applications.ApplicationBoardQuery;
 import com.offertrack.applications.ApplicationListQuery;
 import com.offertrack.applications.ApplicationNotFoundException;
 import com.offertrack.applications.ApplicationRepository;
@@ -292,6 +293,73 @@ class ApplicationAggregateServiceIntegrationTest {
 
     assertThat(response.items()).extracting("companyName").containsExactly("Acme");
     assertThat(response.totalItems()).isEqualTo(1);
+  }
+
+  @Test
+  void boardReturnsEveryStageWithCountsAndFixedPageSize() {
+    UUID userId = createUser("board-page-size@example.com");
+    for (int index = 0; index < 21; index++) {
+      createApplication(userId, "Applied " + index, "Engineer", ApplicationStage.APPLIED);
+    }
+    createApplication(userId, "Offer Co", "Engineer", ApplicationStage.OFFER);
+
+    var response = applicationService.board(userId, ApplicationBoardQuery.initial(null));
+
+    assertThat(response.columns())
+        .extracting("stage")
+        .containsExactly(
+            ApplicationStage.INITIAL,
+            ApplicationStage.APPLIED,
+            ApplicationStage.INTERVIEWING,
+            ApplicationStage.OFFER,
+            ApplicationStage.REJECTED);
+    var applied =
+        response.columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    assertThat(applied.items()).hasSize(ApplicationService.BOARD_COLUMN_PAGE_SIZE);
+    assertThat(applied.totalCount()).isEqualTo(21);
+    assertThat(applied.nextOffset()).isEqualTo(20);
+    assertThat(applied.hasMore()).isTrue();
+    assertThat(response.columns().getFirst().items()).isEmpty();
+  }
+
+  @Test
+  void boardSearchAndColumnPaginationAreUserIsolated() {
+    UUID firstUserId = createUser("board-isolation-1@example.com");
+    UUID secondUserId = createUser("board-isolation-2@example.com");
+    for (int index = 0; index < 21; index++) {
+      createApplication(firstUserId, "Acme " + index, "Backend Engineer", ApplicationStage.APPLIED);
+    }
+    createApplication(firstUserId, "Globex", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+    createApplication(secondUserId, "Acme Foreign", "Backend Engineer", ApplicationStage.APPLIED);
+
+    var board = applicationService.board(firstUserId, ApplicationBoardQuery.initial("  ACME  "));
+    var applied =
+        board.columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    var nextPage =
+        applicationService.boardColumn(
+            firstUserId, ApplicationStage.APPLIED, ApplicationBoardQuery.column("acme", 20));
+
+    assertThat(applied.totalCount()).isEqualTo(21);
+    assertThat(applied.items()).hasSize(20);
+    assertThat(applied.items()).extracting("companyName").doesNotContain("Acme Foreign");
+    assertThat(nextPage.stage()).isEqualTo(ApplicationStage.APPLIED);
+    assertThat(nextPage.items()).hasSize(1);
+    assertThat(nextPage.totalCount()).isEqualTo(21);
+    assertThat(nextPage.nextOffset()).isEqualTo(21);
+    assertThat(nextPage.hasMore()).isFalse();
+    assertThat(
+            board.columns().stream()
+                .filter(column -> column.stage() == ApplicationStage.INTERVIEWING)
+                .findFirst()
+                .orElseThrow()
+                .items())
+        .isEmpty();
   }
 
   @Test

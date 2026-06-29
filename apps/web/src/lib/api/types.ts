@@ -7,6 +7,8 @@ import {
   applicationInterviewSchema,
   applicationInterviewsSchema,
   applicationsPageSchema,
+  applicationBoardColumnSchema,
+  applicationBoardSchema,
   applicationStageSchema,
   applicationsSchema,
   authResponseSchema,
@@ -46,6 +48,10 @@ export type ApplicationWithInterviews = z.infer<
 >;
 export type Applications = z.infer<typeof applicationsSchema>;
 export type ApplicationsPage = z.infer<typeof applicationsPageSchema>;
+export type ApplicationBoardColumn = z.infer<
+  typeof applicationBoardColumnSchema
+>;
+export type ApplicationBoard = z.infer<typeof applicationBoardSchema>;
 export type ApplicationInterview = z.infer<typeof applicationInterviewSchema>;
 export type ApplicationInterviews = z.infer<typeof applicationInterviewsSchema>;
 export type DashboardApplicationItem = z.infer<
@@ -131,6 +137,12 @@ export type ApplicationsListParams = {
   stage: ApplicationStage | null;
   sort: ApplicationSortField;
   direction: SortDirection;
+};
+
+export type ApplicationBoardColumnParams = {
+  stage: ApplicationStage;
+  search: string;
+  offset: number;
 };
 
 export type CreateApplicationInterviewItemRequest = {

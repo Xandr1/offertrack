@@ -1,5 +1,7 @@
 package com.offertrack.applications;
 
+import com.offertrack.applications.dto.ApplicationBoardColumnResponse;
+import com.offertrack.applications.dto.ApplicationBoardResponse;
 import com.offertrack.applications.dto.ApplicationListResponse;
 import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.applications.dto.ApplicationWithInterviewsResponse;
@@ -16,6 +18,7 @@ import com.offertrack.interviews.InterviewNotFoundException;
 import com.offertrack.interviews.InterviewStatus;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,7 +30,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ApplicationService {
+  public static final int BOARD_COLUMN_PAGE_SIZE = 20;
   private static final int MAX_INTERVIEWS_PER_APPLICATION = 10;
+  private static final List<ApplicationStage> BOARD_STAGE_ORDER =
+      List.of(
+          ApplicationStage.INITIAL,
+          ApplicationStage.APPLIED,
+          ApplicationStage.INTERVIEWING,
+          ApplicationStage.OFFER,
+          ApplicationStage.REJECTED);
 
   private final ApplicationRepository applicationRepository;
   private final ApplicationInterviewRepository applicationInterviewRepository;
@@ -96,6 +107,49 @@ public class ApplicationService {
 
     return new ApplicationListResponse(
         items, page.page(), page.size(), page.totalItems(), page.totalPages());
+  }
+
+  public ApplicationBoardResponse board(UUID userId, ApplicationBoardQuery query) {
+    Map<ApplicationStage, Long> totalCountByStage =
+        applicationRepository.countByStageForUser(userId, query.search());
+    Map<ApplicationStage, List<Application>> applicationsByStage =
+        new EnumMap<>(ApplicationStage.class);
+    List<Application> allApplications = new ArrayList<>();
+
+    for (ApplicationStage stage : BOARD_STAGE_ORDER) {
+      List<Application> applications =
+          applicationRepository.listBoardColumn(
+              userId, stage, query.search(), 0, BOARD_COLUMN_PAGE_SIZE);
+      applicationsByStage.put(stage, applications);
+      allApplications.addAll(applications);
+    }
+
+    Map<UUID, ApplicationInterview> nextInterviewByApplicationId =
+        loadNextInterviews(userId, allApplications);
+    List<ApplicationBoardColumnResponse> columns =
+        BOARD_STAGE_ORDER.stream()
+            .map(
+                stage ->
+                    toBoardColumnResponse(
+                        stage,
+                        totalCountByStage.getOrDefault(stage, 0L),
+                        applicationsByStage.getOrDefault(stage, List.of()),
+                        0,
+                        nextInterviewByApplicationId))
+            .toList();
+
+    return new ApplicationBoardResponse(columns);
+  }
+
+  public ApplicationBoardColumnResponse boardColumn(
+      UUID userId, ApplicationStage stage, ApplicationBoardQuery query) {
+    long totalCount = applicationRepository.countBoardColumn(userId, stage, query.search());
+    List<Application> applications =
+        applicationRepository.listBoardColumn(
+            userId, stage, query.search(), query.offset(), BOARD_COLUMN_PAGE_SIZE);
+
+    return toBoardColumnResponse(
+        stage, totalCount, applications, query.offset(), loadNextInterviews(userId, applications));
   }
 
   public ApplicationResponse get(UUID userId, UUID applicationId) {
@@ -233,6 +287,35 @@ public class ApplicationService {
         .findNextByApplicationForUser(applicationId, userId)
         .map(ApplicationService::toNextInterviewResponse)
         .orElse(null);
+  }
+
+  private Map<UUID, ApplicationInterview> loadNextInterviews(
+      UUID userId, List<Application> applications) {
+    List<UUID> applicationIds = applications.stream().map(Application::id).toList();
+    return applicationIds.isEmpty()
+        ? Collections.emptyMap()
+        : applicationInterviewRepository.findNextByApplicationIdsForUser(userId, applicationIds);
+  }
+
+  private static ApplicationBoardColumnResponse toBoardColumnResponse(
+      ApplicationStage stage,
+      long totalCount,
+      List<Application> applications,
+      int offset,
+      Map<UUID, ApplicationInterview> nextInterviewByApplicationId) {
+    List<ApplicationResponse> items =
+        applications.stream()
+            .map(
+                application ->
+                    ApplicationResponseMapper.toResponse(
+                        application,
+                        toNextInterviewResponse(
+                            nextInterviewByApplicationId.get(application.id()))))
+            .toList();
+    int nextOffset = offset + items.size();
+
+    return new ApplicationBoardColumnResponse(
+        stage, totalCount, items, nextOffset, nextOffset < totalCount);
   }
 
   private static NextInterviewResponse toNextInterviewResponse(ApplicationInterview interview) {

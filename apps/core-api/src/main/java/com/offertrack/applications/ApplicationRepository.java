@@ -5,13 +5,16 @@ import static com.offertrack.jooq.generated.tables.JobApplications.JOB_APPLICATI
 import com.offertrack.applications.dto.CreateApplicationRequest;
 import com.offertrack.applications.dto.ReplaceApplicationRequest;
 import java.time.OffsetDateTime;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.SortField;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -66,6 +69,38 @@ public class ApplicationRepository {
     return new ApplicationListPage(items, query.page(), query.size(), totalItems, totalPages);
   }
 
+  public Map<ApplicationStage, Long> countByStageForUser(UUID userId, String search) {
+    Field<Integer> count = DSL.count();
+    Map<String, Integer> storedCounts =
+        dsl.select(JOB_APPLICATIONS.STAGE, count)
+            .from(JOB_APPLICATIONS)
+            .where(userSearchCondition(userId, search))
+            .groupBy(JOB_APPLICATIONS.STAGE)
+            .fetchMap(JOB_APPLICATIONS.STAGE, count);
+    Map<ApplicationStage, Long> counts = new EnumMap<>(ApplicationStage.class);
+
+    storedCounts.forEach(
+        (stage, stageCount) ->
+            counts.put(ApplicationStage.fromValue(stage), stageCount.longValue()));
+    return counts;
+  }
+
+  public List<Application> listBoardColumn(
+      UUID userId, ApplicationStage stage, String search, int offset, int limit) {
+    return dsl.selectFrom(JOB_APPLICATIONS)
+        .where(userSearchCondition(userId, search))
+        .and(JOB_APPLICATIONS.STAGE.eq(stage.value()))
+        .orderBy(JOB_APPLICATIONS.UPDATED_AT.desc(), JOB_APPLICATIONS.ID.asc())
+        .limit(limit)
+        .offset(offset)
+        .fetch(ApplicationMapper::fromRecord);
+  }
+
+  public long countBoardColumn(UUID userId, ApplicationStage stage, String search) {
+    return countByCondition(
+        userSearchCondition(userId, search).and(JOB_APPLICATIONS.STAGE.eq(stage.value())));
+  }
+
   public Optional<Application> findByIdForUser(UUID id, UUID userId) {
     return dsl.selectFrom(JOB_APPLICATIONS)
         .where(JOB_APPLICATIONS.ID.eq(id))
@@ -116,19 +151,25 @@ public class ApplicationRepository {
   }
 
   private Condition listCondition(UUID userId, ApplicationListQuery query) {
+    Condition condition = userSearchCondition(userId, query.search());
+
+    if (query.stage() != null) {
+      condition = condition.and(JOB_APPLICATIONS.STAGE.eq(query.stage().value()));
+    }
+
+    return condition;
+  }
+
+  private Condition userSearchCondition(UUID userId, String search) {
     Condition condition = JOB_APPLICATIONS.USER_ID.eq(userId);
 
-    if (query.search() != null) {
+    if (search != null) {
       condition =
           condition.and(
               JOB_APPLICATIONS
                   .COMPANY_NAME
-                  .containsIgnoreCase(query.search())
-                  .or(JOB_APPLICATIONS.POSITION_TITLE.containsIgnoreCase(query.search())));
-    }
-
-    if (query.stage() != null) {
-      condition = condition.and(JOB_APPLICATIONS.STAGE.eq(query.stage().value()));
+                  .containsIgnoreCase(search)
+                  .or(JOB_APPLICATIONS.POSITION_TITLE.containsIgnoreCase(search)));
     }
 
     return condition;

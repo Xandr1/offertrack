@@ -5,13 +5,14 @@ export const pageStyles = {
   authForm: "mt-6 space-y-4",
   authFooter: "mt-4 text-sm text-zinc-700",
   appMain:
-    "min-h-screen bg-[radial-gradient(circle_at_top_left,#eef2ff,transparent_32rem),linear-gradient(to_bottom,#fafafa,#f4f4f5)] px-4 py-6 text-zinc-950 md:px-8 md:py-8",
+    "min-h-screen bg-[radial-gradient(circle_at_top_left,#eef2ff,transparent_32rem),linear-gradient(to_bottom,#fafafa,#f4f4f5)] text-zinc-950",
 };
 
 export const shellStyles = {
-  grid: "mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-[190px_1fr]",
+  grid:
+    "grid min-h-screen w-full grid-cols-1 md:grid-cols-[190px_minmax(0,1fr)]",
   sidebar:
-    "rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-sm md:rounded-l-3xl md:rounded-r-none md:border-r-0",
+    "border-b border-zinc-200 bg-white p-4 md:border-b-0 md:border-r",
   brand: "mb-8 flex items-center gap-2 text-sm font-bold text-zinc-950",
   logo: "h-8 w-8",
   nav: "space-y-1.5 text-sm",
@@ -20,7 +21,7 @@ export const shellStyles = {
   navLinkActive:
     "block rounded-xl bg-violet-50 px-3 py-2 font-medium text-violet-700",
   panel:
-    "rounded-b-3xl border border-t-0 border-zinc-200 bg-white/90 p-5 shadow-sm backdrop-blur md:rounded-l-none md:rounded-r-3xl md:border-l md:border-t md:p-8",
+    "min-w-0 bg-white/90 p-5 backdrop-blur md:p-8",
 };
 
 export const layoutStyles = {
@@ -167,7 +168,7 @@ export const modalStyles = {
 
 export const sectionStyles = {
   toolbar:
-    "grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3 md:grid-cols-[170px_minmax(0,1fr)_190px_130px]",
+    "grid gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3",
   searchIcon:
     "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400",
   searchIconButton:

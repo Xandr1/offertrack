@@ -4,6 +4,8 @@ import {
   applicationDraftResponseSchema,
   applicationSchema,
   applicationsPageSchema,
+  applicationBoardColumnSchema,
+  applicationBoardSchema,
   applicationWithInterviewsSchema,
 } from "./schemas";
 import type {
@@ -11,6 +13,9 @@ import type {
   ApplicationDraftRequest,
   ApplicationDraftResponse,
   ApplicationsListParams,
+  ApplicationBoard,
+  ApplicationBoardColumn,
+  ApplicationBoardColumnParams,
   ApplicationsPage,
   ApplicationWithInterviews,
   CreateApplicationRequest,
@@ -65,6 +70,39 @@ export const listApplications = (
   return request<ApplicationsPage>(
     buildApplicationsListPath(params),
     applicationsPageSchema,
+  );
+};
+
+const appendBoardSearch = (searchParams: URLSearchParams, search: string) => {
+  const trimmedSearch = search.trim();
+  if (trimmedSearch !== "") {
+    searchParams.set("search", trimmedSearch);
+  }
+};
+
+export const getApplicationsBoard = (search: string): Promise<ApplicationBoard> => {
+  const searchParams = new URLSearchParams();
+  appendBoardSearch(searchParams, search);
+  const query = searchParams.toString();
+
+  return request<ApplicationBoard>(
+    query ? `/api/applications/board?${query}` : "/api/applications/board",
+    applicationBoardSchema,
+  );
+};
+
+export const getApplicationBoardColumn = ({
+  stage,
+  search,
+  offset,
+}: ApplicationBoardColumnParams): Promise<ApplicationBoardColumn> => {
+  const searchParams = new URLSearchParams();
+  appendBoardSearch(searchParams, search);
+  searchParams.set("offset", String(offset));
+
+  return request<ApplicationBoardColumn>(
+    `/api/applications/board/columns/${stage}?${searchParams.toString()}`,
+    applicationBoardColumnSchema,
   );
 };
 

@@ -1,0 +1,179 @@
+/** @jest-environment jsdom */
+
+import React from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  getApplicationBoardColumn,
+  getApplicationsBoard,
+  updateApplicationStage,
+} from "@/lib/api";
+import type { Application, ApplicationBoard } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
+import { useApplicationsBoardController } from "./use-applications-board-controller";
+
+jest.mock("@/lib/api", () => ({
+  ...jest.requireActual("@/lib/api"),
+  getApplicationBoardColumn: jest.fn(),
+  getApplicationsBoard: jest.fn(),
+  updateApplicationStage: jest.fn(),
+}));
+
+const mockedGetColumn = getApplicationBoardColumn as jest.MockedFunction<
+  typeof getApplicationBoardColumn
+>;
+const mockedGetBoard = getApplicationsBoard as jest.MockedFunction<
+  typeof getApplicationsBoard
+>;
+const mockedUpdateStage = updateApplicationStage as jest.MockedFunction<
+  typeof updateApplicationStage
+>;
+
+const makeApplication = (
+  id: string,
+  stage: Application["stage"],
+): Application => ({
+  appliedAt: null,
+  companyName: `Company ${id}`,
+  createdAt: "2026-01-01T00:00:00Z",
+  id,
+  jobUrl: null,
+  location: null,
+  nextInterview: null,
+  notes: null,
+  positionTitle: "Engineer",
+  stage,
+  updatedAt: "2026-01-01T00:00:00Z",
+  workMode: null,
+});
+
+const makeBoard = (): ApplicationBoard => ({
+  columns: [
+    {
+      stage: "applied",
+      totalCount: 2,
+      items: [makeApplication("app-1", "applied")],
+      nextOffset: 1,
+      hasMore: true,
+    },
+    {
+      stage: "interviewing",
+      totalCount: 0,
+      items: [],
+      nextOffset: 0,
+      hasMore: false,
+    },
+  ],
+});
+
+const renderController = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+  });
+  queryClient.setQueryData(queryKeys.applications.board(""), makeBoard());
+  const onMutationError = jest.fn();
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
+  const hook = renderHook(
+    () =>
+      useApplicationsBoardController({
+        enabled: false,
+        search: "",
+        onMutationError,
+      }),
+    { wrapper },
+  );
+
+  return { ...hook, onMutationError, queryClient };
+};
+
+describe("useApplicationsBoardController", () => {
+  beforeEach(() => {
+    mockedGetBoard.mockReset();
+    mockedGetColumn.mockReset();
+    mockedUpdateStage.mockReset();
+  });
+
+  it("loads the next page for one stage using its current item count", async () => {
+    mockedGetColumn.mockResolvedValue({
+      stage: "applied",
+      totalCount: 2,
+      items: [makeApplication("app-2", "applied")],
+      nextOffset: 2,
+      hasMore: false,
+    });
+    const { result, queryClient } = renderController();
+
+    act(() => result.current.loadMore("applied"));
+
+    expect(result.current.loadMoreState.applied?.isLoading).toBe(true);
+    await waitFor(() => expect(mockedGetColumn).toHaveBeenCalledWith({
+      stage: "applied",
+      search: "",
+      offset: 1,
+    }));
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getQueryData<ApplicationBoard>(queryKeys.applications.board(""))
+          ?.columns[0].items,
+      ).toHaveLength(2),
+    );
+    expect(result.current.loadMoreState.applied).toEqual({
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  it("optimistically moves across stages and ignores same-stage drops", async () => {
+    mockedUpdateStage.mockResolvedValue(
+      makeApplication("app-1", "interviewing"),
+    );
+    const { result, queryClient } = renderController();
+
+    act(() =>
+      result.current.handleDragEnd({
+        active: { id: "app-1" },
+        over: { id: "interviewing" },
+      } as never),
+    );
+
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getQueryData<ApplicationBoard>(queryKeys.applications.board(""))
+          ?.columns[1].items[0]?.stage,
+      ).toBe("interviewing"),
+    );
+    await waitFor(() =>
+      expect(mockedUpdateStage).toHaveBeenCalledWith("app-1", "interviewing"),
+    );
+
+    act(() =>
+      result.current.handleDragEnd({
+        active: { id: "app-1" },
+        over: { id: "interviewing" },
+      } as never),
+    );
+    expect(mockedUpdateStage).toHaveBeenCalledTimes(1);
+  });
+
+  it("rolls back a failed stage update", async () => {
+    mockedUpdateStage.mockRejectedValue(new Error("update failed"));
+    const { result, queryClient, onMutationError } = renderController();
+
+    act(() =>
+      result.current.handleDragEnd({
+        active: { id: "app-1" },
+        over: { id: "interviewing" },
+      } as never),
+    );
+
+    await waitFor(() => expect(onMutationError).toHaveBeenCalled());
+    const current = queryClient.getQueryData<ApplicationBoard>(
+      queryKeys.applications.board(""),
+    );
+    expect(current?.columns[0].items[0].stage).toBe("applied");
+    expect(current?.columns[1].items).toHaveLength(0);
+  });
+});

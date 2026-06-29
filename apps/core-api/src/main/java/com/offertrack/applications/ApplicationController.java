@@ -1,5 +1,7 @@
 package com.offertrack.applications;
 
+import com.offertrack.applications.dto.ApplicationBoardColumnResponse;
+import com.offertrack.applications.dto.ApplicationBoardResponse;
 import com.offertrack.applications.dto.ApplicationListResponse;
 import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.applications.dto.ApplicationWithInterviewsResponse;
@@ -50,6 +52,25 @@ public class ApplicationController {
     return applicationService.list(
         currentUser.id(),
         ApplicationListQuery.fromRequestParams(page, size, search, stage, sort, direction));
+  }
+
+  @GetMapping("/api/applications/board")
+  public ApplicationBoardResponse board(
+      @AuthenticationPrincipal CurrentUser currentUser,
+      @RequestParam(required = false) String search) {
+    return applicationService.board(currentUser.id(), ApplicationBoardQuery.initial(search));
+  }
+
+  @GetMapping("/api/applications/board/columns/{stage}")
+  public ApplicationBoardColumnResponse boardColumn(
+      @AuthenticationPrincipal CurrentUser currentUser,
+      @PathVariable String stage,
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) Integer offset) {
+    return applicationService.boardColumn(
+        currentUser.id(),
+        ApplicationBoardQuery.parseStage(stage),
+        ApplicationBoardQuery.column(search, offset));
   }
 
   @GetMapping("/api/applications/{id}")

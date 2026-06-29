@@ -116,6 +116,18 @@ export const applicationsPageSchema = z.object({
   totalPages: z.number().int().nonnegative(),
 });
 
+export const applicationBoardColumnSchema = z.object({
+  stage: applicationStageSchema,
+  totalCount: z.number().int().nonnegative(),
+  items: applicationsSchema,
+  nextOffset: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
+export const applicationBoardSchema = z.object({
+  columns: z.array(applicationBoardColumnSchema),
+});
+
 export const applicationInterviewSchema = z.object({
   id: z.string(),
   applicationId: z.string(),
