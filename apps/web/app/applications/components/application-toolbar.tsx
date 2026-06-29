@@ -53,7 +53,7 @@ export const ApplicationToolbar = ({
       className={`${sectionStyles.toolbar} ${
         view === "list"
           ? "md:grid-cols-[auto_170px_minmax(0,1fr)_190px_130px]"
-          : "md:grid-cols-[auto_minmax(0,1fr)]"
+          : "md:grid-cols-[auto_minmax(0,1fr)_190px_130px]"
       }`}
     >
       <ApplicationsViewToggle view={view} onChange={onViewChange} />
@@ -111,41 +111,37 @@ export const ApplicationToolbar = ({
         )}
       </form>
 
-      {view === "list" && (
-        <div>
-          <label className="sr-only">Sort</label>
-          <Select
-            value={sort}
-            onChange={(event) =>
-              onSortChange(event.target.value as ApplicationSortField)
-            }
-          >
-            {applicationSortFieldOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-      )}
+      <div>
+        <label className="sr-only">Sort</label>
+        <Select
+          value={sort}
+          onChange={(event) =>
+            onSortChange(event.target.value as ApplicationSortField)
+          }
+        >
+          {applicationSortFieldOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </div>
 
-      {view === "list" && (
-        <div>
-          <label className="sr-only">Direction</label>
-          <Select
-            value={direction}
-            onChange={(event) =>
-              onDirectionChange(event.target.value as SortDirection)
-            }
-          >
-            {sortDirectionOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-      )}
+      <div>
+        <label className="sr-only">Direction</label>
+        <Select
+          value={direction}
+          onChange={(event) =>
+            onDirectionChange(event.target.value as SortDirection)
+          }
+        >
+          {sortDirectionOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </div>
     </section>
   );
 };

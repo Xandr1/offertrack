@@ -63,25 +63,52 @@ describe("applications board refresh", () => {
       .mockResolvedValueOnce(
         makeColumn("applied", makeItems("applied", 40, 20), 80, 60, true),
       );
+    const getBoard = jest.fn().mockResolvedValue({
+      columns: [
+        makeColumn("initial", makeItems("initial", 0, 20), 30, 20, true),
+        makeColumn("applied", makeItems("applied", 0, 20), 80, 20, true),
+      ],
+    });
 
     const result = await refreshApplicationsBoardPreservingLoadedCounts(
-      { currentBoard, search: "acme" },
       {
-        getBoard: jest.fn().mockResolvedValue({
-          columns: [
-            makeColumn("initial", makeItems("initial", 0, 20), 30, 20, true),
-            makeColumn("applied", makeItems("applied", 0, 20), 80, 20, true),
-          ],
-        }),
+        currentBoard,
+        search: "acme",
+        sort: "createdAt",
+        direction: "asc",
+      },
+      {
+        getBoard,
         getColumn,
       },
     );
 
     expect(result.columns[0].items).toHaveLength(20);
     expect(result.columns[1].items).toHaveLength(60);
+    expect(getBoard).toHaveBeenCalledWith({
+      search: "acme",
+      sort: "createdAt",
+      direction: "asc",
+    });
     expect(getColumn.mock.calls).toEqual([
-      [{ stage: "applied", search: "acme", offset: 20 }],
-      [{ stage: "applied", search: "acme", offset: 40 }],
+      [
+        {
+          stage: "applied",
+          search: "acme",
+          sort: "createdAt",
+          direction: "asc",
+          offset: 20,
+        },
+      ],
+      [
+        {
+          stage: "applied",
+          search: "acme",
+          sort: "createdAt",
+          direction: "asc",
+          offset: 40,
+        },
+      ],
     ]);
   });
 
@@ -96,7 +123,7 @@ describe("applications board refresh", () => {
     );
 
     const result = await refreshApplicationsBoardPreservingLoadedCounts(
-      { currentBoard, search: "" },
+      { currentBoard, search: "", sort: "updatedAt", direction: "desc" },
       {
         getBoard: jest.fn().mockResolvedValue({
           columns: [
@@ -126,7 +153,7 @@ describe("applications board refresh", () => {
       );
 
     const result = await refreshApplicationsBoardPreservingLoadedCounts(
-      { currentBoard, search: "" },
+      { currentBoard, search: "", sort: "updatedAt", direction: "desc" },
       {
         getBoard: jest.fn().mockResolvedValue({
           columns: [makeColumn("applied", initialItems, 80, 20, true)],
@@ -138,5 +165,28 @@ describe("applications board refresh", () => {
     expect(result.columns[0].items).toHaveLength(20);
     expect(result.columns[0].nextOffset).toBe(40);
     expect(getColumn).toHaveBeenCalledTimes(2);
+  });
+
+  it("terminates when a page returns a lower offset", async () => {
+    const initialItems = makeItems("applied", 0, 20);
+    const currentBoard: ApplicationBoard = {
+      columns: [makeColumn("applied", makeItems("applied", 0, 60), 80, 60, true)],
+    };
+    const getColumn = jest.fn().mockResolvedValue(
+      makeColumn("applied", makeItems("applied", 20, 5), 80, 10, true),
+    );
+
+    const result = await refreshApplicationsBoardPreservingLoadedCounts(
+      { currentBoard, search: "", sort: "updatedAt", direction: "desc" },
+      {
+        getBoard: jest.fn().mockResolvedValue({
+          columns: [makeColumn("applied", initialItems, 80, 20, true)],
+        }),
+        getColumn,
+      },
+    );
+
+    expect(result.columns[0].items).toHaveLength(25);
+    expect(getColumn).toHaveBeenCalledTimes(1);
   });
 });

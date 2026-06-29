@@ -61,7 +61,7 @@ public class ApplicationRepository {
     List<Application> items =
         dsl.selectFrom(JOB_APPLICATIONS)
             .where(condition)
-            .orderBy(sortField(query), JOB_APPLICATIONS.ID.asc())
+            .orderBy(sortField(query.sort(), query.direction()), JOB_APPLICATIONS.ID.asc())
             .limit(query.size())
             .offset(query.offset())
             .fetch(ApplicationMapper::fromRecord);
@@ -86,11 +86,17 @@ public class ApplicationRepository {
   }
 
   public List<Application> listBoardColumn(
-      UUID userId, ApplicationStage stage, String search, int offset, int limit) {
+      UUID userId,
+      ApplicationStage stage,
+      String search,
+      ApplicationListQuery.ApplicationSort sort,
+      ApplicationListQuery.SortDirection direction,
+      int offset,
+      int limit) {
     return dsl.selectFrom(JOB_APPLICATIONS)
         .where(userSearchCondition(userId, search))
         .and(JOB_APPLICATIONS.STAGE.eq(stage.value()))
-        .orderBy(JOB_APPLICATIONS.UPDATED_AT.desc(), JOB_APPLICATIONS.ID.asc())
+        .orderBy(sortField(sort, direction), JOB_APPLICATIONS.ID.asc())
         .limit(limit)
         .offset(offset)
         .fetch(ApplicationMapper::fromRecord);
@@ -182,16 +188,14 @@ public class ApplicationRepository {
     return count == null ? 0 : count.longValue();
   }
 
-  private SortField<?> sortField(ApplicationListQuery query) {
+  private SortField<?> sortField(
+      ApplicationListQuery.ApplicationSort sort, ApplicationListQuery.SortDirection direction) {
     Field<?> field =
-        switch (query.sort()) {
+        switch (sort) {
           case UPDATED_AT -> JOB_APPLICATIONS.UPDATED_AT;
           case CREATED_AT -> JOB_APPLICATIONS.CREATED_AT;
-          case COMPANY_NAME -> JOB_APPLICATIONS.COMPANY_NAME;
-          case POSITION_TITLE -> JOB_APPLICATIONS.POSITION_TITLE;
-          case STAGE -> JOB_APPLICATIONS.STAGE;
         };
 
-    return query.direction() == ApplicationListQuery.SortDirection.ASC ? field.asc() : field.desc();
+    return direction == ApplicationListQuery.SortDirection.ASC ? field.asc() : field.desc();
   }
 }

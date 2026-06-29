@@ -66,11 +66,20 @@ const makeBoard = (): ApplicationBoard => ({
   ],
 });
 
+const defaultBoardParams = {
+  search: "",
+  sort: "updatedAt",
+  direction: "desc",
+} as const;
+
 const renderController = () => {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
-  queryClient.setQueryData(queryKeys.applications.board(""), makeBoard());
+  queryClient.setQueryData(
+    queryKeys.applications.board(defaultBoardParams),
+    makeBoard(),
+  );
   const onMutationError = jest.fn();
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
@@ -78,7 +87,7 @@ const renderController = () => {
     () =>
       useApplicationsBoardController({
         enabled: false,
-        search: "",
+        ...defaultBoardParams,
         onMutationError,
       }),
     { wrapper },
@@ -109,13 +118,15 @@ describe("useApplicationsBoardController", () => {
     expect(result.current.loadMoreState.applied?.isLoading).toBe(true);
     await waitFor(() => expect(mockedGetColumn).toHaveBeenCalledWith({
       stage: "applied",
-      search: "",
+      ...defaultBoardParams,
       offset: 20,
     }));
     await waitFor(() =>
       expect(
         queryClient
-          .getQueryData<ApplicationBoard>(queryKeys.applications.board(""))
+          .getQueryData<ApplicationBoard>(
+            queryKeys.applications.board(defaultBoardParams),
+          )
           ?.columns[0].items,
       ).toHaveLength(2),
     );
@@ -123,6 +134,68 @@ describe("useApplicationsBoardController", () => {
       isLoading: false,
       error: null,
     });
+  });
+
+  it("uses sort and direction in the query key and refetches when they change", async () => {
+    mockedGetBoard.mockResolvedValue(makeBoard());
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
+    const { rerender } = renderHook(
+      ({ sort, direction }: { sort: "updatedAt" | "createdAt"; direction: "asc" | "desc" }) =>
+        useApplicationsBoardController({
+          enabled: true,
+          search: "acme",
+          sort,
+          direction,
+          onMutationError: jest.fn(),
+        }),
+      {
+        initialProps: {
+          sort: "updatedAt" as "updatedAt" | "createdAt",
+          direction: "desc" as "asc" | "desc",
+        },
+        wrapper,
+      },
+    );
+
+    await waitFor(() =>
+      expect(mockedGetBoard).toHaveBeenCalledWith({
+        search: "acme",
+        sort: "updatedAt",
+        direction: "desc",
+      }),
+    );
+
+    rerender({ sort: "createdAt", direction: "asc" });
+
+    await waitFor(() =>
+      expect(mockedGetBoard).toHaveBeenCalledWith({
+        search: "acme",
+        sort: "createdAt",
+        direction: "asc",
+      }),
+    );
+    expect(
+      queryClient.getQueryState(
+        queryKeys.applications.board({
+          search: "acme",
+          sort: "updatedAt",
+          direction: "desc",
+        }),
+      ),
+    ).toBeDefined();
+    expect(
+      queryClient.getQueryState(
+        queryKeys.applications.board({
+          search: "acme",
+          sort: "createdAt",
+          direction: "asc",
+        }),
+      ),
+    ).toBeDefined();
   });
 
   it("blocks load more while a stage update is pending", async () => {
@@ -165,7 +238,9 @@ describe("useApplicationsBoardController", () => {
     await waitFor(() =>
       expect(
         queryClient
-          .getQueryData<ApplicationBoard>(queryKeys.applications.board(""))
+          .getQueryData<ApplicationBoard>(
+            queryKeys.applications.board(defaultBoardParams),
+          )
           ?.columns[1].items[0]?.stage,
       ).toBe("interviewing"),
     );
@@ -195,7 +270,7 @@ describe("useApplicationsBoardController", () => {
 
     await waitFor(() => expect(onMutationError).toHaveBeenCalled());
     const current = queryClient.getQueryData<ApplicationBoard>(
-      queryKeys.applications.board(""),
+      queryKeys.applications.board(defaultBoardParams),
     );
     expect(current?.columns[0].items[0].stage).toBe("applied");
     expect(current?.columns[1].items).toHaveLength(0);
@@ -205,7 +280,7 @@ describe("useApplicationsBoardController", () => {
     mockedGetBoard.mockRejectedValue(new Error("refresh failed"));
     const { result, queryClient, onMutationError } = renderController();
     const previousBoard = queryClient.getQueryData<ApplicationBoard>(
-      queryKeys.applications.board(""),
+      queryKeys.applications.board(defaultBoardParams),
     );
 
     await act(async () => {
@@ -213,9 +288,10 @@ describe("useApplicationsBoardController", () => {
     });
 
     expect(onMutationError).toHaveBeenCalledWith(expect.any(Error));
+    expect(mockedGetBoard).toHaveBeenCalledWith(defaultBoardParams);
     expect(
       queryClient.getQueryData<ApplicationBoard>(
-        queryKeys.applications.board(""),
+        queryKeys.applications.board(defaultBoardParams),
       ),
     ).toEqual(previousBoard);
   });

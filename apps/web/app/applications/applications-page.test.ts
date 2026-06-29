@@ -292,7 +292,7 @@ describe("ApplicationsPage", () => {
 
   it("sends URL params to the applications list API", async () => {
     currentUrl =
-      "/applications?search=acme&stage=offer&page=2&size=10&sort=companyName&direction=asc";
+      "/applications?search=acme&stage=offer&page=2&size=10&sort=createdAt&direction=asc";
     installApiMocks({
       listPage: makePage({ items: [], page: 2, size: 10, totalItems: 0, totalPages: 0 }),
     });
@@ -308,9 +308,37 @@ describe("ApplicationsPage", () => {
       page: 2,
       search: "acme",
       size: 10,
-      sort: "companyName",
+      sort: "createdAt",
       stage: "offer",
     });
+    expect(screen.getAllByRole("combobox")).toHaveLength(3);
+    expect(screen.getByRole("option", { name: "Updated" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Created" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Company" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Position" })).toBeNull();
+  });
+
+  it("defaults to list when storage is missing and ignores a legacy view URL param", async () => {
+    currentUrl = "/applications?view=board";
+    installApiMocks();
+
+    renderPage();
+
+    await waitFor(() => expect(mockedListApplications).toHaveBeenCalled());
+    expect(mockedGetApplicationsBoard).not.toHaveBeenCalled();
+    expect(getStoredApplicationsView()).toBe("list");
+  });
+
+  it("falls back safely for a legacy list sort URL", async () => {
+    currentUrl = "/applications?sort=companyName&direction=asc";
+    installApiMocks();
+
+    renderPage();
+
+    await waitFor(() => expect(mockedListApplications).toHaveBeenCalled());
+    expect(lastListParams()).toEqual(
+      expect.objectContaining({ sort: "updatedAt", direction: "asc" }),
+    );
   });
 
   it("stores board view and keeps only canonical board URL params", async () => {
@@ -388,7 +416,11 @@ describe("ApplicationsPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Initial" });
-    expect(mockedGetApplicationsBoard).toHaveBeenCalledWith("acme");
+    expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
+      search: "acme",
+      sort: "updatedAt",
+      direction: "desc",
+    });
     expect(mockedListApplications).not.toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "Applied" })).toBeTruthy();
     expect(screen.getByText("Backend Engineer")).toBeTruthy();
@@ -398,7 +430,13 @@ describe("ApplicationsPage", () => {
       screen.getByRole("button", { name: "Move Acme application" }),
     ).toBeTruthy();
     expect(screen.queryByLabelText("Stage")).toBeNull();
-    expect(screen.queryByLabelText("Sort")).toBeNull();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+    expect(
+      screen.getByRole("option", { name: "Updated" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Created" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "Company" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Position" })).toBeNull();
   });
 
   it("loads more into only the selected board column", async () => {
@@ -433,9 +471,44 @@ describe("ApplicationsPage", () => {
     expect(mockedGetApplicationBoardColumn).toHaveBeenCalledWith({
       stage: "applied",
       search: "",
+      sort: "updatedAt",
+      direction: "desc",
       offset: 1,
     });
     expect(screen.getAllByText("No applications")).toHaveLength(4);
+  });
+
+  it("updates board sorting without restoring list-only URL params", async () => {
+    currentUrl = "/applications?search=acme&stage=offer&page=2&size=10";
+    storeApplicationsView("board");
+    installApiMocks();
+    const user = userEvent.setup();
+    const view = renderPage();
+
+    await screen.findByRole("heading", { name: "Initial" });
+    await user.selectOptions(screen.getAllByRole("combobox")[0], "createdAt");
+
+    let url = lastReplaceUrl();
+    expect(url.searchParams.get("sort")).toBe("createdAt");
+    expect(url.searchParams.get("stage")).toBeNull();
+    expect(url.searchParams.get("page")).toBeNull();
+    expect(url.searchParams.get("size")).toBeNull();
+    expect(url.searchParams.get("view")).toBeNull();
+
+    view.rerenderPage();
+    await user.selectOptions(screen.getAllByRole("combobox")[1], "asc");
+    view.rerenderPage();
+
+    url = lastReplaceUrl();
+    expect(url.searchParams.get("sort")).toBe("createdAt");
+    expect(url.searchParams.get("direction")).toBe("asc");
+    await waitFor(() =>
+      expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
+        search: "acme",
+        sort: "createdAt",
+        direction: "asc",
+      }),
+    );
   });
 
   it("opens the existing delete confirmation from a board card", async () => {
@@ -455,6 +528,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("refreshes board data after a successful board delete", async () => {
+    currentUrl = "/applications?sort=createdAt&direction=asc";
     storeApplicationsView("board");
     installApiMocks();
     const user = userEvent.setup();
@@ -465,6 +539,11 @@ describe("ApplicationsPage", () => {
 
     await waitFor(() => expect(mockedDeleteApplication).toHaveBeenCalledWith("app-1"));
     await waitFor(() => expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2));
+    expect(mockedGetApplicationsBoard).toHaveBeenLastCalledWith({
+      search: "",
+      sort: "createdAt",
+      direction: "asc",
+    });
     expect(screen.queryByText("Delete application?")).toBeNull();
   });
 
@@ -488,6 +567,7 @@ describe("ApplicationsPage", () => {
   });
 
   it("closes edit and refreshes board data after a successful board save", async () => {
+    currentUrl = "/applications?sort=createdAt&direction=asc";
     storeApplicationsView("board");
     installApiMocks();
     const user = userEvent.setup();
@@ -502,6 +582,11 @@ describe("ApplicationsPage", () => {
 
     await waitFor(() => expect(mockedReplaceApplication).toHaveBeenCalled());
     await waitFor(() => expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2));
+    expect(mockedGetApplicationsBoard).toHaveBeenLastCalledWith({
+      search: "",
+      sort: "createdAt",
+      direction: "asc",
+    });
     expect(screen.queryByRole("heading", { name: "Edit application" })).toBeNull();
   });
 
@@ -594,10 +679,10 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.selectOptions((await screen.findAllByRole("combobox"))[1], "companyName");
+    await user.selectOptions((await screen.findAllByRole("combobox"))[1], "createdAt");
 
     const url = lastReplaceUrl();
-    expect(url.searchParams.get("sort")).toBe("companyName");
+    expect(url.searchParams.get("sort")).toBe("createdAt");
     expect(url.searchParams.get("direction")).toBe("asc");
     expect(url.searchParams.get("page")).toBeNull();
   });
@@ -623,7 +708,7 @@ describe("ApplicationsPage", () => {
 
   it("removes only page when the current page is out of range", async () => {
     currentUrl =
-      "/applications?search=acme&stage=applied&page=99&size=10&sort=companyName&direction=asc&id=app-1";
+      "/applications?search=acme&stage=applied&page=99&size=10&sort=createdAt&direction=asc&id=app-1";
     installApiMocks({
       detailMode: "pending",
       listPage: makePage({
@@ -643,7 +728,7 @@ describe("ApplicationsPage", () => {
       expect(url.searchParams.get("search")).toBe("acme");
       expect(url.searchParams.get("stage")).toBe("applied");
       expect(url.searchParams.get("size")).toBe("10");
-      expect(url.searchParams.get("sort")).toBe("companyName");
+      expect(url.searchParams.get("sort")).toBe("createdAt");
       expect(url.searchParams.get("direction")).toBe("asc");
       expect(url.searchParams.get("id")).toBe("app-1");
     });
@@ -651,7 +736,7 @@ describe("ApplicationsPage", () => {
 
   it("fetches page 0 and removes malformed page params", async () => {
     currentUrl =
-      "/applications?search=acme&stage=applied&page=abc&size=10&sort=companyName&direction=asc&id=app-1";
+      "/applications?search=acme&stage=applied&page=abc&size=10&sort=createdAt&direction=asc&id=app-1";
     installApiMocks({
       detailMode: "pending",
       listPage: makePage({
@@ -676,7 +761,7 @@ describe("ApplicationsPage", () => {
       expect(url.searchParams.get("search")).toBe("acme");
       expect(url.searchParams.get("stage")).toBe("applied");
       expect(url.searchParams.get("size")).toBe("10");
-      expect(url.searchParams.get("sort")).toBe("companyName");
+      expect(url.searchParams.get("sort")).toBe("createdAt");
       expect(url.searchParams.get("direction")).toBe("asc");
       expect(url.searchParams.get("id")).toBe("app-1");
     });
@@ -736,7 +821,7 @@ describe("ApplicationsPage", () => {
 
   it("closing the modal removes only id from a filtered URL", async () => {
     currentUrl =
-      "/applications?search=acme&stage=applied&page=2&sort=companyName&direction=asc&id=app-1";
+      "/applications?search=acme&stage=applied&page=2&sort=createdAt&direction=asc&id=app-1";
     installApiMocks({
       listPage: makePage({ page: 2, totalItems: 3, totalPages: 3 }),
     });
@@ -751,7 +836,7 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("search")).toBe("acme");
     expect(url.searchParams.get("stage")).toBe("applied");
     expect(url.searchParams.get("page")).toBe("2");
-    expect(url.searchParams.get("sort")).toBe("companyName");
+    expect(url.searchParams.get("sort")).toBe("createdAt");
     expect(url.searchParams.get("direction")).toBe("asc");
   });
 

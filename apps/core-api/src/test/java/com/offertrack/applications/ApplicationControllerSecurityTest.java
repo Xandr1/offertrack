@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -324,8 +325,29 @@ class ApplicationControllerSecurityTest {
     expectInvalidListParam("stage", "unknown");
     expectInvalidListParam("sort", "");
     expectInvalidListParam("sort", "notes");
+    expectInvalidListParam("sort", "companyName");
+    expectInvalidListParam("sort", "positionTitle");
+    expectInvalidListParam("sort", "stage");
     expectInvalidListParam("direction", "");
     expectInvalidListParam("direction", "sideways");
+  }
+
+  @Test
+  void listAcceptsSupportedSorts() throws Exception {
+    mockMvc
+        .perform(
+            get("/api/applications")
+                .param("sort", "updatedAt")
+                .param("direction", "desc")
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(
+            get("/api/applications")
+                .param("sort", "createdAt")
+                .param("direction", "asc")
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isOk());
   }
 
   @Test
@@ -340,13 +362,49 @@ class ApplicationControllerSecurityTest {
 
     mockMvc
         .perform(
-            get("/api/applications/board").param("search", " acme ").cookie(accessTokenCookie()))
+            get("/api/applications/board")
+                .param("search", " acme ")
+                .param("sort", "createdAt")
+                .param("direction", "asc")
+                .cookie(accessTokenCookie()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.columns[0].stage").value("applied"))
         .andExpect(jsonPath("$.columns[0].totalCount").value(21))
         .andExpect(jsonPath("$.columns[0].items[0].companyName").value("Acme"))
         .andExpect(jsonPath("$.columns[0].nextOffset").value(1))
         .andExpect(jsonPath("$.columns[0].hasMore").value(true));
+
+    verify(applicationService)
+        .board(
+            AUTHENTICATED_USER_ID,
+            new ApplicationBoardQuery(
+                "acme",
+                0,
+                ApplicationListQuery.ApplicationSort.CREATED_AT,
+                ApplicationListQuery.SortDirection.ASC));
+  }
+
+  @Test
+  void boardAcceptsUpdatedAtSort() throws Exception {
+    when(applicationService.board(eq(AUTHENTICATED_USER_ID), any()))
+        .thenReturn(new ApplicationBoardResponse(List.of()));
+
+    mockMvc
+        .perform(
+            get("/api/applications/board")
+                .param("sort", "updatedAt")
+                .param("direction", "desc")
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isOk());
+
+    verify(applicationService)
+        .board(
+            AUTHENTICATED_USER_ID,
+            new ApplicationBoardQuery(
+                null,
+                0,
+                ApplicationListQuery.ApplicationSort.UPDATED_AT,
+                ApplicationListQuery.SortDirection.DESC));
   }
 
   @Test
@@ -360,11 +418,23 @@ class ApplicationControllerSecurityTest {
         .perform(
             get("/api/applications/board/columns/offer")
                 .param("offset", "20")
+                .param("sort", "createdAt")
+                .param("direction", "asc")
                 .cookie(accessTokenCookie()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.stage").value("offer"))
         .andExpect(jsonPath("$.totalCount").value(25))
         .andExpect(jsonPath("$.nextOffset").value(20));
+
+    verify(applicationService)
+        .boardColumn(
+            AUTHENTICATED_USER_ID,
+            ApplicationStage.OFFER,
+            new ApplicationBoardQuery(
+                null,
+                20,
+                ApplicationListQuery.ApplicationSort.CREATED_AT,
+                ApplicationListQuery.SortDirection.ASC));
   }
 
   @Test
@@ -372,6 +442,16 @@ class ApplicationControllerSecurityTest {
     expectInvalidBoardColumn("unknown", "0");
     expectInvalidBoardColumn("applied", "-1");
     expectInvalidBoardColumn("applied", "not-a-number");
+  }
+
+  @Test
+  void boardReturnsBadRequestForUnsupportedSortOrDirection() throws Exception {
+    expectInvalidBoardParam("sort", "companyName");
+    expectInvalidBoardParam("sort", "positionTitle");
+    expectInvalidBoardParam("sort", "stage");
+    expectInvalidBoardParam("direction", "sideways");
+    expectInvalidBoardColumnParam("sort", "companyName");
+    expectInvalidBoardColumnParam("direction", "sideways");
   }
 
   private static Cookie accessTokenCookie() {
@@ -413,6 +493,25 @@ class ApplicationControllerSecurityTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.status").value(400))
         .andExpect(jsonPath("$.path").value("/api/applications/board/columns/" + stage));
+  }
+
+  private void expectInvalidBoardParam(String name, String value) throws Exception {
+    mockMvc
+        .perform(get("/api/applications/board").param(name, value).cookie(accessTokenCookie()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.path").value("/api/applications/board"));
+  }
+
+  private void expectInvalidBoardColumnParam(String name, String value) throws Exception {
+    mockMvc
+        .perform(
+            get("/api/applications/board/columns/applied")
+                .param(name, value)
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.path").value("/api/applications/board/columns/applied"));
   }
 
   private void expectPutJobUrlValidationError(String jobUrl) throws Exception {

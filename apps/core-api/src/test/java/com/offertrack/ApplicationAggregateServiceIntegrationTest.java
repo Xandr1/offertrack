@@ -1,5 +1,6 @@
 package com.offertrack;
 
+import static com.offertrack.jooq.generated.tables.JobApplications.JOB_APPLICATIONS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -243,22 +244,30 @@ class ApplicationAggregateServiceIntegrationTest {
   @Test
   void listSupportsAllowedSorting() {
     UUID userId = createUser("list-sort@example.com");
-    createApplication(userId, "Beta", "Analyst", ApplicationStage.APPLIED);
-    createApplication(userId, "Acme", "Engineer", ApplicationStage.INTERVIEWING);
+    UUID firstId = createApplication(userId, "Beta", "Analyst", ApplicationStage.APPLIED);
+    UUID secondId = createApplication(userId, "Acme", "Engineer", ApplicationStage.INTERVIEWING);
+    OffsetDateTime older = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+    OffsetDateTime newer = OffsetDateTime.parse("2026-02-01T00:00:00Z");
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, older)
+        .set(JOB_APPLICATIONS.UPDATED_AT, newer)
+        .where(JOB_APPLICATIONS.ID.eq(firstId))
+        .execute();
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, newer)
+        .set(JOB_APPLICATIONS.UPDATED_AT, older)
+        .where(JOB_APPLICATIONS.ID.eq(secondId))
+        .execute();
 
-    var companyAsc =
+    var createdAsc =
         applicationService.list(
-            userId,
-            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
-    var titleDesc =
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, null, "createdAt", "asc"));
+    var updatedDesc =
         applicationService.list(
-            userId,
-            ApplicationListQuery.fromRequestParams(0, 20, null, null, "positionTitle", "desc"));
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, null, "updatedAt", "desc"));
 
-    assertThat(companyAsc.items()).extracting("companyName").containsExactly("Acme", "Beta");
-    assertThat(titleDesc.items())
-        .extracting("positionTitle")
-        .containsExactly("Engineer", "Analyst");
+    assertThat(createdAsc.items()).extracting("id").containsExactly(firstId, secondId);
+    assertThat(updatedDesc.items()).extracting("id").containsExactly(firstId, secondId);
   }
 
   @Test
@@ -268,6 +277,11 @@ class ApplicationAggregateServiceIntegrationTest {
     UUID secondId =
         createApplication(userId, "Acme", "Frontend Engineer", ApplicationStage.INTERVIEWING);
     UUID thirdId = createApplication(userId, "Acme", "Platform Engineer", ApplicationStage.OFFER);
+    OffsetDateTime tiedCreatedAt = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, tiedCreatedAt)
+        .where(JOB_APPLICATIONS.USER_ID.eq(userId))
+        .execute();
     List<UUID> expectedIds =
         List.of(firstId, secondId, thirdId).stream()
             .sorted(Comparator.comparing(UUID::toString))
@@ -275,8 +289,7 @@ class ApplicationAggregateServiceIntegrationTest {
 
     var response =
         applicationService.list(
-            userId,
-            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, null, "createdAt", "asc"));
 
     assertThat(response.items().stream().map(item -> item.id()).toList())
         .containsExactlyElementsOf(expectedIds);
@@ -360,6 +373,45 @@ class ApplicationAggregateServiceIntegrationTest {
                 .orElseThrow()
                 .items())
         .isEmpty();
+  }
+
+  @Test
+  void boardAndColumnApplySortAndDirection() {
+    UUID userId = createUser("board-sort@example.com");
+    UUID firstId = createApplication(userId, "First", "Engineer", ApplicationStage.APPLIED);
+    UUID secondId = createApplication(userId, "Second", "Engineer", ApplicationStage.APPLIED);
+    UUID thirdId = createApplication(userId, "Third", "Engineer", ApplicationStage.APPLIED);
+    OffsetDateTime firstCreatedAt = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+    OffsetDateTime secondCreatedAt = OffsetDateTime.parse("2026-02-01T00:00:00Z");
+    OffsetDateTime thirdCreatedAt = OffsetDateTime.parse("2026-03-01T00:00:00Z");
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, firstCreatedAt)
+        .where(JOB_APPLICATIONS.ID.eq(firstId))
+        .execute();
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, secondCreatedAt)
+        .where(JOB_APPLICATIONS.ID.eq(secondId))
+        .execute();
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, thirdCreatedAt)
+        .where(JOB_APPLICATIONS.ID.eq(thirdId))
+        .execute();
+
+    var board =
+        applicationService.board(userId, ApplicationBoardQuery.initial(null, "createdAt", "asc"));
+    var applied =
+        board.columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    var column =
+        applicationService.boardColumn(
+            userId,
+            ApplicationStage.APPLIED,
+            ApplicationBoardQuery.column(null, 1, "createdAt", "desc"));
+
+    assertThat(applied.items()).extracting("id").containsExactly(firstId, secondId, thirdId);
+    assertThat(column.items()).extracting("id").containsExactly(secondId, firstId);
   }
 
   @Test

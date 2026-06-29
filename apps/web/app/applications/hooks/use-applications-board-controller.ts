@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,6 +12,9 @@ import type {
   ApplicationBoard,
   ApplicationBoardColumn,
   ApplicationStage,
+  ApplicationSortField,
+  ApplicationsBoardParams,
+  SortDirection,
 } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { getRequestErrorMessage } from "@/lib/request-errors";
@@ -60,9 +63,8 @@ const loadStateReducer = (
   };
 };
 
-type LoadMoreVariables = {
+type LoadMoreVariables = ApplicationsBoardParams & {
   stage: ApplicationStage;
-  search: string;
   offset: number;
 };
 
@@ -78,35 +80,53 @@ type StageMutationContext = {
 type UseApplicationsBoardControllerParams = {
   enabled: boolean;
   search: string;
+  sort: ApplicationSortField;
+  direction: SortDirection;
   onMutationError: (error: unknown) => void | Promise<void>;
 };
 
 const validStages = new Set<ApplicationStage>(applicationStages);
+const toLoadRequestKey = (variables: LoadMoreVariables): string =>
+  JSON.stringify([
+    variables.search,
+    variables.sort,
+    variables.direction,
+    variables.stage,
+  ]);
+const toBoardScopeKey = (params: ApplicationsBoardParams): string =>
+  JSON.stringify([params.search, params.sort, params.direction]);
 
 export const useApplicationsBoardController = ({
   enabled,
   search,
+  sort,
+  direction,
   onMutationError,
 }: UseApplicationsBoardControllerParams) => {
   const queryClient = useQueryClient();
   const normalizedSearch = search.trim();
-  const boardQueryKey = queryKeys.applications.board(normalizedSearch);
+  const boardParams = useMemo(
+    () => ({ search: normalizedSearch, sort, direction }),
+    [direction, normalizedSearch, sort],
+  );
+  const boardQueryKey = queryKeys.applications.board(boardParams);
+  const boardScopeKey = toBoardScopeKey(boardParams);
   const [loadMoreState, dispatchLoadState] = useReducer(loadStateReducer, {});
   const loadingRequestKeysRef = useRef(new Set<string>());
-  const activeSearchRef = useRef(normalizedSearch);
+  const activeBoardScopeRef = useRef(boardScopeKey);
 
   const boardQuery = useQuery({
     enabled,
-    queryFn: () => getApplicationsBoard(normalizedSearch),
+    queryFn: () => getApplicationsBoard(boardParams),
     queryKey: boardQueryKey,
     retry: false,
   });
 
   useEffect(() => {
-    activeSearchRef.current = normalizedSearch;
+    activeBoardScopeRef.current = boardScopeKey;
     loadingRequestKeysRef.current.clear();
     dispatchLoadState({ type: "reset" });
-  }, [normalizedSearch]);
+  }, [boardScopeKey]);
 
   const loadMoreMutation = useMutation<
     ApplicationBoardColumn,
@@ -115,21 +135,25 @@ export const useApplicationsBoardController = ({
   >({
     mutationFn: (variables) => getApplicationBoardColumn(variables),
     onMutate: (variables) => {
-      loadingRequestKeysRef.current.add(`${variables.search}:${variables.stage}`);
+      loadingRequestKeysRef.current.add(toLoadRequestKey(variables));
       dispatchLoadState({ type: "start", stage: variables.stage });
     },
     onSuccess: (page, variables) => {
       queryClient.setQueryData<ApplicationBoard>(
-        queryKeys.applications.board(variables.search),
+        queryKeys.applications.board({
+          search: variables.search,
+          sort: variables.sort,
+          direction: variables.direction,
+        }),
         (current) => (current ? appendBoardColumn(current, page) : current),
       );
 
-      if (variables.search === activeSearchRef.current) {
+      if (toBoardScopeKey(variables) === activeBoardScopeRef.current) {
         dispatchLoadState({ type: "success", stage: variables.stage });
       }
     },
     onError: (error, variables) => {
-      if (variables.search === activeSearchRef.current) {
+      if (toBoardScopeKey(variables) === activeBoardScopeRef.current) {
         dispatchLoadState({
           type: "error",
           stage: variables.stage,
@@ -139,7 +163,7 @@ export const useApplicationsBoardController = ({
       }
     },
     onSettled: (_data, _error, variables) => {
-      loadingRequestKeysRef.current.delete(`${variables.search}:${variables.stage}`);
+      loadingRequestKeysRef.current.delete(toLoadRequestKey(variables));
     },
   });
 
@@ -193,7 +217,9 @@ export const useApplicationsBoardController = ({
     (stage: ApplicationStage) => {
       if (
         updateStageMutation.isPending ||
-        loadingRequestKeysRef.current.has(`${normalizedSearch}:${stage}`)
+        loadingRequestKeysRef.current.has(
+          toLoadRequestKey({ ...boardParams, stage, offset: 0 }),
+        )
       ) {
         return;
       }
@@ -206,14 +232,14 @@ export const useApplicationsBoardController = ({
 
       loadMoreMutation.mutate({
         stage,
-        search: normalizedSearch,
+        ...boardParams,
         offset: column.nextOffset,
       });
     },
     [
       boardQueryKey,
       loadMoreMutation,
-      normalizedSearch,
+      boardParams,
       queryClient,
       updateStageMutation.isPending,
     ],
@@ -227,13 +253,13 @@ export const useApplicationsBoardController = ({
       const refreshedBoard =
         await refreshApplicationsBoardPreservingLoadedCounts({
           currentBoard,
-          search: normalizedSearch,
+          ...boardParams,
         });
       queryClient.setQueryData(boardQueryKey, refreshedBoard);
     } catch (error) {
       await onMutationError(error);
     }
-  }, [boardQueryKey, normalizedSearch, onMutationError, queryClient]);
+  }, [boardParams, boardQueryKey, onMutationError, queryClient]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {

@@ -3,18 +3,39 @@ package com.offertrack.applications;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
-public record ApplicationBoardQuery(String search, int offset) {
+public record ApplicationBoardQuery(
+    String search,
+    int offset,
+    ApplicationListQuery.ApplicationSort sort,
+    ApplicationListQuery.SortDirection direction) {
   public static ApplicationBoardQuery initial(String search) {
-    return new ApplicationBoardQuery(normalizeSearch(search), 0);
+    return initial(search, null, null);
+  }
+
+  public static ApplicationBoardQuery initial(String search, String sort, String direction) {
+    return new ApplicationBoardQuery(
+        normalizeSearch(search),
+        0,
+        ApplicationListQuery.parseSort(sort),
+        ApplicationListQuery.parseDirection(direction));
   }
 
   public static ApplicationBoardQuery column(String search, Integer offset) {
+    return column(search, offset, null, null);
+  }
+
+  public static ApplicationBoardQuery column(
+      String search, Integer offset, String sort, String direction) {
     int parsedOffset = offset == null ? 0 : offset;
     if (parsedOffset < 0) {
       throw invalidRequest("Offset must be greater than or equal to 0.");
     }
 
-    return new ApplicationBoardQuery(normalizeSearch(search), parsedOffset);
+    return new ApplicationBoardQuery(
+        normalizeSearch(search),
+        parsedOffset,
+        ApplicationListQuery.parseSort(sort),
+        ApplicationListQuery.parseDirection(direction));
   }
 
   public static ApplicationStage parseStage(String value) {

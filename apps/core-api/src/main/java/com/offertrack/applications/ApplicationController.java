@@ -57,8 +57,11 @@ public class ApplicationController {
   @GetMapping("/api/applications/board")
   public ApplicationBoardResponse board(
       @AuthenticationPrincipal CurrentUser currentUser,
-      @RequestParam(required = false) String search) {
-    return applicationService.board(currentUser.id(), ApplicationBoardQuery.initial(search));
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) String sort,
+      @RequestParam(required = false) String direction) {
+    return applicationService.board(
+        currentUser.id(), ApplicationBoardQuery.initial(search, sort, direction));
   }
 
   @GetMapping("/api/applications/board/columns/{stage}")
@@ -66,11 +69,13 @@ public class ApplicationController {
       @AuthenticationPrincipal CurrentUser currentUser,
       @PathVariable String stage,
       @RequestParam(required = false) String search,
+      @RequestParam(required = false) String sort,
+      @RequestParam(required = false) String direction,
       @RequestParam(required = false) Integer offset) {
     return applicationService.boardColumn(
         currentUser.id(),
         ApplicationBoardQuery.parseStage(stage),
-        ApplicationBoardQuery.column(search, offset));
+        ApplicationBoardQuery.column(search, offset, sort, direction));
   }
 
   @GetMapping("/api/applications/{id}")

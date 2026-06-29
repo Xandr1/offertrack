@@ -119,7 +119,13 @@ public class ApplicationService {
     for (ApplicationStage stage : BOARD_STAGE_ORDER) {
       List<Application> applications =
           applicationRepository.listBoardColumn(
-              userId, stage, query.search(), 0, BOARD_COLUMN_PAGE_SIZE);
+              userId,
+              stage,
+              query.search(),
+              query.sort(),
+              query.direction(),
+              0,
+              BOARD_COLUMN_PAGE_SIZE);
       applicationsByStage.put(stage, applications);
       allApplications.addAll(applications);
     }
@@ -146,7 +152,13 @@ public class ApplicationService {
     long totalCount = applicationRepository.countBoardColumn(userId, stage, query.search());
     List<Application> applications =
         applicationRepository.listBoardColumn(
-            userId, stage, query.search(), query.offset(), BOARD_COLUMN_PAGE_SIZE);
+            userId,
+            stage,
+            query.search(),
+            query.sort(),
+            query.direction(),
+            query.offset(),
+            BOARD_COLUMN_PAGE_SIZE);
 
     return toBoardColumnResponse(
         stage, totalCount, applications, query.offset(), loadNextInterviews(userId, applications));

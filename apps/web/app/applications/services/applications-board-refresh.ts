@@ -7,19 +7,19 @@ import type {
   ApplicationBoardColumn,
   ApplicationBoardColumnParams,
   ApplicationStage,
+  ApplicationsBoardParams,
 } from "@/lib/api";
 import { appendBoardColumn } from "../state/application-board-cache";
 
 type ApplicationsBoardRefreshDependencies = {
-  getBoard: (search: string) => Promise<ApplicationBoard>;
+  getBoard: (params: ApplicationsBoardParams) => Promise<ApplicationBoard>;
   getColumn: (
     params: ApplicationBoardColumnParams,
   ) => Promise<ApplicationBoardColumn>;
 };
 
-type RefreshApplicationsBoardInput = {
+type RefreshApplicationsBoardInput = ApplicationsBoardParams & {
   currentBoard?: ApplicationBoard;
-  search: string;
 };
 
 const defaultDependencies: ApplicationsBoardRefreshDependencies = {
@@ -30,7 +30,7 @@ const defaultDependencies: ApplicationsBoardRefreshDependencies = {
 const refreshColumn = async (
   initialColumn: ApplicationBoardColumn,
   previouslyLoadedCount: number,
-  search: string,
+  boardParams: ApplicationsBoardParams,
   getColumn: ApplicationsBoardRefreshDependencies["getColumn"],
 ): Promise<ApplicationBoardColumn> => {
   let refreshedColumn = initialColumn;
@@ -52,30 +52,34 @@ const refreshColumn = async (
     seenOffsets.add(offset);
     const page = await getColumn({
       stage: refreshedColumn.stage,
-      search,
+      ...boardParams,
       offset,
     });
     const merged = appendBoardColumn({ columns: [refreshedColumn] }, page);
     refreshedColumn = merged.columns[0];
+    if (page.nextOffset <= offset) {
+      break;
+    }
   }
 
   return refreshedColumn;
 };
 
 export const refreshApplicationsBoardPreservingLoadedCounts = async (
-  { currentBoard, search }: RefreshApplicationsBoardInput,
+  { currentBoard, search, sort, direction }: RefreshApplicationsBoardInput,
   dependencies: ApplicationsBoardRefreshDependencies = defaultDependencies,
 ): Promise<ApplicationBoard> => {
   const previouslyLoadedByStage = new Map<ApplicationStage, number>(
     currentBoard?.columns.map((column) => [column.stage, column.items.length]) ?? [],
   );
-  const initialBoard = await dependencies.getBoard(search);
+  const boardParams = { search, sort, direction };
+  const initialBoard = await dependencies.getBoard(boardParams);
   const columns = await Promise.all(
     initialBoard.columns.map((column) =>
       refreshColumn(
         column,
         previouslyLoadedByStage.get(column.stage) ?? column.items.length,
-        search,
+        boardParams,
         dependencies.getColumn,
       ),
     ),

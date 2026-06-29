@@ -319,6 +319,8 @@ export const useApplicationsPageController = () => {
   const boardController = useApplicationsBoardController({
     enabled: isViewInitialized && view === "board",
     search: searchQuery,
+    sort,
+    direction,
     onMutationError: onPageMutationError,
   });
 

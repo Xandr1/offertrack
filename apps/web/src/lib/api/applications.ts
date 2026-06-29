@@ -13,6 +13,7 @@ import type {
   ApplicationDraftRequest,
   ApplicationDraftResponse,
   ApplicationsListParams,
+  ApplicationsBoardParams,
   ApplicationBoard,
   ApplicationBoardColumn,
   ApplicationBoardColumnParams,
@@ -73,20 +74,26 @@ export const listApplications = (
   );
 };
 
-const appendBoardSearch = (searchParams: URLSearchParams, search: string) => {
-  const trimmedSearch = search.trim();
+const appendBoardParams = (
+  searchParams: URLSearchParams,
+  params: ApplicationsBoardParams,
+) => {
+  const trimmedSearch = params.search.trim();
   if (trimmedSearch !== "") {
     searchParams.set("search", trimmedSearch);
   }
+  searchParams.set("sort", params.sort);
+  searchParams.set("direction", params.direction);
 };
 
-export const getApplicationsBoard = (search: string): Promise<ApplicationBoard> => {
+export const getApplicationsBoard = (
+  params: ApplicationsBoardParams,
+): Promise<ApplicationBoard> => {
   const searchParams = new URLSearchParams();
-  appendBoardSearch(searchParams, search);
-  const query = searchParams.toString();
+  appendBoardParams(searchParams, params);
 
   return request<ApplicationBoard>(
-    query ? `/api/applications/board?${query}` : "/api/applications/board",
+    `/api/applications/board?${searchParams.toString()}`,
     applicationBoardSchema,
   );
 };
@@ -94,10 +101,12 @@ export const getApplicationsBoard = (search: string): Promise<ApplicationBoard> 
 export const getApplicationBoardColumn = ({
   stage,
   search,
+  sort,
+  direction,
   offset,
 }: ApplicationBoardColumnParams): Promise<ApplicationBoardColumn> => {
   const searchParams = new URLSearchParams();
-  appendBoardSearch(searchParams, search);
+  appendBoardParams(searchParams, { search, sort, direction });
   searchParams.set("offset", String(offset));
 
   return request<ApplicationBoardColumn>(

@@ -23,6 +23,7 @@ import {
   parseSortParam,
   parseStageFilterParam,
   toListParams,
+  writeApplicationsBoardParams,
   writeApplicationsListParams,
 } from "../helpers/application-filters";
 
@@ -104,7 +105,10 @@ export const useApplicationsUrlFilters = () => {
 
   const replaceListParams = useCallback(
     (nextListParams: ApplicationsListParams) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = canonicalizeApplicationsViewParams(
+        new URLSearchParams(searchParams.toString()),
+        "list",
+      );
       writeApplicationsListParams(params, nextListParams);
       router.replace(toUrl(pathname, params), { scroll: false });
     },
@@ -113,26 +117,48 @@ export const useApplicationsUrlFilters = () => {
 
   const setFilters = useCallback(
     (nextValues: SetFiltersInput) => {
+      const nextDirection = nextValues.direction ?? direction;
+      const nextSearch = (nextValues.search ?? searchQuery).trim();
+      const nextSort = nextValues.sort ?? sort;
+
+      if (view === "board") {
+        const params = canonicalizeApplicationsViewParams(
+          new URLSearchParams(searchParams.toString()),
+          "board",
+        );
+        writeApplicationsBoardParams(params, {
+          direction: nextDirection,
+          search: nextSearch,
+          sort: nextSort,
+        });
+        router.replace(toUrl(pathname, params), { scroll: false });
+        return;
+      }
+
       const nextStage = nextValues.stage ?? stageFilter;
       const nextStageParam =
         nextStage === STAGE_FILTER_DEFAULT ? null : (nextStage as ApplicationStage);
 
       replaceListParams({
-        direction: nextValues.direction ?? direction,
+        direction: nextDirection,
         page: 0,
-        search: (nextValues.search ?? searchQuery).trim(),
+        search: nextSearch,
         size,
-        sort: nextValues.sort ?? sort,
+        sort: nextSort,
         stage: nextStageParam,
       });
     },
     [
       direction,
+      pathname,
       replaceListParams,
+      router,
       searchQuery,
+      searchParams,
       size,
       sort,
       stageFilter,
+      view,
     ],
   );
 

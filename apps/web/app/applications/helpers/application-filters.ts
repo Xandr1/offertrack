@@ -4,6 +4,7 @@ import {
 import type {
   ApplicationSortField,
   ApplicationStage,
+  ApplicationsBoardParams,
   ApplicationsListParams,
   SortDirection,
 } from "@/lib/api";
@@ -182,6 +183,30 @@ export const writeApplicationsListParams = (
     params.delete("direction");
   } else {
     params.set("direction", listParams.direction);
+  }
+};
+
+export const writeApplicationsBoardParams = (
+  params: URLSearchParams,
+  boardParams: ApplicationsBoardParams,
+) => {
+  const trimmedSearch = boardParams.search.trim();
+  if (trimmedSearch === "") {
+    params.delete("search");
+  } else {
+    params.set("search", trimmedSearch);
+  }
+
+  if (boardParams.sort === APPLICATIONS_LIST_DEFAULTS.sort) {
+    params.delete("sort");
+  } else {
+    params.set("sort", boardParams.sort);
+  }
+
+  if (boardParams.direction === APPLICATIONS_LIST_DEFAULTS.direction) {
+    params.delete("direction");
+  } else {
+    params.set("direction", boardParams.direction);
   }
 };
 

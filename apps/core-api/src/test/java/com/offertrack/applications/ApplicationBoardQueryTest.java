@@ -10,9 +10,30 @@ class ApplicationBoardQueryTest {
   @Test
   void normalizesSearchAndDefaultsOffset() {
     assertThat(ApplicationBoardQuery.initial("  acme  "))
-        .isEqualTo(new ApplicationBoardQuery("acme", 0));
+        .isEqualTo(
+            new ApplicationBoardQuery(
+                "acme",
+                0,
+                ApplicationListQuery.ApplicationSort.UPDATED_AT,
+                ApplicationListQuery.SortDirection.DESC));
     assertThat(ApplicationBoardQuery.column("  ", null))
-        .isEqualTo(new ApplicationBoardQuery(null, 0));
+        .isEqualTo(
+            new ApplicationBoardQuery(
+                null,
+                0,
+                ApplicationListQuery.ApplicationSort.UPDATED_AT,
+                ApplicationListQuery.SortDirection.DESC));
+  }
+
+  @Test
+  void parsesSupportedSortAndDirection() {
+    assertThat(ApplicationBoardQuery.initial(null, "createdAt", "asc"))
+        .isEqualTo(
+            new ApplicationBoardQuery(
+                null,
+                0,
+                ApplicationListQuery.ApplicationSort.CREATED_AT,
+                ApplicationListQuery.SortDirection.ASC));
   }
 
   @Test
@@ -20,6 +41,14 @@ class ApplicationBoardQueryTest {
     assertThatThrownBy(() -> ApplicationBoardQuery.column(null, -1))
         .isInstanceOf(ResponseStatusException.class);
     assertThatThrownBy(() -> ApplicationBoardQuery.parseStage("unknown"))
+        .isInstanceOf(ResponseStatusException.class);
+  }
+
+  @Test
+  void rejectsUnsupportedSortAndDirection() {
+    assertThatThrownBy(() -> ApplicationBoardQuery.initial(null, "companyName", null))
+        .isInstanceOf(ResponseStatusException.class);
+    assertThatThrownBy(() -> ApplicationBoardQuery.initial(null, null, "sideways"))
         .isInstanceOf(ResponseStatusException.class);
   }
 }

@@ -14,7 +14,10 @@ describe("application-filters", () => {
   it("parses list query params with defaults", () => {
     expect(parseStageFilterParam("offer")).toBe("offer");
     expect(parseStageFilterParam("invalid")).toBe("all");
-    expect(parseSortParam("companyName")).toBe("companyName");
+    expect(parseSortParam("createdAt")).toBe("createdAt");
+    expect(parseSortParam("companyName")).toBe("updatedAt");
+    expect(parseSortParam("positionTitle")).toBe("updatedAt");
+    expect(parseSortParam("stage")).toBe("updatedAt");
     expect(parseSortParam("invalid")).toBe("updatedAt");
     expect(parseDirectionParam("asc")).toBe("asc");
     expect(parseDirectionParam("invalid")).toBe("desc");
@@ -51,12 +54,12 @@ describe("application-filters", () => {
       page: 2,
       search: " acme ",
       size: 50,
-      sort: "companyName",
+      sort: "createdAt",
       stage: "applied",
     });
 
     expect(params.toString()).toBe(
-      "id=app-1&page=2&size=50&search=acme&stage=applied&sort=companyName&direction=asc",
+      "id=app-1&page=2&size=50&search=acme&stage=applied&sort=createdAt&direction=asc",
     );
   });
 
@@ -82,6 +85,16 @@ describe("application-filters", () => {
       );
     },
   );
+
+  it("removes invalid legacy sorting when canonicalizing list params", () => {
+    const params = new URLSearchParams(
+      "search=react&sort=stage&direction=asc&stage=interviewing",
+    );
+
+    expect(canonicalizeApplicationsViewParams(params, "list").toString()).toBe(
+      "search=react&stage=interviewing",
+    );
+  });
 
   it("preserves list params while omitting URL defaults", () => {
     const params = new URLSearchParams(

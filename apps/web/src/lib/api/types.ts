@@ -121,12 +121,7 @@ export type UpdateApplicationStageRequest = {
   stage: ApplicationStage;
 };
 
-export type ApplicationSortField =
-  | "updatedAt"
-  | "createdAt"
-  | "companyName"
-  | "positionTitle"
-  | "stage";
+export type ApplicationSortField = "updatedAt" | "createdAt";
 
 export type SortDirection = "asc" | "desc";
 
@@ -139,9 +134,17 @@ export type ApplicationsListParams = {
   direction: SortDirection;
 };
 
+export type ApplicationsBoardParams = {
+  search: string;
+  sort: ApplicationSortField;
+  direction: SortDirection;
+};
+
 export type ApplicationBoardColumnParams = {
   stage: ApplicationStage;
   search: string;
+  sort: ApplicationSortField;
+  direction: SortDirection;
   offset: number;
 };
 
