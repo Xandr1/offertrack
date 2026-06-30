@@ -294,7 +294,13 @@ describe("ApplicationsPage", () => {
     currentUrl =
       "/applications?search=acme&stage=offer&page=2&size=10&sort=createdAt&direction=asc";
     installApiMocks({
-      listPage: makePage({ items: [], page: 2, size: 10, totalItems: 0, totalPages: 0 }),
+      listPage: makePage({
+        items: [],
+        page: 2,
+        size: 10,
+        totalItems: 21,
+        totalPages: 3,
+      }),
     });
 
     renderPage();
@@ -316,28 +322,42 @@ describe("ApplicationsPage", () => {
     expect(screen.getByRole("option", { name: "Created" })).toBeTruthy();
     expect(screen.queryByRole("option", { name: "Company" })).toBeNull();
     expect(screen.queryByRole("option", { name: "Position" })).toBeNull();
+    expect(mockedGetApplicationsBoard).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it("defaults to list when storage is missing and ignores a legacy view URL param", async () => {
-    currentUrl = "/applications?view=board";
+    currentUrl = "/applications?view=board&search=react&stage=applied";
     installApiMocks();
 
     renderPage();
 
     await waitFor(() => expect(mockedListApplications).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
+        "/applications?search=react&stage=applied",
+      ),
+    );
     expect(mockedGetApplicationsBoard).not.toHaveBeenCalled();
     expect(getStoredApplicationsView()).toBe("list");
   });
 
-  it("falls back safely for a legacy list sort URL", async () => {
+  it("removes invalid legacy sorting from the initial list URL", async () => {
     currentUrl = "/applications?sort=companyName&direction=asc";
     installApiMocks();
 
     renderPage();
 
     await waitFor(() => expect(mockedListApplications).toHaveBeenCalled());
-    expect(lastListParams()).toEqual(
-      expect.objectContaining({ sort: "updatedAt", direction: "asc" }),
+    await waitFor(() =>
+      expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
+        "/applications",
+      ),
+    );
+    await waitFor(() =>
+      expect(lastListParams()).toEqual(
+        expect.objectContaining({ sort: "updatedAt", direction: "desc" }),
+      ),
     );
   });
 
@@ -382,7 +402,7 @@ describe("ApplicationsPage", () => {
     expect(`${url.pathname}${url.search}`).toBe("/applications?search=react");
   });
 
-  it("keeps canonical list params when selecting list", async () => {
+  it("keeps shared params when selecting list after initial board cleanup", async () => {
     currentUrl =
       "/applications?search=react&id=app-1&stage=applied&page=2&size=10&sort=createdAt&direction=asc&view=board";
     storeApplicationsView("board");
@@ -401,21 +421,26 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("view")).toBeNull();
     expect(url.searchParams.get("search")).toBe("react");
     expect(url.searchParams.get("id")).toBe("app-1");
-    expect(url.searchParams.get("stage")).toBe("applied");
-    expect(url.searchParams.get("page")).toBe("2");
-    expect(url.searchParams.get("size")).toBe("10");
+    expect(url.searchParams.get("stage")).toBeNull();
+    expect(url.searchParams.get("page")).toBeNull();
+    expect(url.searchParams.get("size")).toBeNull();
     expect(url.searchParams.get("sort")).toBe("createdAt");
     expect(url.searchParams.get("direction")).toBe("asc");
   });
 
-  it("loads board columns with search and does not call the list endpoint", async () => {
-    currentUrl = "/applications?search=acme&stage=offer&page=2";
+  it("cleans list-only params after loading board view from storage", async () => {
+    currentUrl = "/applications?stage=offer&page=2&size=10&search=acme";
     storeApplicationsView("board");
     installApiMocks();
 
     renderPage();
 
     await screen.findByRole("heading", { name: "Initial" });
+    await waitFor(() =>
+      expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
+        "/applications?search=acme",
+      ),
+    );
     expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
       search: "acme",
       sort: "updatedAt",
@@ -437,6 +462,46 @@ describe("ApplicationsPage", () => {
     expect(screen.getByRole("option", { name: "Created" })).toBeTruthy();
     expect(screen.queryByRole("option", { name: "Company" })).toBeNull();
     expect(screen.queryByRole("option", { name: "Position" })).toBeNull();
+    expect(mockReplace).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps valid board sorting when cleaning the initial URL", async () => {
+    currentUrl =
+      "/applications?search=react&sort=createdAt&direction=asc&stage=interviewing&page=2";
+    storeApplicationsView("board");
+    installApiMocks();
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Initial" });
+    await waitFor(() =>
+      expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
+        "/applications?search=react&sort=createdAt&direction=asc",
+      ),
+    );
+    expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
+      search: "react",
+      sort: "createdAt",
+      direction: "asc",
+    });
+    expect(mockedListApplications).not.toHaveBeenCalled();
+  });
+
+  it("removes invalid legacy sorting when cleaning the initial board URL", async () => {
+    currentUrl =
+      "/applications?search=react&sort=companyName&direction=asc&page=3";
+    storeApplicationsView("board");
+    installApiMocks();
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Initial" });
+    await waitFor(() =>
+      expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
+        "/applications?search=react",
+      ),
+    );
+    expect(mockedListApplications).not.toHaveBeenCalled();
   });
 
   it("loads more into only the selected board column", async () => {

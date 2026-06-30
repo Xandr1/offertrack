@@ -92,6 +92,24 @@ export const useApplicationsUrlFilters = () => {
   }, []);
 
   useEffect(() => {
+    if (!isViewInitialized) {
+      return;
+    }
+
+    const currentParams = new URLSearchParams(searchParams.toString());
+    const canonicalParams = canonicalizeApplicationsViewParams(
+      currentParams,
+      view,
+    );
+    const currentUrl = toUrl(pathname, currentParams);
+    const canonicalUrl = toUrl(pathname, canonicalParams);
+
+    if (canonicalUrl !== currentUrl) {
+      router.replace(canonicalUrl, { scroll: false });
+    }
+  }, [isViewInitialized, pathname, router, searchParams, view]);
+
+  useEffect(() => {
     const timeoutId = setTimeout(() => {
       setSearchInput((currentValue) =>
         currentValue === searchQuery ? currentValue : searchQuery,
