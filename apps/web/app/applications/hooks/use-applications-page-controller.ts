@@ -122,7 +122,7 @@ const toInitialDraftRows = (
     rowId: createDraftRowId(index),
     interviewId: null,
     type: interview.type,
-    status: "planned",
+    status: "initial",
     scheduledAt: "",
   }));
 };
@@ -319,6 +319,7 @@ export const useApplicationsPageController = () => {
   const boardController = useApplicationsBoardController({
     enabled: isViewInitialized && view === "board",
     search: searchQuery,
+    stage: stageFilter === "all" ? null : stageFilter,
     sort,
     direction,
     onMutationError: onPageMutationError,
@@ -552,14 +553,15 @@ export const useApplicationsPageController = () => {
 
   const handleNextInterviewStatusChange = useCallback(
     (application: Application, status: InterviewStatus) => {
-      if (!application.nextInterview || application.nextInterview.status === status) {
+      const interview = application.nextInterview ?? application.lastInterview;
+      if (!interview || interview.status === status) {
         return;
       }
 
       clearPageError();
       updateInterviewStatusMutation.mutate({
         applicationId: application.id,
-        interviewId: application.nextInterview.id,
+        interviewId: interview.id,
         status,
       });
     },

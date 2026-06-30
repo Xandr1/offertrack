@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
+import type {
   DashboardApplicationItem,
   DashboardInterviewItem,
 } from "@/lib/api";
-import { buttonStyles, sectionStyles, textStyles } from "@/lib/styles";
+import { buttonStyles, formStyles, sectionStyles, textStyles } from "@/lib/styles";
 import { formatDateTime } from "@/lib/date-format";
 import { formatUpdatedAtRelative } from "../../applications/helpers/application-date-helpers";
 import {
@@ -15,191 +16,207 @@ import {
   mapWorkModeLabel,
 } from "../../applications/helpers/application-labels";
 
-type DashboardActionModuleBaseProps = {
+type BaseProps = {
   count: number;
+  errorMessage: string | null;
+  hasMore: boolean;
   helperText: string;
   isLoading: boolean;
+  isLoadingMore: boolean;
+  pendingIds: ReadonlySet<string>;
   title: string;
-  viewAllHref: string;
+  onLoadMore: () => void;
+  onMarkFollowedUp: (applicationId: string, interviewId?: string) => void;
+  onUndo: (id: string) => void;
 };
 
-type DashboardApplicationModuleProps = DashboardActionModuleBaseProps & {
+type ApplicationProps = BaseProps & {
   items: DashboardApplicationItem[];
   kind: "applications";
 };
 
-type DashboardInterviewModuleProps = DashboardActionModuleBaseProps & {
+type InterviewProps = BaseProps & {
   items: DashboardInterviewItem[];
-  kind: "interviews";
+  kind: "upcoming-interviews" | "interviews-to-follow-up";
 };
 
-export type DashboardActionModuleProps =
-  | DashboardApplicationModuleProps
-  | DashboardInterviewModuleProps;
+export type DashboardActionModuleProps = ApplicationProps | InterviewProps;
 
 const applicationHref = (applicationId: string): string =>
   `/applications?id=${encodeURIComponent(applicationId)}`;
 
-export const DashboardActionModule = (props: DashboardActionModuleProps) => {
-  const { count, helperText, isLoading, title, viewAllHref } = props;
-
-  return (
-    <Card className="flex flex-col self-start">
-      <div className={sectionStyles.splitRow}>
-        <div>
-          <h2 className={textStyles.sectionTitle}>{title}</h2>
-          <p className={textStyles.description}>{helperText}</p>
-        </div>
-        <span className={buttonStyles.pillAccent}>{isLoading ? "..." : count}</span>
+export const DashboardActionModule = (props: DashboardActionModuleProps) => (
+  <Card className="flex flex-col self-start">
+    <div className={sectionStyles.splitRow}>
+      <div>
+        <h2 className={textStyles.sectionTitle}>{props.title}</h2>
+        <p className={textStyles.description}>{props.helperText}</p>
       </div>
+      <span className={buttonStyles.pillAccent}>
+        {props.isLoading ? "..." : props.count}
+      </span>
+    </div>
 
-      {isLoading && (
-        <p className="mt-4 text-sm text-zinc-700">Loading action items...</p>
-      )}
+    {props.errorMessage && <div className={`mt-4 ${formStyles.error}`}>{props.errorMessage}</div>}
+    {props.isLoading && <p className="mt-4 text-sm text-zinc-700">Loading action items...</p>}
 
-      {!isLoading && props.items.length === 0 && (
-        <div className="mt-4">
-          <div className={sectionStyles.dashedEmpty}>
-            <div className="flex items-center justify-center gap-2 text-sm font-medium text-emerald-700">
-              <CheckCircle2 aria-hidden className="h-4 w-4" />
-              <p>All clear — no action needed</p>
-            </div>
+    {!props.isLoading && props.items.length === 0 && (
+      <div className="mt-4">
+        <div className={sectionStyles.dashedEmpty}>
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-emerald-700">
+            <CheckCircle2 aria-hidden className="h-4 w-4" />
+            <p>All clear — no action needed</p>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
-      {!isLoading && props.items.length > 0 && (
-        <ul className="mt-4 space-y-3">
-          {props.kind === "applications"
-            ? props.items.map((item) => (
+    {!props.isLoading && props.items.length > 0 && (
+      <ul className="mt-4 space-y-3">
+        {props.kind === "applications"
+          ? props.items.map((item) => (
               <ApplicationActionItem
                 item={item}
                 key={item.applicationId}
+                pending={props.pendingIds.has(item.applicationId)}
+                onMarkFollowedUp={props.onMarkFollowedUp}
+                onUndo={props.onUndo}
               />
             ))
-            : props.items.map((item) => (
-              <InterviewActionItem item={item} key={item.interviewId} />
+          : props.items.map((item) => (
+              <InterviewActionItem
+                item={item}
+                key={item.interviewId}
+                pending={props.pendingIds.has(item.interviewId)}
+                showFollowUp={props.kind === "interviews-to-follow-up"}
+                onMarkFollowedUp={props.onMarkFollowedUp}
+                onUndo={props.onUndo}
+              />
             ))}
-        </ul>
-      )}
+      </ul>
+    )}
 
+    {props.hasMore && (
       <div className="mt-4 border-t border-zinc-100 pt-4">
-        <Link className={buttonStyles.link} href={viewAllHref}>
-          View all →
-        </Link>
-      </div>
-    </Card>
-  );
-};
-
-type ApplicationActionItemProps = {
-  item: DashboardApplicationItem;
-};
-
-const ApplicationActionItem = ({ item }: ApplicationActionItemProps) => {
-  const workModeLabel = mapWorkModeLabel(item.workMode);
-  const details = [
-    item.location,
-    workModeLabel,
-    formatUpdatedAtRelative(item.updatedAt),
-  ].filter(Boolean);
-
-  return (
-    <li className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className={textStyles.strong}>{item.companyName}</p>
-          <p className={textStyles.muted}>{item.positionTitle}</p>
-        </div>
-        <span className={buttonStyles.pill}>
-          {applicationStageLabels[item.stage]}
-        </span>
-      </div>
-
-      {details.length > 0 && (
-        <p className={`${textStyles.timestamp} self-start`}>
-          {details.join(" · ")}
-        </p>
-      )}
-
-      <DashboardItemActions
-        applicationId={item.applicationId}
-        jobUrl={item.jobUrl}
-      />
-    </li>
-  );
-};
-
-type InterviewActionItemProps = {
-  item: DashboardInterviewItem;
-};
-
-const InterviewActionItem = ({ item }: InterviewActionItemProps) => {
-  const workModeLabel = mapWorkModeLabel(item.workMode);
-  const details = [
-    item.scheduledAt ? `Scheduled ${formatDateTime(item.scheduledAt)}` : null,
-    item.location,
-    workModeLabel,
-  ].filter(Boolean);
-
-  return (
-    <li className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className={textStyles.strong}>{item.companyName}</p>
-          <p className={textStyles.muted}>{item.positionTitle}</p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <span className={buttonStyles.pill}>
-            {mapInterviewTypeLabel(item.interviewType)}
-          </span>
-          <span className={buttonStyles.pill}>
-            {interviewStatusLabels[item.status]}
-          </span>
-        </div>
-      </div>
-
-      {details.length > 0 && (
-        <p className={`${textStyles.timestamp} self-start`}>
-          {details.join(" · ")}
-        </p>
-      )}
-
-      <DashboardItemActions
-        applicationId={item.applicationId}
-        jobUrl={item.jobUrl}
-      />
-    </li>
-  );
-};
-
-type DashboardItemActionsProps = {
-  applicationId: string;
-  jobUrl: string | null;
-};
-
-const DashboardItemActions = ({
-  applicationId,
-  jobUrl,
-}: DashboardItemActionsProps) => {
-  return (
-    <div className="mt-4 flex min-h-6 items-center gap-4 border-t border-zinc-100 pt-3">
-      <Link
-        className={`${buttonStyles.link} whitespace-nowrap`}
-        href={applicationHref(applicationId)}
-      >
-        View in applications
-      </Link>
-      {jobUrl && (
-        <a
-          className="whitespace-nowrap text-sm font-medium text-violet-700 underline transition hover:text-violet-900"
-          href={jobUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Button
+          disabled={props.isLoadingMore}
+          onClick={props.onLoadMore}
+          variant="secondary"
         >
-          Open job post
-        </a>
-      )}
-    </div>
+          {props.isLoadingMore ? "Loading..." : "Load more"}
+        </Button>
+      </div>
+    )}
+  </Card>
+);
+
+const ApplicationActionItem = ({
+  item,
+  pending,
+  onMarkFollowedUp,
+  onUndo,
+}: {
+  item: DashboardApplicationItem;
+  pending: boolean;
+  onMarkFollowedUp: BaseProps["onMarkFollowedUp"];
+  onUndo: BaseProps["onUndo"];
+}) => {
+  const details = [
+    item.location,
+    mapWorkModeLabel(item.workMode),
+    item.appliedAt ? `Applied ${formatDateTime(item.appliedAt)}` : formatUpdatedAtRelative(item.updatedAt),
+  ].filter(Boolean);
+
+  return (
+    <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className={textStyles.strong}>{item.companyName}</p>
+          <p className={textStyles.muted}>{item.positionTitle}</p>
+        </div>
+        <span className={buttonStyles.pill}>{applicationStageLabels[item.stage]}</span>
+      </div>
+      {details.length > 0 && <p className={textStyles.timestamp}>{details.join(" · ")}</p>}
+      <ItemActions
+        applicationId={item.applicationId}
+        pending={pending}
+        onMark={() => onMarkFollowedUp(item.applicationId)}
+        onUndo={() => onUndo(item.applicationId)}
+      />
+    </li>
   );
 };
+
+const InterviewActionItem = ({
+  item,
+  pending,
+  showFollowUp,
+  onMarkFollowedUp,
+  onUndo,
+}: {
+  item: DashboardInterviewItem;
+  pending: boolean;
+  showFollowUp: boolean;
+  onMarkFollowedUp: BaseProps["onMarkFollowedUp"];
+  onUndo: BaseProps["onUndo"];
+}) => {
+  const details = [
+    item.scheduledAt ? formatDateTime(item.scheduledAt) : null,
+    item.location,
+    mapWorkModeLabel(item.workMode),
+  ].filter(Boolean);
+
+  return (
+    <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className={textStyles.strong}>{item.companyName}</p>
+          <p className={textStyles.muted}>{item.positionTitle}</p>
+        </div>
+        <div className="flex gap-2">
+          <span className={buttonStyles.pill}>{mapInterviewTypeLabel(item.interviewType)}</span>
+          <span className={buttonStyles.pill}>{interviewStatusLabels[item.status]}</span>
+        </div>
+      </div>
+      {details.length > 0 && <p className={textStyles.timestamp}>{details.join(" · ")}</p>}
+      <ItemActions
+        applicationId={item.applicationId}
+        pending={pending}
+        showFollowUp={showFollowUp}
+        onMark={() => onMarkFollowedUp(item.applicationId, item.interviewId)}
+        onUndo={() => onUndo(item.interviewId)}
+      />
+    </li>
+  );
+};
+
+const ItemActions = ({
+  applicationId,
+  pending,
+  showFollowUp = true,
+  onMark,
+  onUndo,
+}: {
+  applicationId: string;
+  pending: boolean;
+  showFollowUp?: boolean;
+  onMark: () => void;
+  onUndo: () => void;
+}) => (
+  <div className="mt-4 flex min-h-8 items-center gap-4 border-t border-zinc-100 pt-3">
+    <Link className={buttonStyles.link} href={applicationHref(applicationId)}>
+      View application
+    </Link>
+    {showFollowUp &&
+      (pending ? (
+        <div className="flex items-center gap-3 text-sm">
+          <span>Marked followed up</span>
+          <button className={buttonStyles.link} onClick={onUndo} type="button">Undo</button>
+        </div>
+      ) : (
+        <Button className="px-2 py-1 text-xs" onClick={onMark} variant="secondary">
+          Mark followed up
+        </Button>
+      ))}
+  </div>
+);

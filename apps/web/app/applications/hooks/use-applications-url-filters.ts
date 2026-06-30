@@ -138,6 +138,9 @@ export const useApplicationsUrlFilters = () => {
       const nextDirection = nextValues.direction ?? direction;
       const nextSearch = (nextValues.search ?? searchQuery).trim();
       const nextSort = nextValues.sort ?? sort;
+      const nextStage = nextValues.stage ?? stageFilter;
+      const nextStageParam =
+        nextStage === STAGE_FILTER_DEFAULT ? null : (nextStage as ApplicationStage);
 
       if (view === "board") {
         const params = canonicalizeApplicationsViewParams(
@@ -147,15 +150,12 @@ export const useApplicationsUrlFilters = () => {
         writeApplicationsBoardParams(params, {
           direction: nextDirection,
           search: nextSearch,
+          stage: nextStageParam,
           sort: nextSort,
         });
         router.replace(toUrl(pathname, params), { scroll: false });
         return;
       }
-
-      const nextStage = nextValues.stage ?? stageFilter;
-      const nextStageParam =
-        nextStage === STAGE_FILTER_DEFAULT ? null : (nextStage as ApplicationStage);
 
       replaceListParams({
         direction: nextDirection,

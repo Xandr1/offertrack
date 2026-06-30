@@ -29,7 +29,7 @@ const createNewInterviewDraftRow = (): InterviewDraftRow => {
     rowId: createLocalId(),
     interviewId: null,
     type: "",
-    status: "planned",
+    status: "initial",
     scheduledAt: "",
   };
 };

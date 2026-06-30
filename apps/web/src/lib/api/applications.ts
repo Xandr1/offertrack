@@ -82,6 +82,9 @@ const appendBoardParams = (
   if (trimmedSearch !== "") {
     searchParams.set("search", trimmedSearch);
   }
+  if (params.stage !== null) {
+    searchParams.set("stage", params.stage);
+  }
   searchParams.set("sort", params.sort);
   searchParams.set("direction", params.direction);
 };
@@ -99,18 +102,19 @@ export const getApplicationsBoard = (
 };
 
 export const getApplicationBoardColumn = ({
-  stage,
+  columnStage,
   search,
+  stage,
   sort,
   direction,
   offset,
 }: ApplicationBoardColumnParams): Promise<ApplicationBoardColumn> => {
   const searchParams = new URLSearchParams();
-  appendBoardParams(searchParams, { search, sort, direction });
+  appendBoardParams(searchParams, { search, stage, sort, direction });
   searchParams.set("offset", String(offset));
 
   return request<ApplicationBoardColumn>(
-    `/api/applications/board/columns/${stage}?${searchParams.toString()}`,
+    `/api/applications/board/columns/${columnStage}?${searchParams.toString()}`,
     applicationBoardColumnSchema,
   );
 };
@@ -175,4 +179,12 @@ export const deleteApplication = (id: string): Promise<void> => {
   return request<void>(`/api/applications/${id}`, z.undefined(), {
     method: "DELETE",
   });
+};
+
+export const markApplicationFollowedUp = (id: string): Promise<Application> => {
+  return request<Application>(
+    `/api/applications/${id}/follow-up`,
+    applicationSchema,
+    { method: "PATCH" },
+  );
 };

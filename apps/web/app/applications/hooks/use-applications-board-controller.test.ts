@@ -39,6 +39,8 @@ const makeApplication = (
   id,
   jobUrl: null,
   location: null,
+  followedUpAt: null,
+  lastInterview: null,
   nextInterview: null,
   notes: null,
   positionTitle: "Engineer",
@@ -68,6 +70,7 @@ const makeBoard = (): ApplicationBoard => ({
 
 const defaultBoardParams = {
   search: "",
+  stage: null,
   sort: "updatedAt",
   direction: "desc",
 } as const;
@@ -117,7 +120,7 @@ describe("useApplicationsBoardController", () => {
 
     expect(result.current.loadMoreState.applied?.isLoading).toBe(true);
     await waitFor(() => expect(mockedGetColumn).toHaveBeenCalledWith({
-      stage: "applied",
+      columnStage: "applied",
       ...defaultBoardParams,
       offset: 20,
     }));
@@ -148,6 +151,7 @@ describe("useApplicationsBoardController", () => {
         useApplicationsBoardController({
           enabled: true,
           search: "acme",
+          stage: null,
           sort,
           direction,
           onMutationError: jest.fn(),
@@ -164,6 +168,7 @@ describe("useApplicationsBoardController", () => {
     await waitFor(() =>
       expect(mockedGetBoard).toHaveBeenCalledWith({
         search: "acme",
+        stage: null,
         sort: "updatedAt",
         direction: "desc",
       }),
@@ -174,6 +179,7 @@ describe("useApplicationsBoardController", () => {
     await waitFor(() =>
       expect(mockedGetBoard).toHaveBeenCalledWith({
         search: "acme",
+        stage: null,
         sort: "createdAt",
         direction: "asc",
       }),
@@ -182,6 +188,7 @@ describe("useApplicationsBoardController", () => {
       queryClient.getQueryState(
         queryKeys.applications.board({
           search: "acme",
+          stage: null,
           sort: "updatedAt",
           direction: "desc",
         }),
@@ -191,6 +198,7 @@ describe("useApplicationsBoardController", () => {
       queryClient.getQueryState(
         queryKeys.applications.board({
           search: "acme",
+          stage: null,
           sort: "createdAt",
           direction: "asc",
         }),

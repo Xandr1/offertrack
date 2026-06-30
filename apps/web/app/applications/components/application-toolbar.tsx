@@ -50,16 +50,11 @@ export const ApplicationToolbar = ({
 
   return (
     <section
-      className={`${sectionStyles.toolbar} ${
-        view === "list"
-          ? "md:grid-cols-[auto_170px_minmax(0,1fr)_190px_130px]"
-          : "md:grid-cols-[auto_minmax(0,1fr)_190px_130px]"
-      }`}
+      className={`${sectionStyles.toolbar} md:grid-cols-[auto_170px_minmax(0,1fr)_190px_130px]`}
     >
       <ApplicationsViewToggle view={view} onChange={onViewChange} />
 
-      {view === "list" && (
-        <div>
+      <div>
           <label className="sr-only">Stage</label>
           <Select
             value={stageFilter}
@@ -73,8 +68,7 @@ export const ApplicationToolbar = ({
               </option>
             ))}
           </Select>
-        </div>
-      )}
+      </div>
 
       <form
         className={

@@ -9,16 +9,18 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ApplicationInterviewRepositorySelectionTest {
+  private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-05-01T12:00:00Z");
+
   @Test
-  void nextInterviewExcludesPassedAndRejected() {
+  void nextInterviewExcludesInitialPassedAndRejected() {
     UUID userId = UUID.randomUUID();
     UUID applicationId = UUID.randomUUID();
 
-    ApplicationInterview planned =
+    ApplicationInterview initial =
         interview(
             applicationId,
             userId,
-            InterviewStatus.PLANNED,
+            InterviewStatus.INITIAL,
             null,
             OffsetDateTime.parse("2026-05-01T10:15:00Z"));
     ApplicationInterview passed =
@@ -31,9 +33,9 @@ class ApplicationInterviewRepositorySelectionTest {
 
     Map<UUID, ApplicationInterview> nextByApplicationId =
         ApplicationInterviewRepository.selectNextInterviewsByApplicationId(
-            List.of(passed, planned));
+            List.of(passed, initial), NOW);
 
-    assertThat(nextByApplicationId.get(applicationId)).isEqualTo(planned);
+    assertThat(nextByApplicationId).doesNotContainKey(applicationId);
   }
 
   @Test
@@ -55,46 +57,46 @@ class ApplicationInterviewRepositorySelectionTest {
             InterviewStatus.SCHEDULED,
             OffsetDateTime.parse("2026-05-02T11:15:00Z"),
             OffsetDateTime.parse("2026-05-01T11:15:00Z"));
-    ApplicationInterview unscheduledPlanned =
+    ApplicationInterview unscheduledInitial =
         interview(
             applicationId,
             userId,
-            InterviewStatus.PLANNED,
+            InterviewStatus.INITIAL,
             null,
             OffsetDateTime.parse("2026-05-01T09:15:00Z"));
 
     Map<UUID, ApplicationInterview> nextByApplicationId =
         ApplicationInterviewRepository.selectNextInterviewsByApplicationId(
-            List.of(laterScheduled, unscheduledPlanned, nearestScheduled));
+            List.of(laterScheduled, unscheduledInitial, nearestScheduled), NOW);
 
     assertThat(nextByApplicationId.get(applicationId)).isEqualTo(nearestScheduled);
   }
 
   @Test
-  void nextInterviewFallsBackToUnscheduledPlannedWhenNoScheduledNonTerminalExists() {
+  void nextInterviewDoesNotUseUnscheduledInitial() {
     UUID userId = UUID.randomUUID();
     UUID applicationId = UUID.randomUUID();
 
-    ApplicationInterview laterCreatedPlanned =
+    ApplicationInterview laterCreatedInitial =
         interview(
             applicationId,
             userId,
-            InterviewStatus.PLANNED,
+            InterviewStatus.INITIAL,
             null,
             OffsetDateTime.parse("2026-05-01T11:15:00Z"));
-    ApplicationInterview earlierCreatedPlanned =
+    ApplicationInterview earlierCreatedInitial =
         interview(
             applicationId,
             userId,
-            InterviewStatus.PLANNED,
+            InterviewStatus.INITIAL,
             null,
             OffsetDateTime.parse("2026-05-01T10:15:00Z"));
 
     Map<UUID, ApplicationInterview> nextByApplicationId =
         ApplicationInterviewRepository.selectNextInterviewsByApplicationId(
-            List.of(laterCreatedPlanned, earlierCreatedPlanned));
+            List.of(laterCreatedInitial, earlierCreatedInitial), NOW);
 
-    assertThat(nextByApplicationId.get(applicationId)).isEqualTo(earlierCreatedPlanned);
+    assertThat(nextByApplicationId).doesNotContainKey(applicationId);
   }
 
   @Test
@@ -119,7 +121,7 @@ class ApplicationInterviewRepositorySelectionTest {
 
     Map<UUID, ApplicationInterview> nextByApplicationId =
         ApplicationInterviewRepository.selectNextInterviewsByApplicationId(
-            List.of(passed, rejected));
+            List.of(passed, rejected), NOW);
 
     assertThat(nextByApplicationId).doesNotContainKey(applicationId);
   }

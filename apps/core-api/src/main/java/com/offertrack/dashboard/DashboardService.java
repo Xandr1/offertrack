@@ -2,6 +2,7 @@ package com.offertrack.dashboard;
 
 import com.offertrack.dashboard.dto.DashboardApplicationItemResponse;
 import com.offertrack.dashboard.dto.DashboardInterviewItemResponse;
+import com.offertrack.dashboard.dto.DashboardModulePageResponse;
 import com.offertrack.dashboard.dto.DashboardSummaryResponse;
 import com.offertrack.settings.SettingsService;
 import com.offertrack.settings.UserSettings;
@@ -9,11 +10,13 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DashboardService {
-  static final int DASHBOARD_MODULE_LIMIT = 3;
+  public static final int DASHBOARD_MODULE_PAGE_SIZE = 10;
 
   private final DashboardRepository dashboardRepository;
   private final SettingsService settingsService;
@@ -29,69 +32,107 @@ public class DashboardService {
   public DashboardSummaryResponse getSummary(UUID userId) {
     OffsetDateTime now = OffsetDateTime.now(clock);
     UserSettings settings = settingsService.getSettings(userId);
-    OffsetDateTime applicationFollowUpBefore = now.minusDays(settings.followUpAfterApplyingDays());
-    OffsetDateTime upcomingInterviewBefore = now.plusDays(settings.upcomingInterviewDays());
-    OffsetDateTime interviewFollowUpBefore = now.minusDays(settings.followUpAfterInterviewDays());
-
     DashboardSummaryCounts counts = dashboardRepository.getSummaryCounts(userId);
 
-    long draftsToApplyCount = dashboardRepository.countDraftsToApply(userId);
-    long applicationsToFollowUpCount =
-        dashboardRepository.countApplicationsToFollowUp(userId, applicationFollowUpBefore, now);
-    long upcomingInterviewsCount =
-        dashboardRepository.countUpcomingInterviews(userId, now, upcomingInterviewBefore);
-    long interviewsToFollowUpCount =
-        dashboardRepository.countInterviewsToFollowUp(userId, interviewFollowUpBefore);
-    long needsAttention =
-        draftsToApplyCount
-            + applicationsToFollowUpCount
-            + upcomingInterviewsCount
-            + interviewsToFollowUpCount;
-
-    List<DashboardApplicationItemResponse> draftsToApply =
-        dashboardRepository.listDraftsToApply(userId, DASHBOARD_MODULE_LIMIT).stream()
-            .map(DashboardService::toApplicationResponse)
-            .toList();
-
-    List<DashboardApplicationItemResponse> applicationsToFollowUp =
-        dashboardRepository
-            .listApplicationsToFollowUp(
-                userId, applicationFollowUpBefore, now, DASHBOARD_MODULE_LIMIT)
-            .stream()
-            .map(DashboardService::toApplicationResponse)
-            .toList();
-
-    List<DashboardInterviewItemResponse> upcomingInterviews =
-        dashboardRepository
-            .listUpcomingInterviews(userId, now, upcomingInterviewBefore, DASHBOARD_MODULE_LIMIT)
-            .stream()
-            .map(DashboardService::toInterviewResponse)
-            .toList();
-
-    List<DashboardInterviewItemResponse> interviewsToFollowUp =
-        dashboardRepository
-            .listInterviewsToFollowUp(userId, interviewFollowUpBefore, DASHBOARD_MODULE_LIMIT)
-            .stream()
-            .map(DashboardService::toInterviewResponse)
-            .toList();
+    DashboardModulePageResponse<DashboardApplicationItemResponse> applications =
+        applicationsToFollowUp(userId, settings, 0, now);
+    DashboardModulePageResponse<DashboardInterviewItemResponse> upcoming =
+        upcomingInterviews(userId, settings, 0, now);
+    DashboardModulePageResponse<DashboardInterviewItemResponse> interviews =
+        interviewsToFollowUp(userId, settings, 0, now);
 
     return new DashboardSummaryResponse(
         counts.activeProcesses(),
-        needsAttention,
+        applications.totalCount() + upcoming.totalCount() + interviews.totalCount(),
         counts.interviewing(),
         counts.offers(),
         counts.rejected(),
-        draftsToApplyCount,
-        applicationsToFollowUpCount,
-        upcomingInterviewsCount,
-        interviewsToFollowUpCount,
         settings.followUpAfterApplyingDays(),
         settings.upcomingInterviewDays(),
         settings.followUpAfterInterviewDays(),
-        draftsToApply,
-        applicationsToFollowUp,
-        upcomingInterviews,
-        interviewsToFollowUp);
+        applications,
+        upcoming,
+        interviews);
+  }
+
+  public DashboardModulePageResponse<DashboardApplicationItemResponse> getApplicationsToFollowUp(
+      UUID userId, Integer offset) {
+    return applicationsToFollowUp(
+        userId,
+        settingsService.getSettings(userId),
+        validateOffset(offset),
+        OffsetDateTime.now(clock));
+  }
+
+  public DashboardModulePageResponse<DashboardInterviewItemResponse> getUpcomingInterviews(
+      UUID userId, Integer offset) {
+    return upcomingInterviews(
+        userId,
+        settingsService.getSettings(userId),
+        validateOffset(offset),
+        OffsetDateTime.now(clock));
+  }
+
+  public DashboardModulePageResponse<DashboardInterviewItemResponse> getInterviewsToFollowUp(
+      UUID userId, Integer offset) {
+    return interviewsToFollowUp(
+        userId,
+        settingsService.getSettings(userId),
+        validateOffset(offset),
+        OffsetDateTime.now(clock));
+  }
+
+  private DashboardModulePageResponse<DashboardApplicationItemResponse> applicationsToFollowUp(
+      UUID userId, UserSettings settings, int offset, OffsetDateTime now) {
+    OffsetDateTime cutoff = now.minusDays(settings.followUpAfterApplyingDays());
+    long total = dashboardRepository.countApplicationsToFollowUp(userId, cutoff);
+    List<DashboardApplicationItemResponse> items =
+        dashboardRepository
+            .listApplicationsToFollowUp(userId, cutoff, offset, DASHBOARD_MODULE_PAGE_SIZE)
+            .stream()
+            .map(DashboardService::toApplicationResponse)
+            .toList();
+    return page(total, items, offset);
+  }
+
+  private DashboardModulePageResponse<DashboardInterviewItemResponse> upcomingInterviews(
+      UUID userId, UserSettings settings, int offset, OffsetDateTime now) {
+    OffsetDateTime before = now.plusDays(settings.upcomingInterviewDays());
+    long total = dashboardRepository.countUpcomingInterviews(userId, now, before);
+    List<DashboardInterviewItemResponse> items =
+        dashboardRepository
+            .listUpcomingInterviews(userId, now, before, offset, DASHBOARD_MODULE_PAGE_SIZE)
+            .stream()
+            .map(DashboardService::toInterviewResponse)
+            .toList();
+    return page(total, items, offset);
+  }
+
+  private DashboardModulePageResponse<DashboardInterviewItemResponse> interviewsToFollowUp(
+      UUID userId, UserSettings settings, int offset, OffsetDateTime now) {
+    OffsetDateTime cutoff = now.minusDays(settings.followUpAfterInterviewDays());
+    long total = dashboardRepository.countInterviewsToFollowUp(userId, now, cutoff);
+    List<DashboardInterviewItemResponse> items =
+        dashboardRepository
+            .listInterviewsToFollowUp(userId, now, cutoff, offset, DASHBOARD_MODULE_PAGE_SIZE)
+            .stream()
+            .map(DashboardService::toInterviewResponse)
+            .toList();
+    return page(total, items, offset);
+  }
+
+  private static int validateOffset(Integer offset) {
+    int parsed = offset == null ? 0 : offset;
+    if (parsed < 0) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Offset must be greater than or equal to 0.");
+    }
+    return parsed;
+  }
+
+  private static <T> DashboardModulePageResponse<T> page(long total, List<T> items, int offset) {
+    int nextOffset = offset + items.size();
+    return new DashboardModulePageResponse<>(total, items, nextOffset, nextOffset < total);
   }
 
   private static DashboardApplicationItemResponse toApplicationResponse(

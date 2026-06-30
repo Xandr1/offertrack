@@ -12,6 +12,8 @@ const application = (id: string, stage: Application["stage"]): Application => ({
   id,
   jobUrl: null,
   location: null,
+  followedUpAt: null,
+  lastInterview: null,
   nextInterview: null,
   notes: null,
   positionTitle: "Engineer",
@@ -92,6 +94,20 @@ describe("application board cache", () => {
       id: "app-1",
       stage: "interviewing",
     });
+  });
+
+  it("removes a card moved outside the active stage filter", () => {
+    const result = moveBoardApplication(
+      board(),
+      "app-1",
+      "interviewing",
+      "applied",
+    );
+
+    expect(result.columns[0].items).toHaveLength(0);
+    expect(result.columns[0].totalCount).toBe(1);
+    expect(result.columns[1].items).toHaveLength(0);
+    expect(result.columns[1].totalCount).toBe(0);
   });
 
   it("replaces the optimistic card with the server result", () => {

@@ -1,6 +1,9 @@
 package com.offertrack.interviews;
 
 import static com.offertrack.jooq.generated.tables.ApplicationInterviews.APPLICATION_INTERVIEWS;
+import static com.offertrack.jooq.generated.tables.JobApplications.JOB_APPLICATIONS;
+import static org.jooq.impl.DSL.exists;
+import static org.jooq.impl.DSL.selectOne;
 
 import java.time.OffsetDateTime;
 import java.util.Comparator;
@@ -14,8 +17,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class ApplicationInterviewRepository {
-  private static final List<String> TERMINAL_NEXT_INTERVIEW_STATUSES =
-      List.of(InterviewStatus.PASSED.value(), InterviewStatus.REJECTED.value());
+  private static final List<String> LAST_INTERVIEW_STATUSES =
+      List.of(
+          InterviewStatus.SCHEDULED.value(),
+          InterviewStatus.PASSED.value(),
+          InterviewStatus.REJECTED.value());
 
   private final DSLContext dsl;
 
@@ -101,6 +107,23 @@ public class ApplicationInterviewRepository {
         .fetchOptional(ApplicationInterviewMapper::fromRecord);
   }
 
+  public Optional<ApplicationInterview> markFollowedUp(
+      UUID applicationId, UUID interviewId, UUID userId, OffsetDateTime followedUpAt) {
+    return dsl.update(APPLICATION_INTERVIEWS)
+        .set(APPLICATION_INTERVIEWS.FOLLOWED_UP_AT, followedUpAt)
+        .set(APPLICATION_INTERVIEWS.UPDATED_AT, followedUpAt)
+        .where(APPLICATION_INTERVIEWS.ID.eq(interviewId))
+        .and(APPLICATION_INTERVIEWS.APPLICATION_ID.eq(applicationId))
+        .and(
+            exists(
+                selectOne()
+                    .from(JOB_APPLICATIONS)
+                    .where(JOB_APPLICATIONS.ID.eq(APPLICATION_INTERVIEWS.APPLICATION_ID))
+                    .and(JOB_APPLICATIONS.USER_ID.eq(userId))))
+        .returning()
+        .fetchOptional(ApplicationInterviewMapper::fromRecord);
+  }
+
   public int countByApplicationForUser(UUID applicationId, UUID userId) {
     return dsl.fetchCount(
         APPLICATION_INTERVIEWS,
@@ -111,20 +134,20 @@ public class ApplicationInterviewRepository {
   }
 
   public Optional<ApplicationInterview> findNextByApplicationForUser(
-      UUID applicationId, UUID userId) {
+      UUID applicationId, UUID userId, OffsetDateTime now) {
     return dsl.selectFrom(APPLICATION_INTERVIEWS)
         .where(APPLICATION_INTERVIEWS.APPLICATION_ID.eq(applicationId))
         .and(APPLICATION_INTERVIEWS.USER_ID.eq(userId))
-        .and(APPLICATION_INTERVIEWS.STATUS.notIn(TERMINAL_NEXT_INTERVIEW_STATUSES))
-        .orderBy(
-            APPLICATION_INTERVIEWS.SCHEDULED_AT.asc().nullsLast(),
-            APPLICATION_INTERVIEWS.CREATED_AT.asc())
+        .and(APPLICATION_INTERVIEWS.STATUS.eq(InterviewStatus.SCHEDULED.value()))
+        .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.isNotNull())
+        .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.ge(now))
+        .orderBy(APPLICATION_INTERVIEWS.SCHEDULED_AT.asc(), APPLICATION_INTERVIEWS.ID.asc())
         .limit(1)
         .fetchOptional(ApplicationInterviewMapper::fromRecord);
   }
 
   public Map<UUID, ApplicationInterview> findNextByApplicationIdsForUser(
-      UUID userId, List<UUID> applicationIds) {
+      UUID userId, List<UUID> applicationIds, OffsetDateTime now) {
     if (applicationIds.isEmpty()) {
       return Map.of();
     }
@@ -133,27 +156,31 @@ public class ApplicationInterviewRepository {
         dsl.selectFrom(APPLICATION_INTERVIEWS)
             .where(APPLICATION_INTERVIEWS.USER_ID.eq(userId))
             .and(APPLICATION_INTERVIEWS.APPLICATION_ID.in(applicationIds))
-            .and(APPLICATION_INTERVIEWS.STATUS.notIn(TERMINAL_NEXT_INTERVIEW_STATUSES))
+            .and(APPLICATION_INTERVIEWS.STATUS.eq(InterviewStatus.SCHEDULED.value()))
+            .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.isNotNull())
+            .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.ge(now))
             .orderBy(
                 APPLICATION_INTERVIEWS.APPLICATION_ID.asc(),
-                APPLICATION_INTERVIEWS.SCHEDULED_AT.asc().nullsLast(),
-                APPLICATION_INTERVIEWS.CREATED_AT.asc())
+                APPLICATION_INTERVIEWS.SCHEDULED_AT.asc(),
+                APPLICATION_INTERVIEWS.ID.asc())
             .fetch(ApplicationInterviewMapper::fromRecord);
 
-    return selectNextInterviewsByApplicationId(interviews);
+    return selectNextInterviewsByApplicationId(interviews, now);
   }
 
   static Map<UUID, ApplicationInterview> selectNextInterviewsByApplicationId(
-      List<ApplicationInterview> interviews) {
+      List<ApplicationInterview> interviews, OffsetDateTime now) {
     List<ApplicationInterview> sortedInterviews =
         interviews.stream()
-            .filter(interview -> !isTerminalForNextInterview(interview.status()))
+            .filter(
+                interview ->
+                    interview.status() == InterviewStatus.SCHEDULED
+                        && interview.scheduledAt() != null
+                        && !interview.scheduledAt().isBefore(now))
             .sorted(
                 Comparator.comparing(ApplicationInterview::applicationId)
-                    .thenComparing(
-                        ApplicationInterview::scheduledAt,
-                        Comparator.nullsLast(Comparator.naturalOrder()))
-                    .thenComparing(ApplicationInterview::createdAt))
+                    .thenComparing(ApplicationInterview::scheduledAt)
+                    .thenComparing(ApplicationInterview::id))
             .toList();
 
     Map<UUID, ApplicationInterview> nextByApplicationId = new HashMap<>();
@@ -165,7 +192,46 @@ public class ApplicationInterviewRepository {
     return nextByApplicationId;
   }
 
-  private static boolean isTerminalForNextInterview(InterviewStatus status) {
-    return status == InterviewStatus.PASSED || status == InterviewStatus.REJECTED;
+  public Map<UUID, ApplicationInterview> findLastByApplicationIdsForUser(
+      UUID userId, List<UUID> applicationIds, OffsetDateTime now) {
+    if (applicationIds.isEmpty()) {
+      return Map.of();
+    }
+
+    List<ApplicationInterview> interviews =
+        dsl.selectFrom(APPLICATION_INTERVIEWS)
+            .where(APPLICATION_INTERVIEWS.USER_ID.eq(userId))
+            .and(APPLICATION_INTERVIEWS.APPLICATION_ID.in(applicationIds))
+            .and(APPLICATION_INTERVIEWS.STATUS.in(LAST_INTERVIEW_STATUSES))
+            .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.isNotNull())
+            .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.lt(now))
+            .orderBy(
+                APPLICATION_INTERVIEWS.APPLICATION_ID.asc(),
+                APPLICATION_INTERVIEWS.SCHEDULED_AT.desc(),
+                APPLICATION_INTERVIEWS.ID.asc())
+            .fetch(ApplicationInterviewMapper::fromRecord);
+
+    return selectLastInterviewsByApplicationId(interviews);
+  }
+
+  static Map<UUID, ApplicationInterview> selectLastInterviewsByApplicationId(
+      List<ApplicationInterview> interviews) {
+    List<ApplicationInterview> sortedInterviews =
+        interviews.stream()
+            .filter(
+                interview ->
+                    interview.scheduledAt() != null
+                        && LAST_INTERVIEW_STATUSES.contains(interview.status().value()))
+            .sorted(
+                Comparator.comparing(ApplicationInterview::applicationId)
+                    .thenComparing(ApplicationInterview::scheduledAt, Comparator.reverseOrder())
+                    .thenComparing(ApplicationInterview::id))
+            .toList();
+
+    Map<UUID, ApplicationInterview> lastByApplicationId = new HashMap<>();
+    for (ApplicationInterview interview : sortedInterviews) {
+      lastByApplicationId.putIfAbsent(interview.applicationId(), interview);
+    }
+    return lastByApplicationId;
   }
 }

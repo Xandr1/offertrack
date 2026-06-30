@@ -69,12 +69,13 @@ public class ApplicationRepository {
     return new ApplicationListPage(items, query.page(), query.size(), totalItems, totalPages);
   }
 
-  public Map<ApplicationStage, Long> countByStageForUser(UUID userId, String search) {
+  public Map<ApplicationStage, Long> countByStageForUser(
+      UUID userId, String search, ApplicationStage stageFilter) {
     Field<Integer> count = DSL.count();
     Map<String, Integer> storedCounts =
         dsl.select(JOB_APPLICATIONS.STAGE, count)
             .from(JOB_APPLICATIONS)
-            .where(userSearchCondition(userId, search))
+            .where(boardCondition(userId, search, stageFilter))
             .groupBy(JOB_APPLICATIONS.STAGE)
             .fetchMap(JOB_APPLICATIONS.STAGE, count);
     Map<ApplicationStage, Long> counts = new EnumMap<>(ApplicationStage.class);
@@ -89,12 +90,13 @@ public class ApplicationRepository {
       UUID userId,
       ApplicationStage stage,
       String search,
+      ApplicationStage stageFilter,
       ApplicationListQuery.ApplicationSort sort,
       ApplicationListQuery.SortDirection direction,
       int offset,
       int limit) {
     return dsl.selectFrom(JOB_APPLICATIONS)
-        .where(userSearchCondition(userId, search))
+        .where(boardCondition(userId, search, stageFilter))
         .and(JOB_APPLICATIONS.STAGE.eq(stage.value()))
         .orderBy(sortField(sort, direction), JOB_APPLICATIONS.ID.asc())
         .limit(limit)
@@ -102,9 +104,10 @@ public class ApplicationRepository {
         .fetch(ApplicationMapper::fromRecord);
   }
 
-  public long countBoardColumn(UUID userId, ApplicationStage stage, String search) {
+  public long countBoardColumn(
+      UUID userId, ApplicationStage stage, String search, ApplicationStage stageFilter) {
     return countByCondition(
-        userSearchCondition(userId, search).and(JOB_APPLICATIONS.STAGE.eq(stage.value())));
+        boardCondition(userId, search, stageFilter).and(JOB_APPLICATIONS.STAGE.eq(stage.value())));
   }
 
   public Optional<Application> findByIdForUser(UUID id, UUID userId) {
@@ -156,6 +159,16 @@ public class ApplicationRepository {
         .fetchOptional(ApplicationMapper::fromRecord);
   }
 
+  public Optional<Application> markFollowedUp(UUID id, UUID userId, OffsetDateTime followedUpAt) {
+    return dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.FOLLOWED_UP_AT, followedUpAt)
+        .set(JOB_APPLICATIONS.UPDATED_AT, followedUpAt)
+        .where(JOB_APPLICATIONS.ID.eq(id))
+        .and(JOB_APPLICATIONS.USER_ID.eq(userId))
+        .returning()
+        .fetchOptional(ApplicationMapper::fromRecord);
+  }
+
   private Condition listCondition(UUID userId, ApplicationListQuery query) {
     Condition condition = userSearchCondition(userId, query.search());
 
@@ -179,6 +192,13 @@ public class ApplicationRepository {
     }
 
     return condition;
+  }
+
+  private Condition boardCondition(UUID userId, String search, ApplicationStage stageFilter) {
+    Condition condition = userSearchCondition(userId, search);
+    return stageFilter == null
+        ? condition
+        : condition.and(JOB_APPLICATIONS.STAGE.eq(stageFilter.value()));
   }
 
   private long countByCondition(Condition condition) {

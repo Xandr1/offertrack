@@ -58,10 +58,11 @@ public class ApplicationController {
   public ApplicationBoardResponse board(
       @AuthenticationPrincipal CurrentUser currentUser,
       @RequestParam(required = false) String search,
+      @RequestParam(required = false) String stage,
       @RequestParam(required = false) String sort,
       @RequestParam(required = false) String direction) {
     return applicationService.board(
-        currentUser.id(), ApplicationBoardQuery.initial(search, sort, direction));
+        currentUser.id(), ApplicationBoardQuery.initial(search, stage, sort, direction));
   }
 
   @GetMapping("/api/applications/board/columns/{stage}")
@@ -69,13 +70,14 @@ public class ApplicationController {
       @AuthenticationPrincipal CurrentUser currentUser,
       @PathVariable String stage,
       @RequestParam(required = false) String search,
+      @RequestParam(name = "stage", required = false) String stageFilter,
       @RequestParam(required = false) String sort,
       @RequestParam(required = false) String direction,
       @RequestParam(required = false) Integer offset) {
     return applicationService.boardColumn(
         currentUser.id(),
         ApplicationBoardQuery.parseStage(stage),
-        ApplicationBoardQuery.column(search, offset, sort, direction));
+        ApplicationBoardQuery.column(search, stageFilter, offset, sort, direction));
   }
 
   @GetMapping("/api/applications/{id}")
@@ -96,6 +98,12 @@ public class ApplicationController {
       @PathVariable UUID id,
       @Valid @RequestBody UpdateApplicationStageRequest request) {
     return applicationService.updateStage(currentUser.id(), id, request);
+  }
+
+  @PatchMapping("/api/applications/{id}/follow-up")
+  public ApplicationResponse markFollowedUp(
+      @AuthenticationPrincipal CurrentUser currentUser, @PathVariable UUID id) {
+    return applicationService.markFollowedUp(currentUser.id(), id);
   }
 
   @PutMapping("/api/applications/{id}")

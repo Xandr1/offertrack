@@ -5,8 +5,9 @@ import type { CSSProperties } from "react";
 import type { Application } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { formatCompactDateTime } from "@/lib/date-format";
 import { formatUpdatedAtRelative } from "../helpers/application-date-helpers";
-import { mapWorkModeLabel } from "../helpers/application-labels";
+import { mapInterviewTypeLabel, mapWorkModeLabel } from "../helpers/application-labels";
 import { IconPencil, IconTrash } from "./ui-icons";
 
 type ApplicationBoardCardProps = {
@@ -37,6 +38,10 @@ export const ApplicationBoardCard = ({
     }
     : undefined;
   const workMode = mapWorkModeLabel(application.workMode);
+  const interview = application.nextInterview ?? application.lastInterview;
+  const interviewLabel = interview?.scheduledAt
+    ? `${application.nextInterview ? "📅" : "Last:"} ${mapInterviewTypeLabel(interview.type)} · ${formatCompactDateTime(interview.scheduledAt)}`
+    : null;
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -65,6 +70,11 @@ export const ApplicationBoardCard = ({
           {(application.location || workMode) && (
             <p className="truncate text-sm text-zinc-500">
               {[application.location, workMode].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {interviewLabel && (
+            <p className="mt-2 truncate text-xs font-medium text-zinc-700">
+              {interviewLabel}
             </p>
           )}
           <span className="min-w-0 truncate text-xs text-zinc-500">

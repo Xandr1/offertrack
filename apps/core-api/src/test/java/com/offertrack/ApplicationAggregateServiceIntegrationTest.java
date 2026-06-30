@@ -339,6 +339,35 @@ class ApplicationAggregateServiceIntegrationTest {
   }
 
   @Test
+  void boardGlobalStageFilterKeepsEveryColumnAndEmptiesNonMatchingColumns() {
+    UUID userId = createUser("board-stage-filter@example.com");
+    UUID appliedId = createApplication(userId, "Applied Co", "Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Interview Co", "Engineer", ApplicationStage.INTERVIEWING);
+
+    var response =
+        applicationService.board(
+            userId, ApplicationBoardQuery.initial(null, "applied", null, null));
+
+    assertThat(response.columns())
+        .extracting("stage")
+        .containsExactly(
+            ApplicationStage.INITIAL,
+            ApplicationStage.APPLIED,
+            ApplicationStage.INTERVIEWING,
+            ApplicationStage.OFFER,
+            ApplicationStage.REJECTED);
+    for (var column : response.columns()) {
+      if (column.stage() == ApplicationStage.APPLIED) {
+        assertThat(column.totalCount()).isEqualTo(1);
+        assertThat(column.items()).extracting("id").containsExactly(appliedId);
+      } else {
+        assertThat(column.totalCount()).isZero();
+        assertThat(column.items()).isEmpty();
+      }
+    }
+  }
+
+  @Test
   void boardSearchAndColumnPaginationAreUserIsolated() {
     UUID firstUserId = createUser("board-isolation-1@example.com");
     UUID secondUserId = createUser("board-isolation-2@example.com");
@@ -465,7 +494,7 @@ class ApplicationAggregateServiceIntegrationTest {
                         InterviewType.HR, InterviewStatus.SCHEDULED, null))));
 
     assertThat(response.interviews()).hasSize(2);
-    assertThat(response.interviews().getFirst().status()).isEqualTo(InterviewStatus.PLANNED);
+    assertThat(response.interviews().getFirst().status()).isEqualTo(InterviewStatus.INITIAL);
   }
 
   @Test
@@ -487,9 +516,9 @@ class ApplicationAggregateServiceIntegrationTest {
                         null,
                         List.of(
                             new CreateApplicationInterviewItemRequest(
-                                InterviewType.TECHNICAL, InterviewStatus.PLANNED, null),
+                                InterviewType.TECHNICAL, InterviewStatus.INITIAL, null),
                             new CreateApplicationInterviewItemRequest(
-                                null, InterviewStatus.PLANNED, null)))))
+                                null, InterviewStatus.INITIAL, null)))))
         .isInstanceOf(RuntimeException.class);
 
     assertThat(applicationRepository.listByUser(userId)).isEmpty();
@@ -512,7 +541,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.TECHNICAL, InterviewStatus.PLANNED, null),
+                        InterviewType.TECHNICAL, InterviewStatus.INITIAL, null),
                     new CreateApplicationInterviewItemRequest(
                         InterviewType.HR, InterviewStatus.SCHEDULED, null))));
 
@@ -536,10 +565,10 @@ class ApplicationAggregateServiceIntegrationTest {
                     new ReplaceApplicationInterviewItemRequest(
                         keepAndUpdateInterviewId,
                         InterviewType.TECHNICAL,
-                        InterviewStatus.COMPLETED,
+                        InterviewStatus.SCHEDULED,
                         null),
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TEAM_MATCH, InterviewStatus.PLANNED, null))));
+                        null, InterviewType.TEAM_MATCH, InterviewStatus.INITIAL, null))));
 
     assertThat(replaced.application().companyName()).isEqualTo("Updated Acme");
     assertThat(replaced.interviews()).hasSize(2);
@@ -547,7 +576,7 @@ class ApplicationAggregateServiceIntegrationTest {
         .anyMatch(
             interview ->
                 interview.id().equals(keepAndUpdateInterviewId)
-                    && interview.status() == InterviewStatus.COMPLETED);
+                    && interview.status() == InterviewStatus.SCHEDULED);
     assertThat(replaced.interviews())
         .anyMatch(interview -> interview.type() == InterviewType.TEAM_MATCH);
   }
@@ -595,7 +624,7 @@ class ApplicationAggregateServiceIntegrationTest {
                                 InterviewStatus.PASSED,
                                 null),
                             new ReplaceApplicationInterviewItemRequest(
-                                null, null, InterviewStatus.PLANNED, null)))))
+                                null, null, InterviewStatus.INITIAL, null)))))
         .isInstanceOf(RuntimeException.class);
 
     var storedApplication =
@@ -627,7 +656,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))));
+                        InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))));
 
     UUID applicationId = created.application().id();
     UUID interviewId = created.interviews().getFirst().id();
@@ -650,7 +679,7 @@ class ApplicationAggregateServiceIntegrationTest {
                             new ReplaceApplicationInterviewItemRequest(
                                 interviewId,
                                 InterviewType.TECHNICAL,
-                                InterviewStatus.PLANNED,
+                                InterviewStatus.INITIAL,
                                 null),
                             new ReplaceApplicationInterviewItemRequest(
                                 interviewId, InterviewType.HR, InterviewStatus.SCHEDULED, null)))))
@@ -676,7 +705,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))));
+                        InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))));
     var secondApplication =
         applicationService.create(
             userId,
@@ -691,7 +720,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.HR, InterviewStatus.PLANNED, null))));
+                        InterviewType.HR, InterviewStatus.INITIAL, null))));
 
     UUID wrongInterviewId = secondApplication.interviews().getFirst().id();
 
@@ -742,7 +771,7 @@ class ApplicationAggregateServiceIntegrationTest {
             .mapToObj(
                 index ->
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))
+                        null, InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))
             .toList();
 
     assertThatThrownBy(
@@ -768,8 +797,8 @@ class ApplicationAggregateServiceIntegrationTest {
   @Test
   void nextInterviewIsRecomputedAfterCreateAndReplaceSync() {
     UUID userId = createUser("next-interview@example.com");
-    OffsetDateTime later = OffsetDateTime.parse("2026-06-01T10:00:00Z");
-    OffsetDateTime sooner = OffsetDateTime.parse("2026-05-20T10:00:00Z");
+    OffsetDateTime later = OffsetDateTime.now().plusDays(20);
+    OffsetDateTime sooner = OffsetDateTime.now().minusDays(5);
 
     var created =
         applicationService.create(
@@ -818,12 +847,13 @@ class ApplicationAggregateServiceIntegrationTest {
                         technicalInterviewId,
                         InterviewType.TECHNICAL,
                         InterviewStatus.PASSED,
-                        later),
+                        sooner),
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TEAM_MATCH, InterviewStatus.PLANNED, sooner))));
+                        null, InterviewType.TEAM_MATCH, InterviewStatus.INITIAL, sooner))));
 
-    assertThat(replaced.application().nextInterview()).isNotNull();
-    assertThat(replaced.application().nextInterview().type()).isEqualTo(InterviewType.TEAM_MATCH);
+    assertThat(replaced.application().nextInterview()).isNull();
+    assertThat(replaced.application().lastInterview()).isNotNull();
+    assertThat(replaced.application().lastInterview().type()).isEqualTo(InterviewType.TECHNICAL);
   }
 
   private UUID createUser(String email) {

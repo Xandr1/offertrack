@@ -17,6 +17,7 @@ public class ApplicationMapper {
         ApplicationStage.fromValue(record.getStage()),
         record.getNotes(),
         record.getAppliedAt(),
+        record.getFollowedUpAt(),
         record.getCreatedAt(),
         record.getUpdatedAt());
   }

@@ -11,5 +11,17 @@ public record ApplicationInterviewResponse(
     InterviewType type,
     InterviewStatus status,
     OffsetDateTime scheduledAt,
+    OffsetDateTime followedUpAt,
     OffsetDateTime createdAt,
-    OffsetDateTime updatedAt) {}
+    OffsetDateTime updatedAt) {
+  public ApplicationInterviewResponse(
+      UUID id,
+      UUID applicationId,
+      InterviewType type,
+      InterviewStatus status,
+      OffsetDateTime scheduledAt,
+      OffsetDateTime createdAt,
+      OffsetDateTime updatedAt) {
+    this(id, applicationId, type, status, scheduledAt, null, createdAt, updatedAt);
+  }
+}

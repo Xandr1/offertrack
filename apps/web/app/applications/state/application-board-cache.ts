@@ -42,6 +42,7 @@ export const moveBoardApplication = (
   board: ApplicationBoard,
   applicationId: string,
   targetStage: ApplicationStage,
+  stageFilter: ApplicationStage | null = null,
 ): ApplicationBoard => {
   const sourceColumn = board.columns.find((column) =>
     column.items.some((item) => item.id === applicationId),
@@ -72,6 +73,9 @@ export const moveBoardApplication = (
       }
 
       if (column.stage === targetStage) {
+        if (stageFilter !== null && targetStage !== stageFilter) {
+          return column;
+        }
         const movedApplication = { ...application, stage: targetStage };
         return withPagination(
           column,

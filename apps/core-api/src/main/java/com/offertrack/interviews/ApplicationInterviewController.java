@@ -36,4 +36,12 @@ public class ApplicationInterviewController {
     return applicationInterviewService.updateStatus(
         currentUser.id(), applicationId, interviewId, request);
   }
+
+  @PatchMapping("/api/applications/{applicationId}/interviews/{interviewId}/follow-up")
+  public ApplicationInterviewResponse markFollowedUp(
+      @AuthenticationPrincipal CurrentUser currentUser,
+      @PathVariable UUID applicationId,
+      @PathVariable UUID interviewId) {
+    return applicationInterviewService.markFollowedUp(currentUser.id(), applicationId, interviewId);
+  }
 }

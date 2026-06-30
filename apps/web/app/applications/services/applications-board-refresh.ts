@@ -51,7 +51,7 @@ const refreshColumn = async (
 
     seenOffsets.add(offset);
     const page = await getColumn({
-      stage: refreshedColumn.stage,
+      columnStage: refreshedColumn.stage,
       ...boardParams,
       offset,
     });
@@ -66,13 +66,13 @@ const refreshColumn = async (
 };
 
 export const refreshApplicationsBoardPreservingLoadedCounts = async (
-  { currentBoard, search, sort, direction }: RefreshApplicationsBoardInput,
+  { currentBoard, search, stage, sort, direction }: RefreshApplicationsBoardInput,
   dependencies: ApplicationsBoardRefreshDependencies = defaultDependencies,
 ): Promise<ApplicationBoard> => {
   const previouslyLoadedByStage = new Map<ApplicationStage, number>(
     currentBoard?.columns.map((column) => [column.stage, column.items.length]) ?? [],
   );
-  const boardParams = { search, sort, direction };
+  const boardParams = { search, stage, sort, direction };
   const initialBoard = await dependencies.getBoard(boardParams);
   const columns = await Promise.all(
     initialBoard.columns.map((column) =>

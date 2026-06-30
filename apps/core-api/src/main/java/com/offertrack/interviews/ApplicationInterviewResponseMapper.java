@@ -12,6 +12,7 @@ public class ApplicationInterviewResponseMapper {
         interview.type(),
         interview.status(),
         interview.scheduledAt(),
+        interview.followedUpAt(),
         interview.createdAt(),
         interview.updatedAt());
   }

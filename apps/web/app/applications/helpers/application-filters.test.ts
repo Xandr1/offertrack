@@ -69,7 +69,7 @@ describe("application-filters", () => {
     );
 
     expect(canonicalizeApplicationsViewParams(params, "board").toString()).toBe(
-      "search=react&id=app-1&sort=createdAt&direction=asc",
+      "search=react&id=app-1&stage=interviewing&sort=createdAt&direction=asc",
     );
   });
 

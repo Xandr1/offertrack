@@ -44,14 +44,15 @@ export const ApplicationCard = ({
   onStageChange,
 }: ApplicationCardProps) => {
   const isBusy = isDeleting || isUpdatingInterviewStatus || isUpdatingStage;
-  const nextInterview = application.nextInterview;
+  const interview = application.nextInterview ?? application.lastInterview;
+  const isLastInterview = !application.nextInterview && Boolean(application.lastInterview);
   const workModeLabel = mapWorkModeLabel(application.workMode);
   const hasMetadata = Boolean(application.location || workModeLabel);
-  const hasEmeraldAccent = Boolean(nextInterview);
-  const nextInterviewLabel = nextInterview
-    ? nextInterview.scheduledAt
-      ? `Next interview: ${mapInterviewTypeLabel(nextInterview.type)} · ${formatDateTime(nextInterview.scheduledAt)}`
-      : `Next interview: ${mapInterviewTypeLabel(nextInterview.type)}`
+  const hasEmeraldAccent = Boolean(application.nextInterview);
+  const interviewLabel = interview
+    ? interview.scheduledAt
+      ? `${isLastInterview ? "Last" : "Next"} interview: ${mapInterviewTypeLabel(interview.type)} · ${formatDateTime(interview.scheduledAt)}`
+      : `${isLastInterview ? "Last" : "Next"} interview: ${mapInterviewTypeLabel(interview.type)}`
     : "No upcoming interview";
 
   return (
@@ -97,13 +98,13 @@ export const ApplicationCard = ({
                   }`}
               />
               <span className="truncate text-zinc-800">
-                {nextInterviewLabel}
+                {interviewLabel}
               </span>
             </div>
-            {nextInterview && (
+            {interview?.status === "scheduled" && (
               <Select
                 disabled={isBusy}
-                value={nextInterview.status}
+                value={interview.status}
                 variant="interviewStatus"
                 onChange={(event) => {
                   onNextInterviewStatusChange(

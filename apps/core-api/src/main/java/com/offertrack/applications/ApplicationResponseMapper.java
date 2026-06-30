@@ -7,7 +7,9 @@ public class ApplicationResponseMapper {
   private ApplicationResponseMapper() {}
 
   public static ApplicationResponse toResponse(
-      Application application, NextInterviewResponse nextInterview) {
+      Application application,
+      NextInterviewResponse nextInterview,
+      NextInterviewResponse lastInterview) {
     return new ApplicationResponse(
         application.id(),
         application.companyName(),
@@ -18,12 +20,14 @@ public class ApplicationResponseMapper {
         application.stage(),
         application.notes(),
         application.appliedAt(),
+        application.followedUpAt(),
         application.createdAt(),
         application.updatedAt(),
-        nextInterview);
+        nextInterview,
+        lastInterview);
   }
 
   public static ApplicationResponse toResponse(Application application) {
-    return toResponse(application, null);
+    return toResponse(application, null, null);
   }
 }

@@ -102,6 +102,8 @@ const baseApplication: Application = {
   id: "app-1",
   jobUrl: null,
   location: null,
+  followedUpAt: null,
+  lastInterview: null,
   nextInterview: null,
   notes: null,
   positionTitle: "Backend Engineer",
@@ -224,7 +226,7 @@ const makeDraft = (
   interviews: [
     {
       type: "recruiter",
-      status: "planned",
+      status: "initial",
       scheduledAt: null,
     },
   ],
@@ -381,7 +383,7 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("id")).toBe("app-1");
     expect(url.searchParams.get("sort")).toBe("createdAt");
     expect(url.searchParams.get("direction")).toBe("asc");
-    expect(url.searchParams.get("stage")).toBeNull();
+    expect(url.searchParams.get("stage")).toBe("offer");
     expect(url.searchParams.get("page")).toBeNull();
     expect(url.searchParams.get("size")).toBeNull();
   });
@@ -421,7 +423,7 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("view")).toBeNull();
     expect(url.searchParams.get("search")).toBe("react");
     expect(url.searchParams.get("id")).toBe("app-1");
-    expect(url.searchParams.get("stage")).toBeNull();
+    expect(url.searchParams.get("stage")).toBe("applied");
     expect(url.searchParams.get("page")).toBeNull();
     expect(url.searchParams.get("size")).toBeNull();
     expect(url.searchParams.get("sort")).toBe("createdAt");
@@ -438,11 +440,12 @@ describe("ApplicationsPage", () => {
     await screen.findByRole("heading", { name: "Initial" });
     await waitFor(() =>
       expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
-        "/applications?search=acme",
+        "/applications?search=acme&stage=offer",
       ),
     );
     expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
       search: "acme",
+      stage: "offer",
       sort: "updatedAt",
       direction: "desc",
     });
@@ -454,8 +457,7 @@ describe("ApplicationsPage", () => {
     expect(
       screen.getByRole("button", { name: "Move Acme application" }),
     ).toBeTruthy();
-    expect(screen.queryByLabelText("Stage")).toBeNull();
-    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+    expect(screen.getAllByRole("combobox")).toHaveLength(3);
     expect(
       screen.getByRole("option", { name: "Updated" }),
     ).toBeTruthy();
@@ -476,11 +478,12 @@ describe("ApplicationsPage", () => {
     await screen.findByRole("heading", { name: "Initial" });
     await waitFor(() =>
       expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
-        "/applications?search=react&sort=createdAt&direction=asc",
+        "/applications?search=react&stage=interviewing&sort=createdAt&direction=asc",
       ),
     );
     expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
       search: "react",
+      stage: "interviewing",
       sort: "createdAt",
       direction: "asc",
     });
@@ -534,8 +537,9 @@ describe("ApplicationsPage", () => {
 
     await screen.findByText("Globex");
     expect(mockedGetApplicationBoardColumn).toHaveBeenCalledWith({
-      stage: "applied",
+      columnStage: "applied",
       search: "",
+      stage: null,
       sort: "updatedAt",
       direction: "desc",
       offset: 1,
@@ -551,17 +555,17 @@ describe("ApplicationsPage", () => {
     const view = renderPage();
 
     await screen.findByRole("heading", { name: "Initial" });
-    await user.selectOptions(screen.getAllByRole("combobox")[0], "createdAt");
+    await user.selectOptions(screen.getAllByRole("combobox")[1], "createdAt");
 
     let url = lastReplaceUrl();
     expect(url.searchParams.get("sort")).toBe("createdAt");
-    expect(url.searchParams.get("stage")).toBeNull();
+    expect(url.searchParams.get("stage")).toBe("offer");
     expect(url.searchParams.get("page")).toBeNull();
     expect(url.searchParams.get("size")).toBeNull();
     expect(url.searchParams.get("view")).toBeNull();
 
     view.rerenderPage();
-    await user.selectOptions(screen.getAllByRole("combobox")[1], "asc");
+    await user.selectOptions(screen.getAllByRole("combobox")[2], "asc");
     view.rerenderPage();
 
     url = lastReplaceUrl();
@@ -570,6 +574,7 @@ describe("ApplicationsPage", () => {
     await waitFor(() =>
       expect(mockedGetApplicationsBoard).toHaveBeenCalledWith({
         search: "acme",
+        stage: "offer",
         sort: "createdAt",
         direction: "asc",
       }),
@@ -606,6 +611,7 @@ describe("ApplicationsPage", () => {
     await waitFor(() => expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2));
     expect(mockedGetApplicationsBoard).toHaveBeenLastCalledWith({
       search: "",
+      stage: null,
       sort: "createdAt",
       direction: "asc",
     });
@@ -649,6 +655,7 @@ describe("ApplicationsPage", () => {
     await waitFor(() => expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2));
     expect(mockedGetApplicationsBoard).toHaveBeenLastCalledWith({
       search: "",
+      stage: null,
       sort: "createdAt",
       direction: "asc",
     });
@@ -1037,7 +1044,7 @@ describe("ApplicationsPage", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByDisplayValue("Recruiter")).toBeTruthy();
-    expect(screen.getByDisplayValue("Planned")).toBeTruthy();
+    expect(screen.getAllByDisplayValue("Initial")).toHaveLength(2);
     expect(screen.getByText("AI draft warnings")).toBeTruthy();
     expect(
       screen.getByText("Company name was inferred from page metadata."),

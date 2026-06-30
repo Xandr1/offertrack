@@ -12,7 +12,14 @@ const application: Application = {
   id: "app-1",
   jobUrl: null,
   location: null,
-  nextInterview: null,
+  followedUpAt: null,
+  lastInterview: null,
+  nextInterview: {
+    id: "interview-1",
+    type: "technical",
+    status: "scheduled",
+    scheduledAt: "2026-06-30T14:00:00Z",
+  },
   notes: null,
   positionTitle: "Engineer",
   stage: "applied",
@@ -62,5 +69,6 @@ describe("ApplicationsBoard", () => {
       (screen.getByRole("button", { name: "Load more" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+    expect(screen.getByText(/📅 Technical/)).toBeTruthy();
   });
 });

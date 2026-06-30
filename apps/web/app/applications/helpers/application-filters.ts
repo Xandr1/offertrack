@@ -197,6 +197,12 @@ export const writeApplicationsBoardParams = (
     params.set("search", trimmedSearch);
   }
 
+  if (boardParams.stage === null) {
+    params.delete("stage");
+  } else {
+    params.set("stage", boardParams.stage);
+  }
+
   if (boardParams.sort === APPLICATIONS_LIST_DEFAULTS.sort) {
     params.delete("sort");
   } else {
@@ -225,15 +231,6 @@ const copyListOnlyParams = (
   source: URLSearchParams,
   target: URLSearchParams,
 ) => {
-  const stage = source.get("stage")?.trim();
-  if (
-    stage &&
-    stage !== STAGE_FILTER_DEFAULT &&
-    validStageFilters.has(stage as StageFilter)
-  ) {
-    target.set("stage", stage);
-  }
-
   const rawPage = source.get("page")?.trim();
   const parsedPage = rawPage ? Number(rawPage) : Number.NaN;
   if (
@@ -291,6 +288,15 @@ export const canonicalizeApplicationsViewParams = (
 
   copyTrimmedParam(source, result, "search");
   copyTrimmedParam(source, result, "id");
+
+  const stage = source.get("stage")?.trim();
+  if (
+    stage &&
+    stage !== STAGE_FILTER_DEFAULT &&
+    validStageFilters.has(stage as StageFilter)
+  ) {
+    result.set("stage", stage);
+  }
 
   if (view === "list") {
     copyListOnlyParams(source, result);

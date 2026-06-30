@@ -144,6 +144,52 @@ class ApplicationControllerSecurityTest {
   }
 
   @Test
+  void patchFollowUpReturnsUpdatedApplicationForAuthenticatedOwner() throws Exception {
+    UUID applicationId = UUID.randomUUID();
+    OffsetDateTime followedUpAt = OffsetDateTime.parse("2026-05-01T10:15:00Z");
+    ApplicationResponse response =
+        new ApplicationResponse(
+            applicationId,
+            "Acme",
+            "Backend Engineer",
+            null,
+            "Warsaw",
+            "hybrid",
+            ApplicationStage.APPLIED,
+            null,
+            null,
+            followedUpAt,
+            followedUpAt,
+            followedUpAt,
+            null,
+            null);
+    when(applicationService.markFollowedUp(AUTHENTICATED_USER_ID, applicationId))
+        .thenReturn(response);
+
+    mockMvc
+        .perform(
+            patch("/api/applications/{id}/follow-up", applicationId).cookie(accessTokenCookie()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(applicationId.toString()))
+        .andExpect(jsonPath("$.followedUpAt").value("2026-05-01T10:15:00Z"));
+
+    verify(applicationService).markFollowedUp(AUTHENTICATED_USER_ID, applicationId);
+  }
+
+  @Test
+  void patchFollowUpReturnsNotFoundForMissingOrForeignApplication() throws Exception {
+    UUID applicationId = UUID.randomUUID();
+    when(applicationService.markFollowedUp(AUTHENTICATED_USER_ID, applicationId))
+        .thenThrow(new ApplicationNotFoundException());
+
+    mockMvc
+        .perform(
+            patch("/api/applications/{id}/follow-up", applicationId).cookie(accessTokenCookie()))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"));
+  }
+
+  @Test
   void deleteReturnsNotFoundWhenServiceThrowsNotFound() throws Exception {
     UUID applicationId = UUID.randomUUID();
     doThrow(new ApplicationNotFoundException())
@@ -267,7 +313,7 @@ class ApplicationControllerSecurityTest {
                       "companyName": "Acme",
                       "positionTitle": "Backend Engineer",
                       "interviews": [
-                        { "status": "planned" }
+                        { "status": "initial" }
                       ]
                     }
                     """))

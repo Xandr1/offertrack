@@ -78,7 +78,7 @@ class ApplicationDraftControllerSecurityTest {
         .andExpect(jsonPath("$.jobUrl").value("https://example.com/jobs/123"))
         .andExpect(jsonPath("$.stage").value("initial"))
         .andExpect(jsonPath("$.interviews[0].type").value("technical"))
-        .andExpect(jsonPath("$.interviews[0].status").value("planned"))
+        .andExpect(jsonPath("$.interviews[0].status").value("initial"))
         .andExpect(jsonPath("$.interviews[0].scheduledAt").doesNotExist())
         .andExpect(jsonPath("$.warnings[0]").value("Location was not explicit."));
 
@@ -165,7 +165,7 @@ class ApplicationDraftControllerSecurityTest {
         "Acme is hiring a backend engineer for API and platform work. The role is remote.",
         List.of(
             new ApplicationDraftInterviewResponse(
-                InterviewType.TECHNICAL, InterviewStatus.PLANNED, null)),
+                InterviewType.TECHNICAL, InterviewStatus.INITIAL, null)),
         List.of("Location was not explicit."));
   }
 }

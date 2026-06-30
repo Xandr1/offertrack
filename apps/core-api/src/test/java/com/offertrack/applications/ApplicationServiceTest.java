@@ -2,6 +2,8 @@ package com.offertrack.applications;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,14 +19,15 @@ import com.offertrack.interviews.ApplicationInterviewRepository;
 import com.offertrack.interviews.InterviewNotFoundException;
 import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,8 +35,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ApplicationServiceTest {
   @Mock private ApplicationRepository applicationRepository;
   @Mock private ApplicationInterviewRepository applicationInterviewRepository;
+  private ApplicationService applicationService;
 
-  @InjectMocks private ApplicationService applicationService;
+  @BeforeEach
+  void setUp() {
+    applicationService =
+        new ApplicationService(
+            applicationRepository,
+            applicationInterviewRepository,
+            Clock.fixed(java.time.Instant.parse("2026-05-01T10:15:00Z"), java.time.ZoneOffset.UTC));
+  }
 
   @Test
   void updateStageReturnsNotFoundWhenApplicationIsMissing() {
@@ -94,7 +105,7 @@ class ApplicationServiceTest {
                 new ReplaceApplicationInterviewItemRequest(
                     interviewId, InterviewType.TECHNICAL, InterviewStatus.SCHEDULED, null),
                 new ReplaceApplicationInterviewItemRequest(
-                    interviewId, InterviewType.HR, InterviewStatus.PLANNED, null)));
+                    interviewId, InterviewType.HR, InterviewStatus.INITIAL, null)));
 
     when(applicationRepository.findByIdForUser(applicationId, userId))
         .thenReturn(Optional.of(sampleApplication(applicationId, userId)));
@@ -152,7 +163,7 @@ class ApplicationServiceTest {
             .mapToObj(
                 index ->
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))
+                        null, InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))
             .toList();
     ReplaceApplicationRequest request =
         new ReplaceApplicationRequest(
@@ -204,7 +215,7 @@ class ApplicationServiceTest {
     when(applicationRepository.listByUser(userId, ApplicationListQuery.defaults()))
         .thenReturn(new ApplicationListPage(List.of(first, second), 0, 20, 2, 1));
     when(applicationInterviewRepository.findNextByApplicationIdsForUser(
-            userId, List.of(first.id(), second.id())))
+            eq(userId), eq(List.of(first.id(), second.id())), any()))
         .thenReturn(Map.of(first.id(), nextInterview));
 
     var response = applicationService.list(userId);
@@ -214,13 +225,13 @@ class ApplicationServiceTest {
     assertThat(response.items().getFirst().nextInterview().id()).isEqualTo(nextInterview.id());
     assertThat(response.items().get(1).nextInterview()).isNull();
     verify(applicationInterviewRepository)
-        .findNextByApplicationIdsForUser(userId, List.of(first.id(), second.id()));
+        .findNextByApplicationIdsForUser(eq(userId), eq(List.of(first.id(), second.id())), any());
     verify(applicationInterviewRepository, never())
-        .findNextByApplicationForUser(first.id(), userId);
+        .findNextByApplicationForUser(eq(first.id()), eq(userId), any());
   }
 
   @Test
-  void createDefaultsInterviewStatusToPlannedWhenMissing() {
+  void createDefaultsInterviewStatusToInitialWhenMissing() {
     UUID userId = UUID.randomUUID();
     UUID applicationId = UUID.randomUUID();
     Application application = sampleApplication(applicationId, userId);
@@ -241,13 +252,59 @@ class ApplicationServiceTest {
         .thenReturn(application);
     when(applicationInterviewRepository.listByApplicationForUser(applicationId, userId))
         .thenReturn(List.of());
-    when(applicationInterviewRepository.findNextByApplicationForUser(applicationId, userId))
+    when(applicationInterviewRepository.findNextByApplicationForUser(
+            eq(applicationId), eq(userId), any()))
         .thenReturn(Optional.empty());
 
     applicationService.create(userId, request);
 
     verify(applicationInterviewRepository)
-        .create(applicationId, userId, InterviewType.TECHNICAL, InterviewStatus.PLANNED, null);
+        .create(applicationId, userId, InterviewType.TECHNICAL, InterviewStatus.INITIAL, null);
+  }
+
+  @Test
+  void markFollowedUpUsesInjectedClockAndReturnsUpdatedTimestamp() {
+    UUID userId = UUID.randomUUID();
+    UUID applicationId = UUID.randomUUID();
+    OffsetDateTime followedUpAt = OffsetDateTime.parse("2026-05-01T10:15:00Z");
+    Application followedUpApplication =
+        new Application(
+            applicationId,
+            userId,
+            "Acme",
+            "Backend Engineer",
+            null,
+            "Warsaw",
+            "hybrid",
+            ApplicationStage.APPLIED,
+            null,
+            followedUpAt,
+            followedUpAt,
+            followedUpAt,
+            followedUpAt);
+
+    when(applicationRepository.markFollowedUp(applicationId, userId, followedUpAt))
+        .thenReturn(Optional.of(followedUpApplication));
+
+    var response = applicationService.markFollowedUp(userId, applicationId);
+
+    assertThat(response.followedUpAt()).isEqualTo(followedUpAt);
+    verify(applicationRepository).markFollowedUp(applicationId, userId, followedUpAt);
+  }
+
+  @Test
+  void markFollowedUpReturnsNotFoundForMissingOrForeignApplication() {
+    UUID userId = UUID.randomUUID();
+    UUID applicationId = UUID.randomUUID();
+    OffsetDateTime followedUpAt = OffsetDateTime.parse("2026-05-01T10:15:00Z");
+
+    when(applicationRepository.markFollowedUp(applicationId, userId, followedUpAt))
+        .thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> applicationService.markFollowedUp(userId, applicationId))
+        .isInstanceOf(ApplicationNotFoundException.class)
+        .extracting(error -> ((DomainException) error).code())
+        .isEqualTo("APPLICATION_NOT_FOUND");
   }
 
   private static Application sampleApplication(UUID applicationId, UUID userId) {

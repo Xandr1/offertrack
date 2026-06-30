@@ -49,9 +49,8 @@ export const interviewTypes: InterviewType[] = [
 ];
 
 export const interviewStatuses: InterviewStatus[] = [
-  "planned",
+  "initial",
   "scheduled",
-  "completed",
   "passed",
   "rejected",
 ];

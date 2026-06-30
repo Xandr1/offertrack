@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { getDashboardSummary, getCurrentUser } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  getCurrentUser,
+  getDashboardApplicationsToFollowUp,
+  getDashboardInterviewsToFollowUp,
+  getDashboardSummary,
+  getDashboardUpcomingInterviews,
+  markApplicationFollowedUp,
+  markInterviewFollowedUp,
+} from "@/lib/api";
+import type { DashboardSummary } from "@/lib/api";
 import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,23 +22,69 @@ import {
   isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
-import {
-  formStyles,
-  layoutStyles,
-  pageStyles,
-  textStyles,
-} from "@/lib/styles";
+import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
 import { DashboardActionModule } from "./components/dashboard-action-module";
+
+export const FOLLOW_UP_UNDO_TIMEOUT_MS = 3000;
+
+type PendingFollowUp = {
+  applicationId: string;
+  interviewId?: string;
+};
+
+const removeApplicationItem = (
+  summary: DashboardSummary,
+  applicationId: string,
+): DashboardSummary => {
+  const page = summary.applicationsToFollowUp;
+  if (!page.items.some((item) => item.applicationId === applicationId)) return summary;
+  const totalCount = Math.max(0, page.totalCount - 1);
+  const nextOffset = Math.max(0, page.nextOffset - 1);
+  return {
+    ...summary,
+    needsAttention: Math.max(0, summary.needsAttention - 1),
+    applicationsToFollowUp: {
+      ...page,
+      items: page.items.filter((item) => item.applicationId !== applicationId),
+      totalCount,
+      nextOffset,
+      hasMore: nextOffset < totalCount,
+    },
+  };
+};
+
+const removeInterviewItem = (
+  summary: DashboardSummary,
+  interviewId: string,
+): DashboardSummary => {
+  const page = summary.interviewsToFollowUp;
+  if (!page.items.some((item) => item.interviewId === interviewId)) return summary;
+  const totalCount = Math.max(0, page.totalCount - 1);
+  const nextOffset = Math.max(0, page.nextOffset - 1);
+  return {
+    ...summary,
+    needsAttention: Math.max(0, summary.needsAttention - 1),
+    interviewsToFollowUp: {
+      ...page,
+      items: page.items.filter((item) => item.interviewId !== interviewId),
+      totalCount,
+      nextOffset,
+      hasMore: nextOffset < totalCount,
+    },
+  };
+};
 
 export default function DashboardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const [pendingApplicationIds, setPendingApplicationIds] = useState(new Set<string>());
+  const [pendingInterviewIds, setPendingInterviewIds] = useState(new Set<string>());
+  const [applicationError, setApplicationError] = useState<string | null>(null);
+  const [upcomingError, setUpcomingError] = useState<string | null>(null);
+  const [interviewError, setInterviewError] = useState<string | null>(null);
 
-  const userQuery = useQuery({
-    queryKey: queryKeys.authMe,
-    queryFn: getCurrentUser,
-    retry: false,
-  });
-
+  const userQuery = useQuery({ queryKey: queryKeys.authMe, queryFn: getCurrentUser, retry: false });
   const summaryQuery = useQuery({
     queryKey: queryKeys.dashboardSummary,
     queryFn: getDashboardSummary,
@@ -37,144 +92,161 @@ export default function DashboardPage() {
     enabled: Boolean(userQuery.data),
   });
 
-  const shouldRedirectToLogin = isAuthError(userQuery.error);
-
   useEffect(() => {
-    if (!userQuery.error) {
-      return;
-    }
-
-    void redirectToLoginIfProtectedRoute(userQuery.error, router);
+    if (userQuery.error) void redirectToLoginIfProtectedRoute(userQuery.error, router);
   }, [router, userQuery.error]);
 
-  if (userQuery.isPending) {
-    return (
-      <main className={pageStyles.centered}>
-        <div className={pageStyles.statusMessage}>Loading dashboard...</div>
-      </main>
-    );
-  }
+  useEffect(() => () => {
+    for (const timer of timersRef.current.values()) clearTimeout(timer);
+    timersRef.current.clear();
+  }, []);
 
-  if (shouldRedirectToLogin) {
-    return null;
-  }
+  const applicationMutation = useMutation({
+    mutationFn: ({ applicationId }: PendingFollowUp) => markApplicationFollowedUp(applicationId),
+    onSuccess: (_data, variables) => {
+      queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) =>
+        current ? removeApplicationItem(current, variables.applicationId) : current,
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.list() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.board() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.detail(variables.applicationId) });
+    },
+    onError: (error) => setApplicationError(getRequestErrorMessage(error)),
+    onSettled: (_data, _error, variables) => {
+      setPendingApplicationIds((current) => {
+        const next = new Set(current); next.delete(variables.applicationId); return next;
+      });
+    },
+  });
 
-  if (userQuery.error) {
-    return (
-      <main className={pageStyles.centered}>
-        <Card variant="auth">
-          <h1 className={textStyles.pageTitle}>Dashboard unavailable</h1>
-          <div className="mt-4">
-            <div className={formStyles.error}>
-              {getRequestErrorMessage(userQuery.error)}
-            </div>
-          </div>
-          <Button
-            className="mt-4"
-            onClick={() => userQuery.refetch()}
-            variant="secondary"
-          >
-            Retry
-          </Button>
-        </Card>
-      </main>
-    );
-  }
+  const interviewMutation = useMutation({
+    mutationFn: ({ applicationId, interviewId }: PendingFollowUp) =>
+      markInterviewFollowedUp(applicationId, interviewId!),
+    onSuccess: (_data, variables) => {
+      queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) =>
+        current ? removeInterviewItem(current, variables.interviewId!) : current,
+      );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.list() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.board() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.interviews(variables.applicationId) });
+    },
+    onError: (error) => setInterviewError(getRequestErrorMessage(error)),
+    onSettled: (_data, _error, variables) => {
+      setPendingInterviewIds((current) => {
+        const next = new Set(current); next.delete(variables.interviewId!); return next;
+      });
+    },
+  });
 
-  if (!userQuery.data) {
-    return null;
-  }
+  const applicationLoadMore = useMutation({
+    mutationFn: getDashboardApplicationsToFollowUp,
+    onSuccess: (page) => queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) => current && ({
+      ...current,
+      applicationsToFollowUp: { ...page, items: [...current.applicationsToFollowUp.items, ...page.items] },
+    })),
+    onError: (error) => setApplicationError(getRequestErrorMessage(error)),
+  });
+  const upcomingLoadMore = useMutation({
+    mutationFn: getDashboardUpcomingInterviews,
+    onSuccess: (page) => queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) => current && ({
+      ...current,
+      upcomingInterviews: { ...page, items: [...current.upcomingInterviews.items, ...page.items] },
+    })),
+    onError: (error) => setUpcomingError(getRequestErrorMessage(error)),
+  });
+  const interviewLoadMore = useMutation({
+    mutationFn: getDashboardInterviewsToFollowUp,
+    onSuccess: (page) => queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) => current && ({
+      ...current,
+      interviewsToFollowUp: { ...page, items: [...current.interviewsToFollowUp.items, ...page.items] },
+    })),
+    onError: (error) => setInterviewError(getRequestErrorMessage(error)),
+  });
+
+  const markFollowedUp = (applicationId: string, interviewId?: string) => {
+    const id = interviewId ?? applicationId;
+    if (timersRef.current.has(id)) return;
+    if (interviewId) {
+      setInterviewError(null);
+      setPendingInterviewIds((current) => new Set(current).add(interviewId));
+    } else {
+      setApplicationError(null);
+      setPendingApplicationIds((current) => new Set(current).add(applicationId));
+    }
+    const timer = setTimeout(() => {
+      timersRef.current.delete(id);
+      if (interviewId) interviewMutation.mutate({ applicationId, interviewId });
+      else applicationMutation.mutate({ applicationId });
+    }, FOLLOW_UP_UNDO_TIMEOUT_MS);
+    timersRef.current.set(id, timer);
+  };
+
+  const undo = (id: string) => {
+    const timer = timersRef.current.get(id);
+    if (!timer) return;
+    clearTimeout(timer);
+    timersRef.current.delete(id);
+    setPendingApplicationIds((current) => { const next = new Set(current); next.delete(id); return next; });
+    setPendingInterviewIds((current) => { const next = new Set(current); next.delete(id); return next; });
+  };
+
+  if (userQuery.isPending) return <main className={pageStyles.centered}><div className={pageStyles.statusMessage}>Loading dashboard...</div></main>;
+  if (isAuthError(userQuery.error)) return null;
+  if (userQuery.error) return <main className={pageStyles.centered}><Card variant="auth"><h1 className={textStyles.pageTitle}>Dashboard unavailable</h1><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(userQuery.error)}</div><Button className="mt-4" onClick={() => userQuery.refetch()} variant="secondary">Retry</Button></Card></main>;
+  if (!userQuery.data) return null;
 
   const summary = summaryQuery.data;
-
   return (
     <ShellLayout activeRoute="/dashboard">
       <div className={layoutStyles.container}>
-        {summaryQuery.error && (
-          <section>
-            <Card>
-              <h2 className={textStyles.sectionTitle}>Summary unavailable</h2>
-              <div className="mt-4">
-                <div className={formStyles.error}>
-                  {getRequestErrorMessage(summaryQuery.error)}
-                </div>
-              </div>
-              <Button
-                className="mt-4"
-                onClick={() => summaryQuery.refetch()}
-                variant="secondary"
-              >
-                Retry
-              </Button>
-            </Card>
-          </section>
-        )}
-
-        {!summaryQuery.error && (
-          <section className="flex flex-col gap-4 xl:flex-row xl:items-start">
-            <div className="contents xl:flex xl:flex-1 xl:flex-col xl:gap-4">
-              <div className="order-1 xl:order-none">
-                <DashboardActionModule
-                  count={summary?.draftsToApplyCount ?? 0}
-                  helperText="Applications still waiting to be applied."
-                  isLoading={summaryQuery.isPending}
-                  items={summary?.draftsToApply ?? []}
-                  kind="applications"
-                  title="Drafts to apply"
-                  viewAllHref="/applications?stage=initial"
-                />
-              </div>
-              <div className="order-3 xl:order-none">
-                <DashboardActionModule
-                  count={summary?.upcomingInterviewsCount ?? 0}
-                  helperText={
-                    summary
-                      ? `Scheduled in the next ${summary.upcomingInterviewDays} days.`
-                      : "Scheduled interviews coming up soon."
-                  }
-                  isLoading={summaryQuery.isPending}
-                  items={summary?.upcomingInterviews ?? []}
-                  kind="interviews"
-                  title="Upcoming interviews"
-                  viewAllHref="/applications?stage=interviewing"
-                />
-              </div>
-            </div>
-
-            <div className="contents xl:flex xl:flex-1 xl:flex-col xl:gap-4">
-              <div className="order-2 xl:order-none">
-                <DashboardActionModule
-                  count={summary?.applicationsToFollowUpCount ?? 0}
-                  helperText={
-                    summary
-                      ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.`
-                      : "Applied applications that may need a follow-up."
-                  }
-                  isLoading={summaryQuery.isPending}
-                  items={summary?.applicationsToFollowUp ?? []}
-                  kind="applications"
-                  title="Applications to follow up"
-                  viewAllHref="/applications?stage=applied"
-                />
-              </div>
-              <div className="order-4 xl:order-none">
-                <DashboardActionModule
-                  count={summary?.interviewsToFollowUpCount ?? 0}
-                  helperText={
-                    summary
-                      ? `Completed at least ${summary.followUpAfterInterviewDays} days ago.`
-                      : "Completed interviews waiting on next steps."
-                  }
-                  isLoading={summaryQuery.isPending}
-                  items={summary?.interviewsToFollowUp ?? []}
-                  kind="interviews"
-                  title="Interviews to follow up"
-                  viewAllHref="/applications?stage=interviewing"
-                />
-              </div>
-            </div>
-          </section>
-        )}
+        {summaryQuery.error && <Card><h2 className={textStyles.sectionTitle}>Summary unavailable</h2><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(summaryQuery.error)}</div><Button className="mt-4" onClick={() => summaryQuery.refetch()} variant="secondary">Retry</Button></Card>}
+        {!summaryQuery.error && <section className="grid gap-4 xl:grid-cols-3">
+          <DashboardActionModule
+            count={summary?.applicationsToFollowUp.totalCount ?? 0}
+            errorMessage={applicationError}
+            hasMore={summary?.applicationsToFollowUp.hasMore ?? false}
+            helperText={summary ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.` : "Applications that may need a follow-up."}
+            isLoading={summaryQuery.isPending}
+            isLoadingMore={applicationLoadMore.isPending}
+            items={summary?.applicationsToFollowUp.items ?? []}
+            kind="applications"
+            pendingIds={pendingApplicationIds}
+            title="Applications to follow up"
+            onLoadMore={() => summary && applicationLoadMore.mutate(summary.applicationsToFollowUp.nextOffset)}
+            onMarkFollowedUp={markFollowedUp}
+            onUndo={undo}
+          />
+          <DashboardActionModule
+            count={summary?.upcomingInterviews.totalCount ?? 0}
+            errorMessage={upcomingError}
+            hasMore={summary?.upcomingInterviews.hasMore ?? false}
+            helperText={summary ? `Scheduled in the next ${summary.upcomingInterviewDays} days.` : "Scheduled interviews coming up soon."}
+            isLoading={summaryQuery.isPending}
+            isLoadingMore={upcomingLoadMore.isPending}
+            items={summary?.upcomingInterviews.items ?? []}
+            kind="upcoming-interviews"
+            pendingIds={new Set<string>()}
+            title="Upcoming interviews"
+            onLoadMore={() => summary && upcomingLoadMore.mutate(summary.upcomingInterviews.nextOffset)}
+            onMarkFollowedUp={markFollowedUp}
+            onUndo={undo}
+          />
+          <DashboardActionModule
+            count={summary?.interviewsToFollowUp.totalCount ?? 0}
+            errorMessage={interviewError}
+            hasMore={summary?.interviewsToFollowUp.hasMore ?? false}
+            helperText={summary ? `Interviewed at least ${summary.followUpAfterInterviewDays} days ago.` : "Interviews waiting on an outcome."}
+            isLoading={summaryQuery.isPending}
+            isLoadingMore={interviewLoadMore.isPending}
+            items={summary?.interviewsToFollowUp.items ?? []}
+            kind="interviews-to-follow-up"
+            pendingIds={pendingInterviewIds}
+            title="Interviews to follow up"
+            onLoadMore={() => summary && interviewLoadMore.mutate(summary.interviewsToFollowUp.nextOffset)}
+            onMarkFollowedUp={markFollowedUp}
+            onUndo={undo}
+          />
+        </section>}
       </div>
     </ShellLayout>
   );

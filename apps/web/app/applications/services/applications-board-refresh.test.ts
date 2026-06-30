@@ -16,6 +16,8 @@ const makeApplication = (
   id,
   jobUrl: null,
   location: null,
+  followedUpAt: null,
+  lastInterview: null,
   nextInterview: null,
   notes: null,
   positionTitle: "Engineer",
@@ -74,6 +76,7 @@ describe("applications board refresh", () => {
       {
         currentBoard,
         search: "acme",
+        stage: null,
         sort: "createdAt",
         direction: "asc",
       },
@@ -87,14 +90,16 @@ describe("applications board refresh", () => {
     expect(result.columns[1].items).toHaveLength(60);
     expect(getBoard).toHaveBeenCalledWith({
       search: "acme",
+      stage: null,
       sort: "createdAt",
       direction: "asc",
     });
     expect(getColumn.mock.calls).toEqual([
       [
         {
-          stage: "applied",
+          columnStage: "applied",
           search: "acme",
+          stage: null,
           sort: "createdAt",
           direction: "asc",
           offset: 20,
@@ -102,8 +107,9 @@ describe("applications board refresh", () => {
       ],
       [
         {
-          stage: "applied",
+          columnStage: "applied",
           search: "acme",
+          stage: null,
           sort: "createdAt",
           direction: "asc",
           offset: 40,
@@ -123,7 +129,7 @@ describe("applications board refresh", () => {
     );
 
     const result = await refreshApplicationsBoardPreservingLoadedCounts(
-      { currentBoard, search: "", sort: "updatedAt", direction: "desc" },
+      { currentBoard, search: "", stage: null, sort: "updatedAt", direction: "desc" },
       {
         getBoard: jest.fn().mockResolvedValue({
           columns: [
@@ -153,7 +159,7 @@ describe("applications board refresh", () => {
       );
 
     const result = await refreshApplicationsBoardPreservingLoadedCounts(
-      { currentBoard, search: "", sort: "updatedAt", direction: "desc" },
+      { currentBoard, search: "", stage: null, sort: "updatedAt", direction: "desc" },
       {
         getBoard: jest.fn().mockResolvedValue({
           columns: [makeColumn("applied", initialItems, 80, 20, true)],
@@ -177,7 +183,7 @@ describe("applications board refresh", () => {
     );
 
     const result = await refreshApplicationsBoardPreservingLoadedCounts(
-      { currentBoard, search: "", sort: "updatedAt", direction: "desc" },
+      { currentBoard, search: "", stage: null, sort: "updatedAt", direction: "desc" },
       {
         getBoard: jest.fn().mockResolvedValue({
           columns: [makeColumn("applied", initialItems, 80, 20, true)],

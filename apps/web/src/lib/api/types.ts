@@ -17,6 +17,8 @@ import {
   dashboardApplicationItemSchema,
   dashboardInterviewItemSchema,
   dashboardSummarySchema,
+  dashboardApplicationModulePageSchema,
+  dashboardInterviewModulePageSchema,
   interviewStatusSchema,
   interviewTypeSchema,
   nextInterviewSchema,
@@ -59,6 +61,12 @@ export type DashboardApplicationItem = z.infer<
 >;
 export type DashboardInterviewItem = z.infer<typeof dashboardInterviewItemSchema>;
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
+export type DashboardApplicationModulePage = z.infer<
+  typeof dashboardApplicationModulePageSchema
+>;
+export type DashboardInterviewModulePage = z.infer<
+  typeof dashboardInterviewModulePageSchema
+>;
 export type Settings = z.infer<typeof settingsSchema>;
 
 export type RegisterRequest = {
@@ -136,13 +144,15 @@ export type ApplicationsListParams = {
 
 export type ApplicationsBoardParams = {
   search: string;
+  stage: ApplicationStage | null;
   sort: ApplicationSortField;
   direction: SortDirection;
 };
 
 export type ApplicationBoardColumnParams = {
-  stage: ApplicationStage;
+  columnStage: ApplicationStage;
   search: string;
+  stage: ApplicationStage | null;
   sort: ApplicationSortField;
   direction: SortDirection;
   offset: number;

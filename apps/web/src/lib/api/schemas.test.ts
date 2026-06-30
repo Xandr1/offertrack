@@ -33,28 +33,14 @@ describe("dashboardSummarySchema", () => {
       interviewing: 2,
       offers: 1,
       rejected: 3,
-      draftsToApplyCount: 1,
-      applicationsToFollowUpCount: 1,
-      upcomingInterviewsCount: 1,
-      interviewsToFollowUpCount: 1,
       followUpAfterApplyingDays: 10,
       upcomingInterviewDays: 14,
       followUpAfterInterviewDays: 4,
-      draftsToApply: [
-        {
-          applicationId: "app-1",
-          companyName: "Acme",
-          positionTitle: "Backend Engineer",
-          stage: "initial",
-          jobUrl: "https://example.com/job",
-          location: "Remote",
-          workMode: "remote",
-          appliedAt: null,
-          updatedAt: "2026-06-01T10:00:00Z",
-        },
-      ],
-      applicationsToFollowUp: [
-        {
+      applicationsToFollowUp: {
+        totalCount: 1,
+        nextOffset: 1,
+        hasMore: false,
+        items: [{
           applicationId: "app-2",
           companyName: "Globex",
           positionTitle: "Platform Engineer",
@@ -64,10 +50,13 @@ describe("dashboardSummarySchema", () => {
           workMode: null,
           appliedAt: "2026-05-20T10:00:00Z",
           updatedAt: "2026-05-21T10:00:00Z",
-        },
-      ],
-      upcomingInterviews: [
-        {
+        }],
+      },
+      upcomingInterviews: {
+        totalCount: 1,
+        nextOffset: 1,
+        hasMore: false,
+        items: [{
           applicationId: "app-3",
           interviewId: "interview-1",
           companyName: "Initech",
@@ -78,10 +67,13 @@ describe("dashboardSummarySchema", () => {
           scheduledAt: "2026-06-08T09:00:00Z",
           interviewType: "technical",
           status: "scheduled",
-        },
-      ],
-      interviewsToFollowUp: [
-        {
+        }],
+      },
+      interviewsToFollowUp: {
+        totalCount: 1,
+        nextOffset: 1,
+        hasMore: false,
+        items: [{
           applicationId: "app-4",
           interviewId: "interview-2",
           companyName: "Umbrella",
@@ -91,18 +83,17 @@ describe("dashboardSummarySchema", () => {
           workMode: null,
           scheduledAt: "2026-06-01T09:00:00Z",
           interviewType: "hr",
-          status: "completed",
-        },
-      ],
+          status: "scheduled",
+        }],
+      },
     });
 
-    expect(parsed.draftsToApply[0].stage).toBe("initial");
-    expect(parsed.draftsToApplyCount).toBe(1);
+    expect(parsed.applicationsToFollowUp.items[0].stage).toBe("applied");
     expect(parsed.followUpAfterApplyingDays).toBe(10);
     expect(parsed.upcomingInterviewDays).toBe(14);
     expect(parsed.followUpAfterInterviewDays).toBe(4);
-    expect(parsed.upcomingInterviews[0].interviewType).toBe("technical");
-    expect(parsed.interviewsToFollowUp[0].status).toBe("completed");
+    expect(parsed.upcomingInterviews.items[0].interviewType).toBe("technical");
+    expect(parsed.interviewsToFollowUp.items[0].status).toBe("scheduled");
   });
 });
 
@@ -117,6 +108,8 @@ describe("applicationsPageSchema", () => {
           id: "app-1",
           jobUrl: null,
           location: null,
+          followedUpAt: null,
+          lastInterview: null,
           nextInterview: null,
           notes: null,
           positionTitle: "Backend Engineer",

@@ -217,6 +217,55 @@ class ApplicationInterviewControllerSecurityTest {
   }
 
   @Test
+  void patchFollowUpReturnsUpdatedInterviewForAuthenticatedOwner() throws Exception {
+    UUID applicationId = UUID.randomUUID();
+    UUID interviewId = UUID.randomUUID();
+    OffsetDateTime followedUpAt = OffsetDateTime.parse("2026-05-01T10:15:00Z");
+    when(applicationInterviewService.markFollowedUp(
+            AUTHENTICATED_USER_ID, applicationId, interviewId))
+        .thenReturn(
+            new ApplicationInterviewResponse(
+                interviewId,
+                applicationId,
+                InterviewType.TECHNICAL,
+                InterviewStatus.SCHEDULED,
+                followedUpAt.minusDays(3),
+                followedUpAt,
+                followedUpAt.minusDays(10),
+                followedUpAt));
+
+    mockMvc
+        .perform(
+            patch(
+                    "/api/applications/{applicationId}/interviews/{interviewId}/follow-up",
+                    applicationId,
+                    interviewId)
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(interviewId.toString()))
+        .andExpect(jsonPath("$.followedUpAt").value("2026-05-01T10:15:00Z"));
+  }
+
+  @Test
+  void patchFollowUpReturnsNotFoundForMissingForeignOrWrongParentInterview() throws Exception {
+    UUID applicationId = UUID.randomUUID();
+    UUID interviewId = UUID.randomUUID();
+    when(applicationInterviewService.markFollowedUp(
+            AUTHENTICATED_USER_ID, applicationId, interviewId))
+        .thenThrow(new InterviewNotFoundException());
+
+    mockMvc
+        .perform(
+            patch(
+                    "/api/applications/{applicationId}/interviews/{interviewId}/follow-up",
+                    applicationId,
+                    interviewId)
+                .cookie(accessTokenCookie()))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.code").value("INTERVIEW_NOT_FOUND"));
+  }
+
+  @Test
   void removedNestedInterviewWriteEndpointsAreNotMapped() throws Exception {
     UUID applicationId = UUID.randomUUID();
     UUID interviewId = UUID.randomUUID();
@@ -237,7 +286,7 @@ class ApplicationInterviewControllerSecurityTest {
                     interviewId)
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
-                .content("{\"type\":\"technical\",\"status\":\"planned\"}"))
+                .content("{\"type\":\"technical\",\"status\":\"initial\"}"))
         .andExpect(status().is4xxClientError());
 
     mockMvc
