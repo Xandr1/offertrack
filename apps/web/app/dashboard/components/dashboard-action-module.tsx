@@ -10,7 +10,6 @@ import { buttonStyles, formStyles, sectionStyles, textStyles } from "@/lib/style
 import { formatDateTime } from "@/lib/date-format";
 import { formatUpdatedAtRelative } from "../../applications/helpers/application-date-helpers";
 import {
-  applicationStageLabels,
   interviewStatusLabels,
   mapInterviewTypeLabel,
   mapWorkModeLabel,
@@ -75,24 +74,24 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => (
       <ul className="mt-4 space-y-3">
         {props.kind === "applications"
           ? props.items.map((item) => (
-              <ApplicationActionItem
-                item={item}
-                key={item.applicationId}
-                pending={props.pendingIds.has(item.applicationId)}
-                onMarkFollowedUp={props.onMarkFollowedUp}
-                onUndo={props.onUndo}
-              />
-            ))
+            <ApplicationActionItem
+              item={item}
+              key={item.applicationId}
+              pending={props.pendingIds.has(item.applicationId)}
+              onMarkFollowedUp={props.onMarkFollowedUp}
+              onUndo={props.onUndo}
+            />
+          ))
           : props.items.map((item) => (
-              <InterviewActionItem
-                item={item}
-                key={item.interviewId}
-                pending={props.pendingIds.has(item.interviewId)}
-                showFollowUp={props.kind === "interviews-to-follow-up"}
-                onMarkFollowedUp={props.onMarkFollowedUp}
-                onUndo={props.onUndo}
-              />
-            ))}
+            <InterviewActionItem
+              item={item}
+              key={item.interviewId}
+              pending={props.pendingIds.has(item.interviewId)}
+              showFollowUp={props.kind === "interviews-to-follow-up"}
+              onMarkFollowedUp={props.onMarkFollowedUp}
+              onUndo={props.onUndo}
+            />
+          ))}
       </ul>
     )}
 
@@ -129,12 +128,9 @@ const ApplicationActionItem = ({
 
   return (
     <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className={textStyles.strong}>{item.companyName}</p>
-          <p className={textStyles.muted}>{item.positionTitle}</p>
-        </div>
-        <span className={buttonStyles.pill}>{applicationStageLabels[item.stage]}</span>
+      <div className="min-w-0">
+        <p className={textStyles.strong}>{item.companyName}</p>
+        <p className={textStyles.muted}>{item.positionTitle}</p>
       </div>
       {details.length > 0 && <p className={textStyles.timestamp}>{details.join(" · ")}</p>}
       <ItemActions
@@ -168,15 +164,13 @@ const InterviewActionItem = ({
 
   return (
     <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className={textStyles.strong}>{item.companyName}</p>
-          <p className={textStyles.muted}>{item.positionTitle}</p>
-        </div>
-        <div className="flex gap-2">
-          <span className={buttonStyles.pill}>{mapInterviewTypeLabel(item.interviewType)}</span>
-          <span className={buttonStyles.pill}>{interviewStatusLabels[item.status]}</span>
-        </div>
+      <div className="flex flex-wrap gap-2">
+        <span className={buttonStyles.pill}>{mapInterviewTypeLabel(item.interviewType)}</span>
+        <span className={buttonStyles.pill}>{interviewStatusLabels[item.status]}</span>
+      </div>
+      <div className="mt-2 min-w-0">
+        <p className={textStyles.strong}>{item.companyName}</p>
+        <p className={textStyles.muted}>{item.positionTitle}</p>
       </div>
       {details.length > 0 && <p className={textStyles.timestamp}>{details.join(" · ")}</p>}
       <ItemActions
@@ -203,18 +197,25 @@ const ItemActions = ({
   onMark: () => void;
   onUndo: () => void;
 }) => (
-  <div className="mt-4 flex min-h-8 items-center gap-4 border-t border-zinc-100 pt-3">
-    <Link className={buttonStyles.link} href={applicationHref(applicationId)}>
+  <div className="mt-4 flex h-8 items-end flex-nowrap gap-4 border-t border-zinc-100">
+    <Link
+      className={`${buttonStyles.link} inline-flex h-6 shrink-0 items-center whitespace-nowrap`}
+      href={applicationHref(applicationId)}
+    >
       View application
     </Link>
     {showFollowUp &&
       (pending ? (
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex h-5 items-center whitespace-nowrap text-sm">
           <span>Marked followed up</span>
           <button className={buttonStyles.link} onClick={onUndo} type="button">Undo</button>
         </div>
       ) : (
-        <Button className="px-2 py-1 text-xs" onClick={onMark} variant="secondary">
+        <Button
+          className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap px-2 py-0 text-xs leading-none"
+          onClick={onMark}
+          variant="secondary"
+        >
           Mark followed up
         </Button>
       ))}

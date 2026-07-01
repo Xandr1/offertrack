@@ -40,6 +40,10 @@ describe("DashboardActionModule", () => {
     expect(html).toContain('href="/applications?id=app-1"');
     expect(html).not.toContain("View all");
     expect(html).not.toContain("Open job post");
+    expect(html).toContain("mt-4 flex h-8 items-end");
+    expect(html).toContain("items-center justify-center whitespace-nowrap");
+    const itemHtml = html.slice(html.indexOf("<li"));
+    expect(itemHtml).not.toContain(">Applied<");
   });
 
   it("does not show a follow-up action for upcoming interviews", () => {
@@ -66,6 +70,8 @@ describe("DashboardActionModule", () => {
 
     expect(html).toContain("Upcoming interviews");
     expect(html).not.toContain("Mark followed up");
+    const itemHtml = html.slice(html.indexOf("<li"));
+    expect(itemHtml.indexOf(">Technical<")).toBeLessThan(itemHtml.indexOf(">Globex<"));
   });
 
   it("renders pending undo state and load more", () => {
