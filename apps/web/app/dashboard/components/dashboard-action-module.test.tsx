@@ -48,7 +48,7 @@ describe("DashboardActionModule", () => {
     );
 
     const itemHtml = html.slice(html.indexOf("<li"));
-    expect(itemHtml).toContain("Waiting 37d");
+    expect(itemHtml).toContain("Waiting 37 days");
     expect(itemHtml).toContain("Google");
     expect(itemHtml).toContain("Senior SWE");
     expect(itemHtml).toContain("Mountain View · Onsite");
@@ -119,7 +119,7 @@ describe("DashboardActionModule", () => {
 
     const itemHtml = html.slice(html.indexOf("<li"));
     expect(itemHtml).toContain("Technical");
-    expect(itemHtml).toContain("Waiting result 14d");
+    expect(itemHtml).toContain("Waiting result 14 days");
     expect(itemHtml).toContain("Amazon");
     expect(itemHtml).toContain("Principal Software Development Engineer");
     expect(itemHtml).toContain("London, UK · Onsite");
