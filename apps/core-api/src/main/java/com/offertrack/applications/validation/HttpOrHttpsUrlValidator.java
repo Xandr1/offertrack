@@ -20,7 +20,8 @@ public class HttpOrHttpsUrlValidator implements ConstraintValidator<HttpOrHttpsU
           && scheme != null
           && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))
           && uri.getHost() != null
-          && !uri.getHost().isBlank();
+          && !uri.getHost().isBlank()
+          && uri.getRawUserInfo() == null;
     } catch (URISyntaxException exception) {
       return false;
     }
