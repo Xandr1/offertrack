@@ -13,6 +13,13 @@ spring:
   jooq:
     sql-dialect: POSTGRES
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_TIMEOUT:1s}
+
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
@@ -36,6 +43,9 @@ server:
   port: 8080
 
 management:
+  health:
+    redis:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -52,3 +62,6 @@ app:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
     internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:local-dev-ai-service-key}
+  ai-draft-cache:
+    enabled: ${AI_DRAFT_CACHE_ENABLED:true}
+    ttl: ${AI_DRAFT_CACHE_TTL:24h}

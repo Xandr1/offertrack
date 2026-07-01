@@ -28,7 +28,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "management.health.mail.enabled=false")
+@SpringBootTest(
+    properties = {"management.health.mail.enabled=false", "app.ai-draft-cache.enabled=false"})
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class ApplicationDraftIntegrationTest {
