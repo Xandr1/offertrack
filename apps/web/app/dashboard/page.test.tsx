@@ -51,6 +51,7 @@ const applicationItem = {
   location: "Remote",
   workMode: "remote" as const,
   appliedAt: "2026-05-20T10:00:00Z",
+  createdAt: "2026-05-20T10:00:00Z",
   updatedAt: "2026-05-20T10:00:00Z",
 };
 

@@ -49,6 +49,7 @@ describe("dashboardSummarySchema", () => {
           location: null,
           workMode: null,
           appliedAt: "2026-05-20T10:00:00Z",
+          createdAt: "2026-05-19T10:00:00Z",
           updatedAt: "2026-05-21T10:00:00Z",
         }],
       },
@@ -89,6 +90,7 @@ describe("dashboardSummarySchema", () => {
     });
 
     expect(parsed.applicationsToFollowUp.items[0].stage).toBe("applied");
+    expect(parsed.applicationsToFollowUp.items[0].createdAt).toBe("2026-05-19T10:00:00Z");
     expect(parsed.followUpAfterApplyingDays).toBe(10);
     expect(parsed.upcomingInterviewDays).toBe(14);
     expect(parsed.followUpAfterInterviewDays).toBe(4);

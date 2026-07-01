@@ -84,6 +84,7 @@ class DashboardControllerSecurityTest {
                         "Remote",
                         "remote",
                         OffsetDateTime.parse("2026-05-01T10:15:00Z"),
+                        OffsetDateTime.parse("2026-04-30T10:15:00Z"),
                         OffsetDateTime.parse("2026-05-01T10:15:00Z"))),
                 1,
                 false),
@@ -122,6 +123,8 @@ class DashboardControllerSecurityTest {
         .andExpect(
             jsonPath("$.applicationsToFollowUp.items[0].applicationId")
                 .value(applicationId.toString()))
+        .andExpect(
+            jsonPath("$.applicationsToFollowUp.items[0].createdAt").value("2026-04-30T10:15:00Z"))
         .andExpect(
             jsonPath("$.upcomingInterviews.items[0].interviewId").value(interviewId.toString()))
         .andExpect(jsonPath("$.upcomingInterviews.items[0].status").value("scheduled"));

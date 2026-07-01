@@ -78,9 +78,12 @@ class DashboardRepositoryIntegrationTest {
     createApplication(
         userId, "Recent Created", ApplicationStage.APPLIED, null, NOW.minusDays(6), NOW);
 
-    assertThat(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(7), 0, 5))
+    var items = dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(7), 0, 5);
+
+    assertThat(items)
         .extracting(DashboardApplicationItem::applicationId)
         .containsExactly(staleCreated);
+    assertThat(items.get(0).createdAt()).isEqualTo(NOW.minusDays(8));
   }
 
   @Test

@@ -146,6 +146,7 @@ public class DashboardService {
         application.location(),
         application.workMode(),
         application.appliedAt(),
+        application.createdAt(),
         application.updatedAt());
   }
 

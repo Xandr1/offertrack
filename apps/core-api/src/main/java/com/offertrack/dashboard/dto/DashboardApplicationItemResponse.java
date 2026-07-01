@@ -13,4 +13,5 @@ public record DashboardApplicationItemResponse(
     String location,
     String workMode,
     OffsetDateTime appliedAt,
+    OffsetDateTime createdAt,
     OffsetDateTime updatedAt) {}

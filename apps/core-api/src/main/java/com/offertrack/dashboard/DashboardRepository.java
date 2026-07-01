@@ -79,6 +79,7 @@ public class DashboardRepository {
             JOB_APPLICATIONS.LOCATION,
             JOB_APPLICATIONS.WORK_MODE,
             JOB_APPLICATIONS.APPLIED_AT,
+            JOB_APPLICATIONS.CREATED_AT,
             JOB_APPLICATIONS.UPDATED_AT)
         .from(JOB_APPLICATIONS)
         .where(applicationsToFollowUpCondition(userId, followUpBefore))
@@ -153,8 +154,17 @@ public class DashboardRepository {
   }
 
   private DashboardApplicationItem toApplicationItem(
-      org.jooq.Record9<
-              UUID, String, String, String, String, String, String, OffsetDateTime, OffsetDateTime>
+      org.jooq.Record10<
+              UUID,
+              String,
+              String,
+              String,
+              String,
+              String,
+              String,
+              OffsetDateTime,
+              OffsetDateTime,
+              OffsetDateTime>
           record) {
     return new DashboardApplicationItem(
         record.get(JOB_APPLICATIONS.ID),
@@ -165,6 +175,7 @@ public class DashboardRepository {
         record.get(JOB_APPLICATIONS.LOCATION),
         record.get(JOB_APPLICATIONS.WORK_MODE),
         record.get(JOB_APPLICATIONS.APPLIED_AT),
+        record.get(JOB_APPLICATIONS.CREATED_AT),
         record.get(JOB_APPLICATIONS.UPDATED_AT));
   }
 

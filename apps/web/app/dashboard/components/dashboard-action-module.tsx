@@ -7,13 +7,20 @@ import type {
   DashboardInterviewItem,
 } from "@/lib/api";
 import { buttonStyles, formStyles, sectionStyles, textStyles } from "@/lib/styles";
-import { formatDateTime } from "@/lib/date-format";
-import { formatUpdatedAtRelative } from "../../applications/helpers/application-date-helpers";
 import {
-  interviewStatusLabels,
   mapInterviewTypeLabel,
   mapWorkModeLabel,
 } from "../../applications/helpers/application-labels";
+import {
+  formatWaitingLabel,
+  formatWaitingResultLabel,
+  getUpcomingInterviewTiming,
+  getWaitingUrgencyTone,
+  getWholeCalendarDaysBetween,
+  joinMetadata,
+  type UpcomingTone,
+  type WaitingTone,
+} from "../helpers/dashboard-card-formatters";
 
 type BaseProps = {
   count: number;
@@ -22,6 +29,7 @@ type BaseProps = {
   helperText: string;
   isLoading: boolean;
   isLoadingMore: boolean;
+  now: Date;
   pendingIds: ReadonlySet<string>;
   title: string;
   onLoadMore: () => void;
@@ -30,22 +38,60 @@ type BaseProps = {
 };
 
 type ApplicationProps = BaseProps & {
+  followUpAfterApplyingDays: number;
   items: DashboardApplicationItem[];
   kind: "applications";
 };
 
-type InterviewProps = BaseProps & {
+type UpcomingInterviewProps = BaseProps & {
   items: DashboardInterviewItem[];
-  kind: "upcoming-interviews" | "interviews-to-follow-up";
+  kind: "upcoming-interviews";
 };
 
-export type DashboardActionModuleProps = ApplicationProps | InterviewProps;
+type InterviewFollowUpProps = BaseProps & {
+  followUpAfterInterviewDays: number;
+  items: DashboardInterviewItem[];
+  kind: "interviews-to-follow-up";
+};
+
+export type DashboardActionModuleProps =
+  | ApplicationProps
+  | UpcomingInterviewProps
+  | InterviewFollowUpProps;
+
+const chipBaseStyles = "rounded-full px-3 py-1 text-xs font-medium";
+
+const waitingToneStyles: Record<WaitingTone, string> = {
+  yellow: "bg-yellow-100 text-yellow-800",
+  amber: "bg-amber-100 text-amber-800",
+  orange: "bg-orange-100 text-orange-800",
+  red: "bg-red-100 text-red-800",
+};
+
+const upcomingToneStyles: Record<UpcomingTone, string> = {
+  future: "bg-emerald-50 text-emerald-700",
+  tomorrow: "bg-emerald-100 text-emerald-800",
+  today: "bg-emerald-600 text-white",
+};
 
 const applicationHref = (applicationId: string): string =>
   `/applications?id=${encodeURIComponent(applicationId)}`;
 
-export const DashboardActionModule = (props: DashboardActionModuleProps) => (
-  <Card className="flex flex-col self-start">
+export const DashboardActionModule = (props: DashboardActionModuleProps) => {
+  const maxApplicationWaitingDays = props.kind === "applications"
+    ? Math.max(...props.items.map((item) => getWholeCalendarDaysBetween(
+      item.appliedAt ?? item.createdAt,
+      props.now,
+    )))
+    : null;
+  const maxInterviewWaitingDays = props.kind === "interviews-to-follow-up"
+    ? Math.max(...props.items.map((item) => getWholeCalendarDaysBetween(
+      item.scheduledAt!,
+      props.now,
+    )))
+    : null;
+
+  return <Card className="flex flex-col self-start">
     <div className={sectionStyles.splitRow}>
       <div>
         <h2 className={textStyles.sectionTitle}>{props.title}</h2>
@@ -77,6 +123,9 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => (
             <ApplicationActionItem
               item={item}
               key={item.applicationId}
+              maxWaitingDays={maxApplicationWaitingDays!}
+              minWaitingDays={props.followUpAfterApplyingDays}
+              now={props.now}
               pending={props.pendingIds.has(item.applicationId)}
               onMarkFollowedUp={props.onMarkFollowedUp}
               onUndo={props.onUndo}
@@ -86,6 +135,12 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => (
             <InterviewActionItem
               item={item}
               key={item.interviewId}
+              kind={props.kind}
+              maxWaitingDays={maxInterviewWaitingDays}
+              minWaitingDays={props.kind === "interviews-to-follow-up"
+                ? props.followUpAfterInterviewDays
+                : null}
+              now={props.now}
               pending={props.pendingIds.has(item.interviewId)}
               showFollowUp={props.kind === "interviews-to-follow-up"}
               onMarkFollowedUp={props.onMarkFollowedUp}
@@ -106,33 +161,45 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => (
         </Button>
       </div>
     )}
-  </Card>
-);
+  </Card>;
+};
 
 const ApplicationActionItem = ({
   item,
+  maxWaitingDays,
+  minWaitingDays,
+  now,
   pending,
   onMarkFollowedUp,
   onUndo,
 }: {
   item: DashboardApplicationItem;
+  maxWaitingDays: number;
+  minWaitingDays: number;
+  now: Date;
   pending: boolean;
   onMarkFollowedUp: BaseProps["onMarkFollowedUp"];
   onUndo: BaseProps["onUndo"];
 }) => {
-  const details = [
+  const waitingDays = getWholeCalendarDaysBetween(item.appliedAt ?? item.createdAt, now);
+  const waitingTone = getWaitingUrgencyTone(waitingDays, minWaitingDays, maxWaitingDays);
+  const metadata = joinMetadata([
     item.location,
     mapWorkModeLabel(item.workMode),
-    item.appliedAt ? `Applied ${formatDateTime(item.appliedAt)}` : formatUpdatedAtRelative(item.updatedAt),
-  ].filter(Boolean);
+  ]);
 
   return (
     <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
-      <div className="min-w-0">
+      <div className="flex flex-wrap gap-2">
+        <span className={`${chipBaseStyles} ${waitingToneStyles[waitingTone]}`}>
+          {formatWaitingLabel(waitingDays)}
+        </span>
+      </div>
+      <div className="mt-2 min-w-0">
         <p className={textStyles.strong}>{item.companyName}</p>
         <p className={textStyles.muted}>{item.positionTitle}</p>
       </div>
-      {details.length > 0 && <p className={textStyles.timestamp}>{details.join(" · ")}</p>}
+      {metadata && <p className={textStyles.timestamp}>{metadata}</p>}
       <ItemActions
         applicationId={item.applicationId}
         pending={pending}
@@ -145,34 +212,53 @@ const ApplicationActionItem = ({
 
 const InterviewActionItem = ({
   item,
+  kind,
+  maxWaitingDays,
+  minWaitingDays,
+  now,
   pending,
   showFollowUp,
   onMarkFollowedUp,
   onUndo,
 }: {
   item: DashboardInterviewItem;
+  kind: "upcoming-interviews" | "interviews-to-follow-up";
+  maxWaitingDays: number | null;
+  minWaitingDays: number | null;
+  now: Date;
   pending: boolean;
   showFollowUp: boolean;
   onMarkFollowedUp: BaseProps["onMarkFollowedUp"];
   onUndo: BaseProps["onUndo"];
 }) => {
-  const details = [
-    item.scheduledAt ? formatDateTime(item.scheduledAt) : null,
+  const metadata = joinMetadata([
     item.location,
     mapWorkModeLabel(item.workMode),
-  ].filter(Boolean);
+  ]);
+  const waitingDays = showFollowUp
+    ? getWholeCalendarDaysBetween(item.scheduledAt!, now)
+    : null;
+  const timing = showFollowUp
+    ? {
+      label: formatWaitingResultLabel(waitingDays!),
+      tone: getWaitingUrgencyTone(waitingDays!, minWaitingDays!, maxWaitingDays!),
+    }
+    : getUpcomingInterviewTiming(item.scheduledAt!, now);
+  const timingStyles = kind === "interviews-to-follow-up"
+    ? waitingToneStyles[timing.tone as WaitingTone]
+    : upcomingToneStyles[timing.tone as UpcomingTone];
 
   return (
     <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap gap-2">
         <span className={buttonStyles.pill}>{mapInterviewTypeLabel(item.interviewType)}</span>
-        <span className={buttonStyles.pill}>{interviewStatusLabels[item.status]}</span>
+        <span className={`${chipBaseStyles} ${timingStyles}`}>{timing.label}</span>
       </div>
       <div className="mt-2 min-w-0">
         <p className={textStyles.strong}>{item.companyName}</p>
         <p className={textStyles.muted}>{item.positionTitle}</p>
       </div>
-      {details.length > 0 && <p className={textStyles.timestamp}>{details.join(" · ")}</p>}
+      {metadata && <p className={textStyles.timestamp}>{metadata}</p>}
       <ItemActions
         applicationId={item.applicationId}
         pending={pending}

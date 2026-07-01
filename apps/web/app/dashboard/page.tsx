@@ -196,6 +196,7 @@ export default function DashboardPage() {
   if (!userQuery.data) return null;
 
   const summary = summaryQuery.data;
+  const now = new Date();
   return (
     <ShellLayout activeRoute="/dashboard">
       <div className={layoutStyles.container}>
@@ -204,12 +205,14 @@ export default function DashboardPage() {
           <DashboardActionModule
             count={summary?.applicationsToFollowUp.totalCount ?? 0}
             errorMessage={applicationError}
+            followUpAfterApplyingDays={summary?.followUpAfterApplyingDays ?? 0}
             hasMore={summary?.applicationsToFollowUp.hasMore ?? false}
             helperText={summary ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.` : "Applications that may need a follow-up."}
             isLoading={summaryQuery.isPending}
             isLoadingMore={applicationLoadMore.isPending}
             items={summary?.applicationsToFollowUp.items ?? []}
             kind="applications"
+            now={now}
             pendingIds={pendingApplicationIds}
             title="Applications to follow up"
             onLoadMore={() => summary && applicationLoadMore.mutate(summary.applicationsToFollowUp.nextOffset)}
@@ -225,6 +228,7 @@ export default function DashboardPage() {
             isLoadingMore={upcomingLoadMore.isPending}
             items={summary?.upcomingInterviews.items ?? []}
             kind="upcoming-interviews"
+            now={now}
             pendingIds={new Set<string>()}
             title="Upcoming interviews"
             onLoadMore={() => summary && upcomingLoadMore.mutate(summary.upcomingInterviews.nextOffset)}
@@ -234,12 +238,14 @@ export default function DashboardPage() {
           <DashboardActionModule
             count={summary?.interviewsToFollowUp.totalCount ?? 0}
             errorMessage={interviewError}
+            followUpAfterInterviewDays={summary?.followUpAfterInterviewDays ?? 0}
             hasMore={summary?.interviewsToFollowUp.hasMore ?? false}
             helperText={summary ? `Interviewed at least ${summary.followUpAfterInterviewDays} days ago.` : "Interviews waiting on an outcome."}
             isLoading={summaryQuery.isPending}
             isLoadingMore={interviewLoadMore.isPending}
             items={summary?.interviewsToFollowUp.items ?? []}
             kind="interviews-to-follow-up"
+            now={now}
             pendingIds={pendingInterviewIds}
             title="Interviews to follow up"
             onLoadMore={() => summary && interviewLoadMore.mutate(summary.interviewsToFollowUp.nextOffset)}

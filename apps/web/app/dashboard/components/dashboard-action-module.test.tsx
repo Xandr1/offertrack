@@ -2,12 +2,21 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DashboardActionModule } from "./dashboard-action-module";
 
+const now = new Date(2026, 5, 8, 12);
+const localDateTime = (
+  year: number,
+  month: number,
+  day: number,
+  hour = 9,
+): string => new Date(year, month, day, hour).toISOString();
+
 const baseProps = {
   count: 1,
   errorMessage: null,
   hasMore: false,
   isLoading: false,
   isLoadingMore: false,
+  now,
   pendingIds: new Set<string>(),
   onLoadMore: jest.fn(),
   onMarkFollowedUp: jest.fn(),
@@ -15,38 +24,43 @@ const baseProps = {
 };
 
 describe("DashboardActionModule", () => {
-  it("renders one concrete application link and follow-up action", () => {
+  it("renders the compact application follow-up card", () => {
     const html = renderToStaticMarkup(
       <DashboardActionModule
         {...baseProps}
+        followUpAfterApplyingDays={7}
         helperText="Applied at least 7 days ago."
         items={[{
           applicationId: "app-1",
-          companyName: "Acme",
-          positionTitle: "Backend Engineer",
+          companyName: "Google",
+          positionTitle: "Senior SWE",
           stage: "applied",
           jobUrl: "https://example.com/job",
-          location: "Remote",
-          workMode: "remote",
+          location: "Mountain View",
+          workMode: "onsite",
           appliedAt: null,
-          updatedAt: "2026-06-01T10:00:00Z",
+          createdAt: localDateTime(2026, 4, 2),
+          updatedAt: localDateTime(2026, 5, 7),
         }]}
         kind="applications"
         title="Applications to follow up"
       />,
     );
 
-    expect(html).toContain("Mark followed up");
-    expect(html).toContain('href="/applications?id=app-1"');
-    expect(html).not.toContain("View all");
-    expect(html).not.toContain("Open job post");
-    expect(html).toContain("mt-4 flex h-8 items-end");
-    expect(html).toContain("items-center justify-center whitespace-nowrap");
     const itemHtml = html.slice(html.indexOf("<li"));
+    expect(itemHtml).toContain("Waiting 37d");
+    expect(itemHtml).toContain("Google");
+    expect(itemHtml).toContain("Senior SWE");
+    expect(itemHtml).toContain("Mountain View · Onsite");
+    expect(itemHtml).toContain("View application");
+    expect(itemHtml).toContain("Mark followed up");
+    expect(itemHtml).toContain('href="/applications?id=app-1"');
+    expect(itemHtml).not.toContain("Updated");
     expect(itemHtml).not.toContain(">Applied<");
+    expect(itemHtml).not.toContain("Open job post");
   });
 
-  it("does not show a follow-up action for upcoming interviews", () => {
+  it("renders interview type and local timing for upcoming interviews", () => {
     const html = renderToStaticMarkup(
       <DashboardActionModule
         {...baseProps}
@@ -54,13 +68,13 @@ describe("DashboardActionModule", () => {
         items={[{
           applicationId: "app-2",
           interviewId: "int-1",
-          companyName: "Globex",
-          positionTitle: "Engineer",
+          companyName: "SoftHouseGroup",
+          positionTitle: "Tech Lead (Angular/Node.js)",
           jobUrl: null,
-          location: null,
-          workMode: null,
-          scheduledAt: "2026-06-08T09:00:00Z",
-          interviewType: "technical",
+          location: "Vinnytsia",
+          workMode: "remote",
+          scheduledAt: localDateTime(2026, 5, 8, 14),
+          interviewType: "hiring_manager",
           status: "scheduled",
         }]}
         kind="upcoming-interviews"
@@ -68,16 +82,58 @@ describe("DashboardActionModule", () => {
       />,
     );
 
-    expect(html).toContain("Upcoming interviews");
-    expect(html).not.toContain("Mark followed up");
     const itemHtml = html.slice(html.indexOf("<li"));
-    expect(itemHtml.indexOf(">Technical<")).toBeLessThan(itemHtml.indexOf(">Globex<"));
+    expect(itemHtml).toContain("Hiring Manager");
+    expect(itemHtml).toContain("Today at 14:00");
+    expect(itemHtml).toContain("SoftHouseGroup");
+    expect(itemHtml).toContain("Tech Lead (Angular/Node.js)");
+    expect(itemHtml).toContain("Vinnytsia · Remote");
+    expect(itemHtml).toContain("View application");
+    expect(itemHtml).not.toContain("Scheduled");
+    expect(itemHtml).not.toContain("2026");
+    expect(itemHtml).not.toContain("Mark followed up");
+  });
+
+  it("renders the compact interview follow-up card", () => {
+    const html = renderToStaticMarkup(
+      <DashboardActionModule
+        {...baseProps}
+        followUpAfterInterviewDays={5}
+        helperText="Waiting on an outcome."
+        items={[{
+          applicationId: "app-3",
+          interviewId: "int-2",
+          companyName: "Amazon",
+          positionTitle: "Principal Software Development Engineer",
+          jobUrl: null,
+          location: "London, UK",
+          workMode: "onsite",
+          scheduledAt: localDateTime(2026, 4, 25),
+          interviewType: "technical",
+          status: "scheduled",
+        }]}
+        kind="interviews-to-follow-up"
+        title="Interviews to follow up"
+      />,
+    );
+
+    const itemHtml = html.slice(html.indexOf("<li"));
+    expect(itemHtml).toContain("Technical");
+    expect(itemHtml).toContain("Waiting result 14d");
+    expect(itemHtml).toContain("Amazon");
+    expect(itemHtml).toContain("Principal Software Development Engineer");
+    expect(itemHtml).toContain("London, UK · Onsite");
+    expect(itemHtml).toContain("View application");
+    expect(itemHtml).toContain("Mark followed up");
+    expect(itemHtml).not.toContain("Scheduled");
+    expect(itemHtml).not.toContain("2026");
   });
 
   it("renders pending undo state and load more", () => {
     const html = renderToStaticMarkup(
       <DashboardActionModule
         {...baseProps}
+        followUpAfterInterviewDays={5}
         hasMore
         helperText="Waiting on an outcome."
         items={[{
@@ -88,7 +144,7 @@ describe("DashboardActionModule", () => {
           jobUrl: null,
           location: null,
           workMode: null,
-          scheduledAt: "2026-06-01T09:00:00Z",
+          scheduledAt: localDateTime(2026, 5, 1),
           interviewType: "technical",
           status: "scheduled",
         }]}

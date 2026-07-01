@@ -184,6 +184,7 @@ export const dashboardApplicationItemSchema = z.object({
     workModeSchema.nullable(),
   ),
   appliedAt: optionalNullableStringSchema,
+  createdAt: z.string(),
   updatedAt: z.string(),
 });
 

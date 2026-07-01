@@ -51,6 +51,7 @@ class DashboardServiceTest {
             null,
             null,
             NOW.minusDays(8),
+            NOW.minusDays(9),
             NOW);
     DashboardInterviewItem interview =
         new DashboardInterviewItem(
@@ -84,6 +85,8 @@ class DashboardServiceTest {
     assertThat(response.needsAttention()).isEqualTo(12);
     assertThat(response.applicationsToFollowUp().totalCount()).isEqualTo(3);
     assertThat(response.applicationsToFollowUp().items()).hasSize(1);
+    assertThat(response.applicationsToFollowUp().items().get(0).createdAt())
+        .isEqualTo(NOW.minusDays(9));
     assertThat(response.upcomingInterviews().items()).hasSize(1);
     assertThat(response.interviewsToFollowUp().totalCount()).isEqualTo(5);
   }
