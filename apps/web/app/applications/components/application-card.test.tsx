@@ -46,6 +46,15 @@ describe("ApplicationCard interview summary", () => {
     expect(screen.getAllByRole("combobox")).toHaveLength(2);
   });
 
+  it("shows an undated scheduled next interview and its status select", () => {
+    renderCard(application({
+      nextInterview: { id: "next", type: "technical", status: "scheduled", scheduledAt: null },
+    }));
+
+    expect(screen.getByText("Next interview: Technical")).toBeTruthy();
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+  });
+
   it("shows last and hides the status select for terminal outcomes", () => {
     renderCard(application({
       lastInterview: { id: "last", type: "hr", status: "rejected", scheduledAt: "2026-06-01T10:00:00Z" },

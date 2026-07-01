@@ -70,5 +70,42 @@ describe("ApplicationsBoard", () => {
         .disabled,
     ).toBe(true);
     expect(screen.getByText(/📅 Technical/)).toBeTruthy();
+    expect(screen.getByText(/^Updated /).className).toContain("truncate");
+    expect(screen.getByText(/^Updated /).className).toContain("block");
+    expect(screen.getByText("Initial").closest("section")?.className).toContain(
+      "xl:min-w-[280px]",
+    );
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("shows compact context for an undated scheduled next interview", () => {
+    render(
+      React.createElement(ApplicationsBoard, {
+        board: {
+          ...board,
+          columns: board.columns.map((column) => ({
+            ...column,
+            items: column.items.map((item) => ({
+              ...item,
+              nextInterview: item.nextInterview
+                ? { ...item.nextInterview, scheduledAt: null }
+                : null,
+            })),
+          })),
+        },
+        errorMessage: null,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onDelete: jest.fn(),
+        onDragEnd: jest.fn(),
+        onEdit: jest.fn(),
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
+    );
+
+    expect(screen.getByText("📅 Technical")).toBeTruthy();
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 });

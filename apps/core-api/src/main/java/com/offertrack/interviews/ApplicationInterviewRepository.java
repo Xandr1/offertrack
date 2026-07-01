@@ -4,6 +4,7 @@ import static com.offertrack.jooq.generated.tables.ApplicationInterviews.APPLICA
 import static com.offertrack.jooq.generated.tables.JobApplications.JOB_APPLICATIONS;
 import static org.jooq.impl.DSL.exists;
 import static org.jooq.impl.DSL.selectOne;
+import static org.jooq.impl.DSL.when;
 
 import java.time.OffsetDateTime;
 import java.util.Comparator;
@@ -139,9 +140,17 @@ public class ApplicationInterviewRepository {
         .where(APPLICATION_INTERVIEWS.APPLICATION_ID.eq(applicationId))
         .and(APPLICATION_INTERVIEWS.USER_ID.eq(userId))
         .and(APPLICATION_INTERVIEWS.STATUS.eq(InterviewStatus.SCHEDULED.value()))
-        .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.isNotNull())
-        .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.ge(now))
-        .orderBy(APPLICATION_INTERVIEWS.SCHEDULED_AT.asc(), APPLICATION_INTERVIEWS.ID.asc())
+        .and(
+            APPLICATION_INTERVIEWS
+                .SCHEDULED_AT
+                .isNull()
+                .or(APPLICATION_INTERVIEWS.SCHEDULED_AT.ge(now)))
+        .orderBy(
+            APPLICATION_INTERVIEWS.SCHEDULED_AT.asc().nullsLast(),
+            when(APPLICATION_INTERVIEWS.SCHEDULED_AT.isNull(), APPLICATION_INTERVIEWS.CREATED_AT)
+                .asc()
+                .nullsLast(),
+            APPLICATION_INTERVIEWS.ID.asc())
         .limit(1)
         .fetchOptional(ApplicationInterviewMapper::fromRecord);
   }
@@ -157,11 +166,19 @@ public class ApplicationInterviewRepository {
             .where(APPLICATION_INTERVIEWS.USER_ID.eq(userId))
             .and(APPLICATION_INTERVIEWS.APPLICATION_ID.in(applicationIds))
             .and(APPLICATION_INTERVIEWS.STATUS.eq(InterviewStatus.SCHEDULED.value()))
-            .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.isNotNull())
-            .and(APPLICATION_INTERVIEWS.SCHEDULED_AT.ge(now))
+            .and(
+                APPLICATION_INTERVIEWS
+                    .SCHEDULED_AT
+                    .isNull()
+                    .or(APPLICATION_INTERVIEWS.SCHEDULED_AT.ge(now)))
             .orderBy(
                 APPLICATION_INTERVIEWS.APPLICATION_ID.asc(),
-                APPLICATION_INTERVIEWS.SCHEDULED_AT.asc(),
+                APPLICATION_INTERVIEWS.SCHEDULED_AT.asc().nullsLast(),
+                when(
+                        APPLICATION_INTERVIEWS.SCHEDULED_AT.isNull(),
+                        APPLICATION_INTERVIEWS.CREATED_AT)
+                    .asc()
+                    .nullsLast(),
                 APPLICATION_INTERVIEWS.ID.asc())
             .fetch(ApplicationInterviewMapper::fromRecord);
 
@@ -175,12 +192,9 @@ public class ApplicationInterviewRepository {
             .filter(
                 interview ->
                     interview.status() == InterviewStatus.SCHEDULED
-                        && interview.scheduledAt() != null
-                        && !interview.scheduledAt().isBefore(now))
-            .sorted(
-                Comparator.comparing(ApplicationInterview::applicationId)
-                    .thenComparing(ApplicationInterview::scheduledAt)
-                    .thenComparing(ApplicationInterview::id))
+                        && (interview.scheduledAt() == null
+                            || !interview.scheduledAt().isBefore(now)))
+            .sorted(ApplicationInterviewRepository::compareNextInterviews)
             .toList();
 
     Map<UUID, ApplicationInterview> nextByApplicationId = new HashMap<>();
@@ -190,6 +204,27 @@ public class ApplicationInterviewRepository {
     }
 
     return nextByApplicationId;
+  }
+
+  private static int compareNextInterviews(ApplicationInterview left, ApplicationInterview right) {
+    int applicationComparison = left.applicationId().compareTo(right.applicationId());
+    if (applicationComparison != 0) {
+      return applicationComparison;
+    }
+
+    if (left.scheduledAt() != null && right.scheduledAt() != null) {
+      int scheduledAtComparison = left.scheduledAt().compareTo(right.scheduledAt());
+      return scheduledAtComparison != 0 ? scheduledAtComparison : left.id().compareTo(right.id());
+    }
+    if (left.scheduledAt() != null) {
+      return -1;
+    }
+    if (right.scheduledAt() != null) {
+      return 1;
+    }
+
+    int createdAtComparison = left.createdAt().compareTo(right.createdAt());
+    return createdAtComparison != 0 ? createdAtComparison : left.id().compareTo(right.id());
   }
 
   public Map<UUID, ApplicationInterview> findLastByApplicationIdsForUser(

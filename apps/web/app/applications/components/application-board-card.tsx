@@ -39,8 +39,12 @@ export const ApplicationBoardCard = ({
     : undefined;
   const workMode = mapWorkModeLabel(application.workMode);
   const interview = application.nextInterview ?? application.lastInterview;
-  const interviewLabel = interview?.scheduledAt
-    ? `${application.nextInterview ? "📅" : "Last:"} ${mapInterviewTypeLabel(interview.type)} · ${formatCompactDateTime(interview.scheduledAt)}`
+  const interviewLabel = interview
+    ? interview.scheduledAt
+      ? `${application.nextInterview ? "📅" : "Last:"} ${mapInterviewTypeLabel(interview.type)} · ${formatCompactDateTime(interview.scheduledAt)}`
+      : application.nextInterview
+        ? `📅 ${mapInterviewTypeLabel(interview.type)}`
+        : null
     : null;
 
   return (
@@ -77,7 +81,7 @@ export const ApplicationBoardCard = ({
               {interviewLabel}
             </p>
           )}
-          <span className="min-w-0 truncate text-xs text-zinc-500">
+          <span className="block w-full min-w-0 truncate text-xs text-zinc-500 mt-2">
             {formatUpdatedAtRelative(application.updatedAt)}
           </span>
         </div>

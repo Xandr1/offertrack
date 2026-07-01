@@ -73,6 +73,60 @@ class ApplicationInterviewRepositorySelectionTest {
   }
 
   @Test
+  void nextInterviewPrefersFutureDatedScheduledOverUndatedScheduled() {
+    UUID userId = UUID.randomUUID();
+    UUID applicationId = UUID.randomUUID();
+
+    ApplicationInterview undatedScheduled =
+        interview(
+            applicationId,
+            userId,
+            InterviewStatus.SCHEDULED,
+            null,
+            OffsetDateTime.parse("2026-04-01T10:15:00Z"));
+    ApplicationInterview futureScheduled =
+        interview(
+            applicationId,
+            userId,
+            InterviewStatus.SCHEDULED,
+            OffsetDateTime.parse("2026-05-02T11:15:00Z"),
+            OffsetDateTime.parse("2026-05-01T11:15:00Z"));
+
+    Map<UUID, ApplicationInterview> nextByApplicationId =
+        ApplicationInterviewRepository.selectNextInterviewsByApplicationId(
+            List.of(undatedScheduled, futureScheduled), NOW);
+
+    assertThat(nextByApplicationId.get(applicationId)).isEqualTo(futureScheduled);
+  }
+
+  @Test
+  void nextInterviewFallsBackToEarliestCreatedUndatedScheduled() {
+    UUID userId = UUID.randomUUID();
+    UUID applicationId = UUID.randomUUID();
+
+    ApplicationInterview laterCreated =
+        interview(
+            applicationId,
+            userId,
+            InterviewStatus.SCHEDULED,
+            null,
+            OffsetDateTime.parse("2026-05-01T11:15:00Z"));
+    ApplicationInterview earlierCreated =
+        interview(
+            applicationId,
+            userId,
+            InterviewStatus.SCHEDULED,
+            null,
+            OffsetDateTime.parse("2026-05-01T10:15:00Z"));
+
+    Map<UUID, ApplicationInterview> nextByApplicationId =
+        ApplicationInterviewRepository.selectNextInterviewsByApplicationId(
+            List.of(laterCreated, earlierCreated), NOW);
+
+    assertThat(nextByApplicationId.get(applicationId)).isEqualTo(earlierCreated);
+  }
+
+  @Test
   void nextInterviewDoesNotUseUnscheduledInitial() {
     UUID userId = UUID.randomUUID();
     UUID applicationId = UUID.randomUUID();

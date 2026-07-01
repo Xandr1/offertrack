@@ -28,7 +28,7 @@ export const ApplicationBoardColumn = ({
 
   return (
     <section
-      className={`flex w-[260px] shrink-0 flex-col rounded-2xl border p-3 xl:w-auto xl:min-w-0 xl:flex-1 ${
+      className={`flex w-[280px] shrink-0 flex-col rounded-2xl border p-3 xl:w-auto xl:min-w-[280px] xl:flex-1 ${
         isOver
           ? "border-violet-400 bg-violet-50"
           : "border-zinc-200 bg-zinc-50"

@@ -856,6 +856,75 @@ class ApplicationAggregateServiceIntegrationTest {
     assertThat(replaced.application().lastInterview().type()).isEqualTo(InterviewType.TECHNICAL);
   }
 
+  @Test
+  void nextInterviewUsesUndatedScheduledFallbackInSingleListAndBoardResponses() {
+    UUID userId = createUser("undated-next-interview@example.com");
+    OffsetDateTime future = OffsetDateTime.now().plusDays(20);
+
+    var datedPreferred =
+        applicationService.create(
+            userId,
+            new CreateApplicationRequest(
+                "Dated Preferred",
+                "Backend Engineer",
+                null,
+                null,
+                null,
+                ApplicationStage.APPLIED,
+                null,
+                null,
+                List.of(
+                    new CreateApplicationInterviewItemRequest(
+                        InterviewType.TECHNICAL, InterviewStatus.SCHEDULED, null),
+                    new CreateApplicationInterviewItemRequest(
+                        InterviewType.HR, InterviewStatus.SCHEDULED, future))));
+    var undatedFallback =
+        applicationService.create(
+            userId,
+            new CreateApplicationRequest(
+                "Undated Fallback",
+                "Frontend Engineer",
+                null,
+                null,
+                null,
+                ApplicationStage.APPLIED,
+                null,
+                null,
+                List.of(
+                    new CreateApplicationInterviewItemRequest(
+                        InterviewType.TECHNICAL, InterviewStatus.SCHEDULED, null))));
+
+    assertThat(datedPreferred.application().nextInterview().type()).isEqualTo(InterviewType.HR);
+    assertThat(undatedFallback.application().nextInterview().type())
+        .isEqualTo(InterviewType.TECHNICAL);
+    assertThat(undatedFallback.application().nextInterview().scheduledAt()).isNull();
+    assertThat(applicationService.get(userId, undatedFallback.application().id()).nextInterview())
+        .isEqualTo(undatedFallback.application().nextInterview());
+
+    var list = applicationService.list(userId);
+    assertThat(list.items())
+        .filteredOn(item -> item.id().equals(datedPreferred.application().id()))
+        .singleElement()
+        .extracting(item -> item.nextInterview().type())
+        .isEqualTo(InterviewType.HR);
+    assertThat(list.items())
+        .filteredOn(item -> item.id().equals(undatedFallback.application().id()))
+        .singleElement()
+        .extracting(item -> item.nextInterview().scheduledAt())
+        .isNull();
+
+    var appliedColumn =
+        applicationService.board(userId, ApplicationBoardQuery.initial(null)).columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    assertThat(appliedColumn.items())
+        .filteredOn(item -> item.id().equals(undatedFallback.application().id()))
+        .singleElement()
+        .extracting(item -> item.nextInterview().scheduledAt())
+        .isNull();
+  }
+
   private UUID createUser(String email) {
     return userRepository.createUser(email, "hash", "Test User").id();
   }

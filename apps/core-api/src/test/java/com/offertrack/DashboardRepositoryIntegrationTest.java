@@ -8,6 +8,7 @@ import com.offertrack.applications.ApplicationStage;
 import com.offertrack.dashboard.DashboardApplicationItem;
 import com.offertrack.dashboard.DashboardInterviewItem;
 import com.offertrack.dashboard.DashboardRepository;
+import com.offertrack.interviews.ApplicationInterviewRepository;
 import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
 import com.offertrack.users.UserRepository;
@@ -26,6 +27,7 @@ class DashboardRepositoryIntegrationTest {
   private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-06-06T12:00:00Z");
 
   @Autowired private DashboardRepository dashboardRepository;
+  @Autowired private ApplicationInterviewRepository applicationInterviewRepository;
   @Autowired private DSLContext dsl;
   @Autowired private UserRepository userRepository;
 
@@ -100,6 +102,24 @@ class DashboardRepositoryIntegrationTest {
   }
 
   @Test
+  void applicationsFollowUpExcludesApplicationsWithUndatedScheduledInterviews() {
+    UUID userId = createUser("undated-interview@example.com");
+    UUID applicationId =
+        createApplication(
+            userId,
+            "Has Planned Interview",
+            ApplicationStage.APPLIED,
+            NOW.minusDays(8),
+            NOW.minusDays(9),
+            NOW.minusDays(1));
+    createInterview(userId, applicationId, InterviewStatus.SCHEDULED, null);
+
+    assertThat(dashboardRepository.countApplicationsToFollowUp(userId, NOW.minusDays(7))).isZero();
+    assertThat(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(7), 0, 5))
+        .isEmpty();
+  }
+
+  @Test
   void applicationsFollowUpAllowsInitialInterviewsAndExcludesFollowedUpApplications() {
     UUID userId = createUser("initial-interview@example.com");
     UUID applicationId =
@@ -146,6 +166,18 @@ class DashboardRepositoryIntegrationTest {
   }
 
   @Test
+  void upcomingInterviewsExcludesUndatedScheduledInterviews() {
+    UUID userId = createUser("undated-upcoming@example.com");
+    UUID applicationId =
+        createApplication(userId, "Undated", ApplicationStage.INTERVIEWING, null, NOW, NOW);
+    createInterview(userId, applicationId, InterviewStatus.SCHEDULED, null);
+
+    assertThat(dashboardRepository.countUpcomingInterviews(userId, NOW, NOW.plusDays(7))).isZero();
+    assertThat(dashboardRepository.listUpcomingInterviews(userId, NOW, NOW.plusDays(7), 0, 5))
+        .isEmpty();
+  }
+
+  @Test
   void interviewsToFollowUpReturnsScheduledInterviewsOlderThanTwoDays() {
     UUID userId = createUser("interview-follow-up@example.com");
     UUID applicationId =
@@ -182,6 +214,41 @@ class DashboardRepositoryIntegrationTest {
         .isZero();
     assertThat(dashboardRepository.listInterviewsToFollowUp(userId, NOW, NOW.minusDays(2), 0, 5))
         .isEmpty();
+  }
+
+  @Test
+  void interviewsToFollowUpExcludesUndatedScheduledInterviews() {
+    UUID userId = createUser("undated-follow-up@example.com");
+    UUID applicationId =
+        createApplication(userId, "Undated", ApplicationStage.INTERVIEWING, null, NOW, NOW);
+    createInterview(userId, applicationId, InterviewStatus.SCHEDULED, null);
+
+    assertThat(dashboardRepository.countInterviewsToFollowUp(userId, NOW, NOW.minusDays(2)))
+        .isZero();
+    assertThat(dashboardRepository.listInterviewsToFollowUp(userId, NOW, NOW.minusDays(2), 0, 5))
+        .isEmpty();
+  }
+
+  @Test
+  void applicationSummaryAndDashboardUseSmallerIdForTiedPastInterviews() {
+    UUID userId = createUser("past-interview-tie@example.com");
+    UUID applicationId =
+        createApplication(userId, "Tied", ApplicationStage.INTERVIEWING, null, NOW, NOW);
+    UUID smallerId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    UUID largerId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+    OffsetDateTime scheduledAt = NOW.minusDays(3);
+    createInterview(smallerId, userId, applicationId, InterviewStatus.SCHEDULED, scheduledAt);
+    createInterview(largerId, userId, applicationId, InterviewStatus.SCHEDULED, scheduledAt);
+
+    assertThat(
+            applicationInterviewRepository
+                .findLastByApplicationIdsForUser(userId, java.util.List.of(applicationId), NOW)
+                .get(applicationId)
+                .id())
+        .isEqualTo(smallerId);
+    assertThat(dashboardRepository.listInterviewsToFollowUp(userId, NOW, NOW.minusDays(2), 0, 5))
+        .extracting(DashboardInterviewItem::interviewId)
+        .containsExactly(smallerId);
   }
 
   @Test
@@ -238,7 +305,15 @@ class DashboardRepositoryIntegrationTest {
       UUID applicationId,
       InterviewStatus status,
       OffsetDateTime scheduledAt) {
-    UUID interviewId = UUID.randomUUID();
+    return createInterview(UUID.randomUUID(), interviewUserId, applicationId, status, scheduledAt);
+  }
+
+  private UUID createInterview(
+      UUID interviewId,
+      UUID interviewUserId,
+      UUID applicationId,
+      InterviewStatus status,
+      OffsetDateTime scheduledAt) {
 
     dsl.insertInto(APPLICATION_INTERVIEWS)
         .set(APPLICATION_INTERVIEWS.ID, interviewId)

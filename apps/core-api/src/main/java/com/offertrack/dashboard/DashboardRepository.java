@@ -216,7 +216,7 @@ public class DashboardRepository {
                             newerPastInterview
                                 .SCHEDULED_AT
                                 .eq(APPLICATION_INTERVIEWS.SCHEDULED_AT)
-                                .and(newerPastInterview.ID.gt(APPLICATION_INTERVIEWS.ID)))));
+                                .and(newerPastInterview.ID.lt(APPLICATION_INTERVIEWS.ID)))));
 
     Condition hasNoFutureScheduledInterview =
         notExists(
