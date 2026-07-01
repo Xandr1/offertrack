@@ -4,6 +4,8 @@ import {
   applicationDraftResponseSchema,
   applicationSchema,
   applicationsPageSchema,
+  applicationBoardColumnSchema,
+  applicationBoardSchema,
   applicationWithInterviewsSchema,
 } from "./schemas";
 import type {
@@ -11,6 +13,10 @@ import type {
   ApplicationDraftRequest,
   ApplicationDraftResponse,
   ApplicationsListParams,
+  ApplicationsBoardParams,
+  ApplicationBoard,
+  ApplicationBoardColumn,
+  ApplicationBoardColumnParams,
   ApplicationsPage,
   ApplicationWithInterviews,
   CreateApplicationRequest,
@@ -65,6 +71,51 @@ export const listApplications = (
   return request<ApplicationsPage>(
     buildApplicationsListPath(params),
     applicationsPageSchema,
+  );
+};
+
+const appendBoardParams = (
+  searchParams: URLSearchParams,
+  params: ApplicationsBoardParams,
+) => {
+  const trimmedSearch = params.search.trim();
+  if (trimmedSearch !== "") {
+    searchParams.set("search", trimmedSearch);
+  }
+  if (params.stage !== null) {
+    searchParams.set("stage", params.stage);
+  }
+  searchParams.set("sort", params.sort);
+  searchParams.set("direction", params.direction);
+};
+
+export const getApplicationsBoard = (
+  params: ApplicationsBoardParams,
+): Promise<ApplicationBoard> => {
+  const searchParams = new URLSearchParams();
+  appendBoardParams(searchParams, params);
+
+  return request<ApplicationBoard>(
+    `/api/applications/board?${searchParams.toString()}`,
+    applicationBoardSchema,
+  );
+};
+
+export const getApplicationBoardColumn = ({
+  columnStage,
+  search,
+  stage,
+  sort,
+  direction,
+  offset,
+}: ApplicationBoardColumnParams): Promise<ApplicationBoardColumn> => {
+  const searchParams = new URLSearchParams();
+  appendBoardParams(searchParams, { search, stage, sort, direction });
+  searchParams.set("offset", String(offset));
+
+  return request<ApplicationBoardColumn>(
+    `/api/applications/board/columns/${columnStage}?${searchParams.toString()}`,
+    applicationBoardColumnSchema,
   );
 };
 
@@ -128,4 +179,12 @@ export const deleteApplication = (id: string): Promise<void> => {
   return request<void>(`/api/applications/${id}`, z.undefined(), {
     method: "DELETE",
   });
+};
+
+export const markApplicationFollowedUp = (id: string): Promise<Application> => {
+  return request<Application>(
+    `/api/applications/${id}/follow-up`,
+    applicationSchema,
+    { method: "PATCH" },
+  );
 };

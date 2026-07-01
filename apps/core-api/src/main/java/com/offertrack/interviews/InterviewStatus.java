@@ -4,9 +4,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum InterviewStatus {
-  PLANNED("planned"),
+  INITIAL("initial"),
   SCHEDULED("scheduled"),
-  COMPLETED("completed"),
   PASSED("passed"),
   REJECTED("rejected");
 

@@ -61,28 +61,27 @@ describe("application-date-helpers", () => {
       expect(formatUpdatedAtRelative(secondsAgo)).toBe("Updated Recently");
     });
 
-    it("formats updates under one hour using relative minutes", () => {
-      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60_000).toISOString();
-      expect(formatUpdatedAtRelative(fiveMinutesAgo)).toMatch(
-        /^Updated\s+5\s+(?:min\.?|minute)s?\s+ago$/i,
-      );
+    it.each([
+      [5 * 60_000, "Updated 5 minutes ago"],
+      [23 * 60 * 60_000, "Updated 23 hours ago"],
+      [6 * 24 * 60 * 60_000, "Updated 6 days ago"],
+      [3 * 7 * 24 * 60 * 60_000, "Updated 3 weeks ago"],
+      [90 * 24 * 60 * 60_000, "Updated 2 months ago"],
+      [2 * 365 * 24 * 60 * 60_000, "Updated 2 years ago"],
+    ])("formats elapsed time in the expected bucket", (elapsedMs, expected) => {
+      const updatedAt = new Date(now.getTime() - elapsedMs).toISOString();
+      expect(formatUpdatedAtRelative(updatedAt)).toBe(expected);
     });
 
-    it("formats updates under one day using relative hours", () => {
-      const oneHourAgo = new Date(now.getTime() - 60 * 60_000).toISOString();
-      expect(formatUpdatedAtRelative(oneHourAgo)).toMatch(
-        /^Updated\s+1\s+(?:hr\.?|hour)s?\s+ago$/i,
-      );
-    });
-
-    it("formats yesterday as a day label", () => {
-      const yesterday = new Date(now.getTime() - 25 * 60 * 60_000).toISOString();
-      expect(formatUpdatedAtRelative(yesterday)).toBe("Updated yesterday");
-    });
-
-    it("falls back to existing absolute formatter for older dates", () => {
-      const oldDate = "2026-05-20T12:00:00.000Z";
-      expect(formatUpdatedAtRelative(oldDate)).toBe(`Updated ${formatDateTime(oldDate)}`);
+    it.each([
+      [60 * 60_000, "Updated 1 hour ago"],
+      [24 * 60 * 60_000, "Updated 1 day ago"],
+      [7 * 24 * 60 * 60_000, "Updated 1 week ago"],
+      [4 * 7 * 24 * 60 * 60_000, "Updated 1 month ago"],
+      [365 * 24 * 60 * 60_000, "Updated 1 year ago"],
+    ])("switches buckets at the configured boundary", (elapsedMs, expected) => {
+      const updatedAt = new Date(now.getTime() - elapsedMs).toISOString();
+      expect(formatUpdatedAtRelative(updatedAt)).toBe(expected);
     });
 
     it("falls back to existing absolute formatter when Intl.RelativeTimeFormat is unavailable", () => {

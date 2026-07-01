@@ -15,5 +15,9 @@ describe("ShellLayout", () => {
     expect(html).toContain("Settings");
     expect(html).toContain("href=\"/settings\"");
     expect(html).toContain("aria-current=\"page\"");
+    expect(html).toContain("md:grid-cols-[190px_minmax(0,1fr)]");
+    expect(html).toContain("min-w-0");
+    expect(html).toContain("min-h-screen w-full");
+    expect(html).not.toContain("max-w-7xl");
   });
 });

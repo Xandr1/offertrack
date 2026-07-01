@@ -14,7 +14,7 @@ describe("interview-form-mappers", () => {
           interviewId: null,
           rowId: "row-1",
           scheduledAt: "",
-          status: "planned",
+          status: "initial",
           type: "",
         },
       ]),
@@ -25,6 +25,7 @@ describe("interview-form-mappers", () => {
     const interview: ApplicationInterview = {
       applicationId: "app-1",
       createdAt: "2026-01-08T10:00:00.000Z",
+      followedUpAt: null,
       id: "int-1",
       scheduledAt: "2026-01-08T11:30:00.000Z",
       status: "scheduled",
@@ -46,13 +47,13 @@ describe("interview-form-mappers", () => {
       interviewId: null,
       rowId: "row-1",
       scheduledAt: "2026-01-09T08:45",
-      status: "planned" as const,
+      status: "initial" as const,
       type: "hr" as const,
     };
 
     expect(toCreateInterviewPayload(row)).toEqual({
       scheduledAt: new Date("2026-01-09T08:45").toISOString(),
-      status: "planned",
+      status: "initial",
       type: "hr",
     });
   });
@@ -62,7 +63,7 @@ describe("interview-form-mappers", () => {
       interviewId: "int-1",
       rowId: "row-1",
       scheduledAt: "",
-      status: "planned" as const,
+      status: "initial" as const,
       type: "" as const,
     };
 

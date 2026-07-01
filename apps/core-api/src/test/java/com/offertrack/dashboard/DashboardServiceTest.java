@@ -5,7 +5,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.offertrack.applications.ApplicationStage;
-import com.offertrack.dashboard.dto.DashboardSummaryResponse;
 import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
 import com.offertrack.settings.SettingsService;
@@ -25,157 +24,88 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class DashboardServiceTest {
   private static final OffsetDateTime NOW = OffsetDateTime.parse("2026-06-06T12:00:00Z");
-
   @Mock private DashboardRepository dashboardRepository;
   @Mock private SettingsService settingsService;
-
-  private DashboardService dashboardService;
+  private DashboardService service;
 
   @BeforeEach
   void setUp() {
-    Clock fixedClock = Clock.fixed(Instant.parse("2026-06-06T12:00:00Z"), ZoneOffset.UTC);
-    dashboardService = new DashboardService(dashboardRepository, settingsService, fixedClock);
+    service =
+        new DashboardService(
+            dashboardRepository,
+            settingsService,
+            Clock.fixed(Instant.parse("2026-06-06T12:00:00Z"), ZoneOffset.UTC));
   }
 
   @Test
-  void getSummaryBuildsResponseAndUsesClockBasedCutoffs() {
+  void summaryReturnsThreeFirstPagesAndNeedsAttentionTotal() {
     UUID userId = UUID.randomUUID();
+    UserSettings settings = UserSettings.defaultForUser(userId);
+    DashboardApplicationItem application =
+        new DashboardApplicationItem(
+            UUID.randomUUID(),
+            "Acme",
+            "Engineer",
+            ApplicationStage.APPLIED,
+            null,
+            null,
+            null,
+            NOW.minusDays(8),
+            NOW.minusDays(9),
+            NOW);
+    DashboardInterviewItem interview =
+        new DashboardInterviewItem(
+            UUID.randomUUID(),
+            UUID.randomUUID(),
+            "Globex",
+            "Engineer",
+            null,
+            null,
+            null,
+            NOW.plusDays(1),
+            InterviewType.TECHNICAL,
+            InterviewStatus.SCHEDULED);
 
-    DashboardSummaryCounts counts = new DashboardSummaryCounts(6, 3, 1, 4);
-    List<DashboardApplicationItem> draftsToApply =
-        List.of(
-            new DashboardApplicationItem(
-                UUID.randomUUID(),
-                "Acme",
-                "Backend Engineer",
-                ApplicationStage.INITIAL,
-                "https://example.com/job",
-                "Remote",
-                "remote",
-                null,
-                OffsetDateTime.parse("2026-05-01T10:15:00Z")),
-            new DashboardApplicationItem(
-                UUID.randomUUID(),
-                "Globex",
-                "Platform Engineer",
-                ApplicationStage.INITIAL,
-                null,
-                null,
-                null,
-                null,
-                OffsetDateTime.parse("2026-04-28T08:30:00Z")));
-    List<DashboardApplicationItem> applicationsToFollowUp =
-        List.of(
-            new DashboardApplicationItem(
-                UUID.randomUUID(),
-                "Initech",
-                "Java Engineer",
-                ApplicationStage.APPLIED,
-                null,
-                "Warsaw",
-                "hybrid",
-                OffsetDateTime.parse("2026-05-20T08:00:00Z"),
-                OffsetDateTime.parse("2026-05-21T08:00:00Z")));
-    List<DashboardInterviewItem> upcomingInterviews =
-        List.of(
-            new DashboardInterviewItem(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "Umbrella",
-                "Frontend Engineer",
-                null,
-                null,
-                null,
-                OffsetDateTime.parse("2026-06-08T09:00:00Z"),
-                InterviewType.TECHNICAL,
-                InterviewStatus.SCHEDULED));
-    List<DashboardInterviewItem> interviewsToFollowUp =
-        List.of(
-            new DashboardInterviewItem(
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                "Soylent",
-                "Platform Engineer",
-                null,
-                null,
-                null,
-                OffsetDateTime.parse("2026-06-02T09:00:00Z"),
-                InterviewType.HR,
-                InterviewStatus.COMPLETED));
-
-    when(settingsService.getSettings(userId)).thenReturn(UserSettings.defaultForUser(userId));
-    when(dashboardRepository.getSummaryCounts(userId)).thenReturn(counts);
-    when(dashboardRepository.countDraftsToApply(userId)).thenReturn(2L);
-    when(dashboardRepository.countApplicationsToFollowUp(userId, NOW.minusDays(7), NOW))
-        .thenReturn(3L);
-    when(dashboardRepository.countUpcomingInterviews(userId, NOW, NOW.plusDays(7))).thenReturn(4L);
-    when(dashboardRepository.countInterviewsToFollowUp(userId, NOW.minusDays(2))).thenReturn(5L);
-    when(dashboardRepository.listDraftsToApply(userId, 3)).thenReturn(draftsToApply);
-    when(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(7), NOW, 3))
-        .thenReturn(applicationsToFollowUp);
-    when(dashboardRepository.listUpcomingInterviews(userId, NOW, NOW.plusDays(7), 3))
-        .thenReturn(upcomingInterviews);
-    when(dashboardRepository.listInterviewsToFollowUp(userId, NOW.minusDays(2), 3))
-        .thenReturn(interviewsToFollowUp);
-
-    DashboardSummaryResponse response = dashboardService.getSummary(userId);
-
-    assertThat(response.activeProcesses()).isEqualTo(6);
-    assertThat(response.needsAttention()).isEqualTo(14);
-    assertThat(response.interviewing()).isEqualTo(3);
-    assertThat(response.offers()).isEqualTo(1);
-    assertThat(response.rejected()).isEqualTo(4);
-    assertThat(response.draftsToApplyCount()).isEqualTo(2);
-    assertThat(response.applicationsToFollowUpCount()).isEqualTo(3);
-    assertThat(response.upcomingInterviewsCount()).isEqualTo(4);
-    assertThat(response.interviewsToFollowUpCount()).isEqualTo(5);
-    assertThat(response.followUpAfterApplyingDays()).isEqualTo(7);
-    assertThat(response.upcomingInterviewDays()).isEqualTo(7);
-    assertThat(response.followUpAfterInterviewDays()).isEqualTo(2);
-    assertThat(response.draftsToApply()).hasSize(2);
-    assertThat(response.draftsToApply().getFirst().stage()).isEqualTo(ApplicationStage.INITIAL);
-    assertThat(response.applicationsToFollowUp()).hasSize(1);
-    assertThat(response.upcomingInterviews().getFirst().interviewType())
-        .isEqualTo(InterviewType.TECHNICAL);
-    assertThat(response.interviewsToFollowUp().getFirst().status())
-        .isEqualTo(InterviewStatus.COMPLETED);
-
-    verify(dashboardRepository).countApplicationsToFollowUp(userId, NOW.minusDays(7), NOW);
-    verify(dashboardRepository).countUpcomingInterviews(userId, NOW, NOW.plusDays(7));
-    verify(dashboardRepository).countInterviewsToFollowUp(userId, NOW.minusDays(2));
-    verify(dashboardRepository).listDraftsToApply(userId, 3);
-    verify(dashboardRepository).listApplicationsToFollowUp(userId, NOW.minusDays(7), NOW, 3);
-    verify(dashboardRepository).listUpcomingInterviews(userId, NOW, NOW.plusDays(7), 3);
-    verify(dashboardRepository).listInterviewsToFollowUp(userId, NOW.minusDays(2), 3);
-  }
-
-  @Test
-  void getSummaryUsesCustomSettingsForClockBasedCutoffs() {
-    UUID userId = UUID.randomUUID();
-
-    when(settingsService.getSettings(userId))
-        .thenReturn(new UserSettings(userId, 14, 3, 5, "Platform Engineer"));
+    when(settingsService.getSettings(userId)).thenReturn(settings);
     when(dashboardRepository.getSummaryCounts(userId))
-        .thenReturn(new DashboardSummaryCounts(0, 0, 0, 0));
-    when(dashboardRepository.listDraftsToApply(userId, 3)).thenReturn(List.of());
-    when(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(14), NOW, 3))
-        .thenReturn(List.of());
-    when(dashboardRepository.listUpcomingInterviews(userId, NOW, NOW.plusDays(3), 3))
-        .thenReturn(List.of());
-    when(dashboardRepository.listInterviewsToFollowUp(userId, NOW.minusDays(5), 3))
+        .thenReturn(new DashboardSummaryCounts(6, 3, 1, 4));
+    when(dashboardRepository.countApplicationsToFollowUp(userId, NOW.minusDays(7))).thenReturn(3L);
+    when(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(7), 0, 10))
+        .thenReturn(List.of(application));
+    when(dashboardRepository.countUpcomingInterviews(userId, NOW, NOW.plusDays(7))).thenReturn(4L);
+    when(dashboardRepository.listUpcomingInterviews(userId, NOW, NOW.plusDays(7), 0, 10))
+        .thenReturn(List.of(interview));
+    when(dashboardRepository.countInterviewsToFollowUp(userId, NOW, NOW.minusDays(2)))
+        .thenReturn(5L);
+    when(dashboardRepository.listInterviewsToFollowUp(userId, NOW, NOW.minusDays(2), 0, 10))
         .thenReturn(List.of());
 
-    DashboardSummaryResponse response = dashboardService.getSummary(userId);
+    var response = service.getSummary(userId);
 
-    assertThat(response.followUpAfterApplyingDays()).isEqualTo(14);
-    assertThat(response.upcomingInterviewDays()).isEqualTo(3);
-    assertThat(response.followUpAfterInterviewDays()).isEqualTo(5);
-    verify(settingsService).getSettings(userId);
-    verify(dashboardRepository).countApplicationsToFollowUp(userId, NOW.minusDays(14), NOW);
-    verify(dashboardRepository).countUpcomingInterviews(userId, NOW, NOW.plusDays(3));
-    verify(dashboardRepository).countInterviewsToFollowUp(userId, NOW.minusDays(5));
-    verify(dashboardRepository).listApplicationsToFollowUp(userId, NOW.minusDays(14), NOW, 3);
-    verify(dashboardRepository).listUpcomingInterviews(userId, NOW, NOW.plusDays(3), 3);
-    verify(dashboardRepository).listInterviewsToFollowUp(userId, NOW.minusDays(5), 3);
+    assertThat(response.needsAttention()).isEqualTo(12);
+    assertThat(response.applicationsToFollowUp().totalCount()).isEqualTo(3);
+    assertThat(response.applicationsToFollowUp().items()).hasSize(1);
+    assertThat(response.applicationsToFollowUp().items().get(0).createdAt())
+        .isEqualTo(NOW.minusDays(9));
+    assertThat(response.upcomingInterviews().items()).hasSize(1);
+    assertThat(response.interviewsToFollowUp().totalCount()).isEqualTo(5);
+  }
+
+  @Test
+  void loadMoreUsesIndependentOffsetAndConfiguredCutoff() {
+    UUID userId = UUID.randomUUID();
+    UserSettings settings = new UserSettings(userId, 14, 3, 5, null);
+    when(settingsService.getSettings(userId)).thenReturn(settings);
+    when(dashboardRepository.countApplicationsToFollowUp(userId, NOW.minusDays(14)))
+        .thenReturn(22L);
+    when(dashboardRepository.listApplicationsToFollowUp(userId, NOW.minusDays(14), 10, 10))
+        .thenReturn(List.of());
+
+    var page = service.getApplicationsToFollowUp(userId, 10);
+
+    assertThat(page.totalCount()).isEqualTo(22);
+    assertThat(page.nextOffset()).isEqualTo(10);
+    assertThat(page.hasMore()).isTrue();
+    verify(dashboardRepository).listApplicationsToFollowUp(userId, NOW.minusDays(14), 10, 10);
   }
 }

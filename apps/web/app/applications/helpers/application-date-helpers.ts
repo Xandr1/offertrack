@@ -5,6 +5,9 @@ const SECOND_IN_MS = 1_000;
 const MINUTE_IN_SECONDS = 60;
 const HOUR_IN_SECONDS = 60 * MINUTE_IN_SECONDS;
 const DAY_IN_SECONDS = 24 * HOUR_IN_SECONDS;
+const WEEK_IN_SECONDS = 7 * DAY_IN_SECONDS;
+const MONTH_IN_SECONDS = (365 * DAY_IN_SECONDS) / 12;
+const YEAR_IN_SECONDS = 365 * DAY_IN_SECONDS;
 
 const parseDate = (value: string): Date | null => {
   const parsed = new Date(value);
@@ -37,16 +40,8 @@ const getRelativeTimeFormatter = (): Intl.RelativeTimeFormat | null => {
   }
 
   return new Intl.RelativeTimeFormat("en", {
-    numeric: "auto",
+    numeric: "always",
   });
-};
-
-const isSameCalendarDate = (left: Date, right: Date): boolean => {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
 };
 
 const toDateValue = (value: string | Date): Date => {
@@ -145,13 +140,23 @@ export const formatUpdatedAtRelative = (value: string | Date): string => {
       return `Updated ${relativeTimeFormatter.format(-hours, "hour")}`;
     }
 
-    const yesterday = new Date(now);
-    yesterday.setDate(now.getDate() - 1);
-    if (isSameCalendarDate(parsed, yesterday)) {
-      return "Updated yesterday";
+    if (diffInSeconds < WEEK_IN_SECONDS) {
+      const days = Math.max(1, Math.floor(diffInSeconds / DAY_IN_SECONDS));
+      return `Updated ${relativeTimeFormatter.format(-days, "day")}`;
     }
 
-    return fallback();
+    if (diffInSeconds < 4 * WEEK_IN_SECONDS) {
+      const weeks = Math.max(1, Math.floor(diffInSeconds / WEEK_IN_SECONDS));
+      return `Updated ${relativeTimeFormatter.format(-weeks, "week")}`;
+    }
+
+    if (diffInSeconds < YEAR_IN_SECONDS) {
+      const months = Math.max(1, Math.floor(diffInSeconds / MONTH_IN_SECONDS));
+      return `Updated ${relativeTimeFormatter.format(-months, "month")}`;
+    }
+
+    const years = Math.max(1, Math.floor(diffInSeconds / YEAR_IN_SECONDS));
+    return `Updated ${relativeTimeFormatter.format(-years, "year")}`;
   } catch {
     return fallback();
   }

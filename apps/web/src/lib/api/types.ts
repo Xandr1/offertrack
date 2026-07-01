@@ -7,6 +7,8 @@ import {
   applicationInterviewSchema,
   applicationInterviewsSchema,
   applicationsPageSchema,
+  applicationBoardColumnSchema,
+  applicationBoardSchema,
   applicationStageSchema,
   applicationsSchema,
   authResponseSchema,
@@ -15,6 +17,8 @@ import {
   dashboardApplicationItemSchema,
   dashboardInterviewItemSchema,
   dashboardSummarySchema,
+  dashboardApplicationModulePageSchema,
+  dashboardInterviewModulePageSchema,
   interviewStatusSchema,
   interviewTypeSchema,
   nextInterviewSchema,
@@ -46,6 +50,10 @@ export type ApplicationWithInterviews = z.infer<
 >;
 export type Applications = z.infer<typeof applicationsSchema>;
 export type ApplicationsPage = z.infer<typeof applicationsPageSchema>;
+export type ApplicationBoardColumn = z.infer<
+  typeof applicationBoardColumnSchema
+>;
+export type ApplicationBoard = z.infer<typeof applicationBoardSchema>;
 export type ApplicationInterview = z.infer<typeof applicationInterviewSchema>;
 export type ApplicationInterviews = z.infer<typeof applicationInterviewsSchema>;
 export type DashboardApplicationItem = z.infer<
@@ -53,6 +61,12 @@ export type DashboardApplicationItem = z.infer<
 >;
 export type DashboardInterviewItem = z.infer<typeof dashboardInterviewItemSchema>;
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
+export type DashboardApplicationModulePage = z.infer<
+  typeof dashboardApplicationModulePageSchema
+>;
+export type DashboardInterviewModulePage = z.infer<
+  typeof dashboardInterviewModulePageSchema
+>;
 export type Settings = z.infer<typeof settingsSchema>;
 
 export type RegisterRequest = {
@@ -115,12 +129,7 @@ export type UpdateApplicationStageRequest = {
   stage: ApplicationStage;
 };
 
-export type ApplicationSortField =
-  | "updatedAt"
-  | "createdAt"
-  | "companyName"
-  | "positionTitle"
-  | "stage";
+export type ApplicationSortField = "updatedAt" | "createdAt";
 
 export type SortDirection = "asc" | "desc";
 
@@ -131,6 +140,22 @@ export type ApplicationsListParams = {
   stage: ApplicationStage | null;
   sort: ApplicationSortField;
   direction: SortDirection;
+};
+
+export type ApplicationsBoardParams = {
+  search: string;
+  stage: ApplicationStage | null;
+  sort: ApplicationSortField;
+  direction: SortDirection;
+};
+
+export type ApplicationBoardColumnParams = {
+  columnStage: ApplicationStage;
+  search: string;
+  stage: ApplicationStage | null;
+  sort: ApplicationSortField;
+  direction: SortDirection;
+  offset: number;
 };
 
 export type CreateApplicationInterviewItemRequest = {

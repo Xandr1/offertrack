@@ -1,5 +1,7 @@
 package com.offertrack.applications;
 
+import com.offertrack.applications.dto.ApplicationBoardColumnResponse;
+import com.offertrack.applications.dto.ApplicationBoardResponse;
 import com.offertrack.applications.dto.ApplicationListResponse;
 import com.offertrack.applications.dto.ApplicationResponse;
 import com.offertrack.applications.dto.ApplicationWithInterviewsResponse;
@@ -14,8 +16,11 @@ import com.offertrack.interviews.ApplicationInterviewRepository;
 import com.offertrack.interviews.ApplicationInterviewResponseMapper;
 import com.offertrack.interviews.InterviewNotFoundException;
 import com.offertrack.interviews.InterviewStatus;
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,16 +32,27 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ApplicationService {
+  public static final int BOARD_COLUMN_PAGE_SIZE = 20;
   private static final int MAX_INTERVIEWS_PER_APPLICATION = 10;
+  private static final List<ApplicationStage> BOARD_STAGE_ORDER =
+      List.of(
+          ApplicationStage.INITIAL,
+          ApplicationStage.APPLIED,
+          ApplicationStage.INTERVIEWING,
+          ApplicationStage.OFFER,
+          ApplicationStage.REJECTED);
 
   private final ApplicationRepository applicationRepository;
   private final ApplicationInterviewRepository applicationInterviewRepository;
+  private final Clock clock;
 
   public ApplicationService(
       ApplicationRepository applicationRepository,
-      ApplicationInterviewRepository applicationInterviewRepository) {
+      ApplicationInterviewRepository applicationInterviewRepository,
+      Clock clock) {
     this.applicationRepository = applicationRepository;
     this.applicationInterviewRepository = applicationInterviewRepository;
+    this.clock = clock;
   }
 
   @Transactional
@@ -51,7 +67,7 @@ public class ApplicationService {
 
     for (var interviewRequest : interviews) {
       InterviewStatus status =
-          interviewRequest.status() != null ? interviewRequest.status() : InterviewStatus.PLANNED;
+          interviewRequest.status() != null ? interviewRequest.status() : InterviewStatus.INITIAL;
       applicationInterviewRepository.create(
           application.id(),
           userId,
@@ -62,10 +78,11 @@ public class ApplicationService {
 
     List<ApplicationInterview> storedInterviews =
         applicationInterviewRepository.listByApplicationForUser(application.id(), userId);
-    NextInterviewResponse nextInterview = loadNextInterview(userId, application.id());
+    InterviewSummaries summaries = loadInterviewSummaries(userId, application.id());
 
     return new ApplicationWithInterviewsResponse(
-        ApplicationResponseMapper.toResponse(application, nextInterview),
+        ApplicationResponseMapper.toResponse(
+            application, summaries.nextInterview(), summaries.lastInterview()),
         storedInterviews.stream().map(ApplicationInterviewResponseMapper::toResponse).toList());
   }
 
@@ -74,6 +91,7 @@ public class ApplicationService {
   }
 
   public ApplicationListResponse list(UUID userId, ApplicationListQuery query) {
+    OffsetDateTime now = OffsetDateTime.now(clock);
     ApplicationListPage page = applicationRepository.listByUser(userId, query);
     List<Application> applications = page.items();
     List<UUID> applicationIds = applications.stream().map(Application::id).toList();
@@ -82,7 +100,12 @@ public class ApplicationService {
         applicationIds.isEmpty()
             ? Collections.emptyMap()
             : applicationInterviewRepository.findNextByApplicationIdsForUser(
-                userId, applicationIds);
+                userId, applicationIds, now);
+    Map<UUID, ApplicationInterview> lastInterviewByApplicationId =
+        applicationIds.isEmpty()
+            ? Collections.emptyMap()
+            : applicationInterviewRepository.findLastByApplicationIdsForUser(
+                userId, applicationIds, now);
 
     List<ApplicationResponse> items =
         applications.stream()
@@ -90,19 +113,90 @@ public class ApplicationService {
                 application ->
                     ApplicationResponseMapper.toResponse(
                         application,
+                        toNextInterviewResponse(nextInterviewByApplicationId.get(application.id())),
                         toNextInterviewResponse(
-                            nextInterviewByApplicationId.get(application.id()))))
+                            lastInterviewByApplicationId.get(application.id()))))
             .toList();
 
     return new ApplicationListResponse(
         items, page.page(), page.size(), page.totalItems(), page.totalPages());
   }
 
+  public ApplicationBoardResponse board(UUID userId, ApplicationBoardQuery query) {
+    Map<ApplicationStage, Long> totalCountByStage =
+        applicationRepository.countByStageForUser(userId, query.search(), query.stageFilter());
+    Map<ApplicationStage, List<Application>> applicationsByStage =
+        new EnumMap<>(ApplicationStage.class);
+    List<Application> allApplications = new ArrayList<>();
+
+    for (ApplicationStage stage : BOARD_STAGE_ORDER) {
+      List<Application> applications =
+          applicationRepository.listBoardColumn(
+              userId,
+              stage,
+              query.search(),
+              query.stageFilter(),
+              query.sort(),
+              query.direction(),
+              0,
+              BOARD_COLUMN_PAGE_SIZE);
+      applicationsByStage.put(stage, applications);
+      allApplications.addAll(applications);
+    }
+
+    Map<UUID, ApplicationInterview> nextInterviewByApplicationId =
+        loadNextInterviews(userId, allApplications);
+    Map<UUID, ApplicationInterview> lastInterviewByApplicationId =
+        loadLastInterviews(userId, allApplications);
+    List<ApplicationBoardColumnResponse> columns =
+        BOARD_STAGE_ORDER.stream()
+            .map(
+                stage ->
+                    toBoardColumnResponse(
+                        stage,
+                        totalCountByStage.getOrDefault(stage, 0L),
+                        applicationsByStage.getOrDefault(stage, List.of()),
+                        0,
+                        nextInterviewByApplicationId,
+                        lastInterviewByApplicationId))
+            .toList();
+
+    return new ApplicationBoardResponse(columns);
+  }
+
+  public ApplicationBoardColumnResponse boardColumn(
+      UUID userId, ApplicationStage stage, ApplicationBoardQuery query) {
+    if (query.stageFilter() != null && query.stageFilter() != stage) {
+      return new ApplicationBoardColumnResponse(stage, 0, List.of(), 0, false);
+    }
+
+    long totalCount =
+        applicationRepository.countBoardColumn(userId, stage, query.search(), query.stageFilter());
+    List<Application> applications =
+        applicationRepository.listBoardColumn(
+            userId,
+            stage,
+            query.search(),
+            query.stageFilter(),
+            query.sort(),
+            query.direction(),
+            query.offset(),
+            BOARD_COLUMN_PAGE_SIZE);
+
+    return toBoardColumnResponse(
+        stage,
+        totalCount,
+        applications,
+        query.offset(),
+        loadNextInterviews(userId, applications),
+        loadLastInterviews(userId, applications));
+  }
+
   public ApplicationResponse get(UUID userId, UUID applicationId) {
     Application application = ensureApplicationExistsForUser(userId, applicationId);
-    NextInterviewResponse nextInterview = loadNextInterview(userId, applicationId);
-
-    return ApplicationResponseMapper.toResponse(application, nextInterview);
+    InterviewSummaries summaries = loadInterviewSummaries(userId, applicationId);
+    return ApplicationResponseMapper.toResponse(
+        application, summaries.nextInterview(), summaries.lastInterview());
   }
 
   public void delete(UUID userId, UUID applicationId) {
@@ -119,9 +213,19 @@ public class ApplicationService {
         applicationRepository
             .updateStage(applicationId, userId, request.stage())
             .orElseThrow(ApplicationNotFoundException::new);
-    NextInterviewResponse nextInterview = loadNextInterview(userId, application.id());
+    InterviewSummaries summaries = loadInterviewSummaries(userId, application.id());
+    return ApplicationResponseMapper.toResponse(
+        application, summaries.nextInterview(), summaries.lastInterview());
+  }
 
-    return ApplicationResponseMapper.toResponse(application, nextInterview);
+  public ApplicationResponse markFollowedUp(UUID userId, UUID applicationId) {
+    Application application =
+        applicationRepository
+            .markFollowedUp(applicationId, userId, OffsetDateTime.now(clock))
+            .orElseThrow(ApplicationNotFoundException::new);
+    InterviewSummaries summaries = loadInterviewSummaries(userId, applicationId);
+    return ApplicationResponseMapper.toResponse(
+        application, summaries.nextInterview(), summaries.lastInterview());
   }
 
   @Transactional
@@ -179,10 +283,11 @@ public class ApplicationService {
 
     List<ApplicationInterview> storedInterviews =
         applicationInterviewRepository.listByApplicationForUser(applicationId, userId);
-    NextInterviewResponse nextInterview = loadNextInterview(userId, application.id());
+    InterviewSummaries summaries = loadInterviewSummaries(userId, application.id());
 
     return new ApplicationWithInterviewsResponse(
-        ApplicationResponseMapper.toResponse(application, nextInterview),
+        ApplicationResponseMapper.toResponse(
+            application, summaries.nextInterview(), summaries.lastInterview()),
         storedInterviews.stream().map(ApplicationInterviewResponseMapper::toResponse).toList());
   }
 
@@ -228,11 +333,60 @@ public class ApplicationService {
     }
   }
 
-  private NextInterviewResponse loadNextInterview(UUID userId, UUID applicationId) {
-    return applicationInterviewRepository
-        .findNextByApplicationForUser(applicationId, userId)
-        .map(ApplicationService::toNextInterviewResponse)
-        .orElse(null);
+  private InterviewSummaries loadInterviewSummaries(UUID userId, UUID applicationId) {
+    OffsetDateTime now = OffsetDateTime.now(clock);
+    NextInterviewResponse nextInterview =
+        applicationInterviewRepository
+            .findNextByApplicationForUser(applicationId, userId, now)
+            .map(ApplicationService::toNextInterviewResponse)
+            .orElse(null);
+    NextInterviewResponse lastInterview =
+        toNextInterviewResponse(
+            applicationInterviewRepository
+                .findLastByApplicationIdsForUser(userId, List.of(applicationId), now)
+                .get(applicationId));
+    return new InterviewSummaries(nextInterview, lastInterview);
+  }
+
+  private Map<UUID, ApplicationInterview> loadNextInterviews(
+      UUID userId, List<Application> applications) {
+    List<UUID> applicationIds = applications.stream().map(Application::id).toList();
+    return applicationIds.isEmpty()
+        ? Collections.emptyMap()
+        : applicationInterviewRepository.findNextByApplicationIdsForUser(
+            userId, applicationIds, OffsetDateTime.now(clock));
+  }
+
+  private Map<UUID, ApplicationInterview> loadLastInterviews(
+      UUID userId, List<Application> applications) {
+    List<UUID> applicationIds = applications.stream().map(Application::id).toList();
+    return applicationIds.isEmpty()
+        ? Collections.emptyMap()
+        : applicationInterviewRepository.findLastByApplicationIdsForUser(
+            userId, applicationIds, OffsetDateTime.now(clock));
+  }
+
+  private static ApplicationBoardColumnResponse toBoardColumnResponse(
+      ApplicationStage stage,
+      long totalCount,
+      List<Application> applications,
+      int offset,
+      Map<UUID, ApplicationInterview> nextInterviewByApplicationId,
+      Map<UUID, ApplicationInterview> lastInterviewByApplicationId) {
+    List<ApplicationResponse> items =
+        applications.stream()
+            .map(
+                application ->
+                    ApplicationResponseMapper.toResponse(
+                        application,
+                        toNextInterviewResponse(nextInterviewByApplicationId.get(application.id())),
+                        toNextInterviewResponse(
+                            lastInterviewByApplicationId.get(application.id()))))
+            .toList();
+    int nextOffset = offset + items.size();
+
+    return new ApplicationBoardColumnResponse(
+        stage, totalCount, items, nextOffset, nextOffset < totalCount);
   }
 
   private static NextInterviewResponse toNextInterviewResponse(ApplicationInterview interview) {
@@ -243,4 +397,7 @@ public class ApplicationService {
     return new NextInterviewResponse(
         interview.id(), interview.type(), interview.status(), interview.scheduledAt());
   }
+
+  private record InterviewSummaries(
+      NextInterviewResponse nextInterview, NextInterviewResponse lastInterview) {}
 }

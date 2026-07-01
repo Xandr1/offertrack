@@ -10,6 +10,8 @@ import {
   Sparkles,
   Trash2,
   X,
+  Columns3,
+  List,
 } from "lucide-react";
 
 const withDefaults = (Icon: LucideIcon) => {
@@ -31,3 +33,5 @@ export const IconTrash = withDefaults(Trash2);
 export const IconCheckCircle = withDefaults(CheckCircle2);
 export const IconUndoTimer = withDefaults(RotateCcw);
 export const IconClose = withDefaults(X);
+export const IconBoard = withDefaults(Columns3);
+export const IconList = withDefaults(List);

@@ -63,6 +63,8 @@ describe("application-form-mappers", () => {
       id: "app-1",
       jobUrl: "https://example.com/jobs/1",
       location: null,
+      followedUpAt: null,
+      lastInterview: null,
       nextInterview: null,
       notes: null,
       positionTitle: "Engineer",

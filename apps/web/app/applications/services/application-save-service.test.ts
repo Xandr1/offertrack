@@ -9,6 +9,8 @@ const makeApplication = (id: string): Application => ({
   id,
   jobUrl: null,
   location: null,
+  followedUpAt: null,
+  lastInterview: null,
   nextInterview: null,
   notes: null,
   positionTitle: "Engineer",
@@ -20,9 +22,10 @@ const makeApplication = (id: string): Application => ({
 const makeInterview = (id: string): ApplicationInterview => ({
   applicationId: "app-1",
   createdAt: "2026-01-01T00:00:00.000Z",
+  followedUpAt: null,
   id,
   scheduledAt: null,
-  status: "planned",
+  status: "initial",
   type: "technical",
   updatedAt: "2026-01-01T00:00:00.000Z",
 });
@@ -40,7 +43,7 @@ const makeInterviewRow = (
   interviewId,
   rowId,
   scheduledAt: "",
-  status: "planned",
+  status: "initial",
   type: "technical",
   ...overrides,
 });
@@ -80,7 +83,7 @@ describe("application-save-service", () => {
       interviews: [
         {
           scheduledAt: null,
-          status: "planned",
+          status: "initial",
           type: "technical",
         },
       ],
@@ -116,7 +119,7 @@ describe("application-save-service", () => {
         },
         mode: "edit",
         rows: [
-          makeInterviewRow("int-1", "row-1", { status: "completed" }),
+          makeInterviewRow("int-1", "row-1", { status: "scheduled" }),
           makeInterviewRow(null, "row-2", { type: "hr" }),
         ],
       },
@@ -132,12 +135,12 @@ describe("application-save-service", () => {
         {
           id: "int-1",
           scheduledAt: null,
-          status: "completed",
+          status: "scheduled",
           type: "technical",
         },
         {
           scheduledAt: null,
-          status: "planned",
+          status: "initial",
           type: "hr",
         },
       ],
@@ -175,7 +178,7 @@ describe("application-save-service", () => {
         pendingUndoRowIds: ["row-omit"],
         rows: [
           makeInterviewRow("int-1", "row-keep", { status: "scheduled" }),
-          makeInterviewRow("int-2", "row-omit", { status: "completed" }),
+          makeInterviewRow("int-2", "row-omit", { status: "scheduled" }),
         ],
       },
       deps,
@@ -236,7 +239,7 @@ describe("application-save-service", () => {
         {
           id: "int-3",
           scheduledAt: null,
-          status: "planned",
+          status: "initial",
           type: "hr",
         },
       ],

@@ -9,7 +9,12 @@ import type {
   SortDirection,
 } from "@/lib/api";
 import {
+  APPLICATIONS_VIEW_DEFAULT,
   STAGE_FILTER_DEFAULT,
+  ApplicationsView,
+  canonicalizeApplicationsViewParams,
+  getStoredApplicationsView,
+  storeApplicationsView,
   StageFilter,
   parseDirectionParam,
   parsePageParam,
@@ -18,6 +23,7 @@ import {
   parseSortParam,
   parseStageFilterParam,
   toListParams,
+  writeApplicationsBoardParams,
   writeApplicationsListParams,
 } from "../helpers/application-filters";
 
@@ -57,6 +63,8 @@ export const useApplicationsUrlFilters = () => {
   const direction = parseDirectionParam(searchParams.get("direction"));
   const searchQuery = parseSearchQueryParam(searchParams.get("search"));
   const selectedApplicationId = searchParams.get("id")?.trim() || null;
+  const [view, setViewState] = useState<ApplicationsView>(APPLICATIONS_VIEW_DEFAULT);
+  const [isViewInitialized, setIsViewInitialized] = useState(false);
   const [searchInput, setSearchInput] = useState(searchQuery);
 
   const listParams: ApplicationsListParams = useMemo(
@@ -74,6 +82,35 @@ export const useApplicationsUrlFilters = () => {
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
+      setViewState(getStoredApplicationsView());
+      setIsViewInitialized(true);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isViewInitialized) {
+      return;
+    }
+
+    const currentParams = new URLSearchParams(searchParams.toString());
+    const canonicalParams = canonicalizeApplicationsViewParams(
+      currentParams,
+      view,
+    );
+    const currentUrl = toUrl(pathname, currentParams);
+    const canonicalUrl = toUrl(pathname, canonicalParams);
+
+    if (canonicalUrl !== currentUrl) {
+      router.replace(canonicalUrl, { scroll: false });
+    }
+  }, [isViewInitialized, pathname, router, searchParams, view]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
       setSearchInput((currentValue) =>
         currentValue === searchQuery ? currentValue : searchQuery,
       );
@@ -86,7 +123,10 @@ export const useApplicationsUrlFilters = () => {
 
   const replaceListParams = useCallback(
     (nextListParams: ApplicationsListParams) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = canonicalizeApplicationsViewParams(
+        new URLSearchParams(searchParams.toString()),
+        "list",
+      );
       writeApplicationsListParams(params, nextListParams);
       router.replace(toUrl(pathname, params), { scroll: false });
     },
@@ -95,26 +135,48 @@ export const useApplicationsUrlFilters = () => {
 
   const setFilters = useCallback(
     (nextValues: SetFiltersInput) => {
+      const nextDirection = nextValues.direction ?? direction;
+      const nextSearch = (nextValues.search ?? searchQuery).trim();
+      const nextSort = nextValues.sort ?? sort;
       const nextStage = nextValues.stage ?? stageFilter;
       const nextStageParam =
         nextStage === STAGE_FILTER_DEFAULT ? null : (nextStage as ApplicationStage);
 
+      if (view === "board") {
+        const params = canonicalizeApplicationsViewParams(
+          new URLSearchParams(searchParams.toString()),
+          "board",
+        );
+        writeApplicationsBoardParams(params, {
+          direction: nextDirection,
+          search: nextSearch,
+          stage: nextStageParam,
+          sort: nextSort,
+        });
+        router.replace(toUrl(pathname, params), { scroll: false });
+        return;
+      }
+
       replaceListParams({
-        direction: nextValues.direction ?? direction,
+        direction: nextDirection,
         page: 0,
-        search: (nextValues.search ?? searchQuery).trim(),
+        search: nextSearch,
         size,
-        sort: nextValues.sort ?? sort,
+        sort: nextSort,
         stage: nextStageParam,
       });
     },
     [
       direction,
+      pathname,
       replaceListParams,
+      router,
       searchQuery,
+      searchParams,
       size,
       sort,
       stageFilter,
+      view,
     ],
   );
 
@@ -149,11 +211,26 @@ export const useApplicationsUrlFilters = () => {
     router.replace(toUrl(pathname, params), { scroll: false });
   }, [pathname, router, searchParams]);
 
+  const setView = useCallback(
+    (nextView: ApplicationsView) => {
+      setViewState(nextView);
+      storeApplicationsView(nextView);
+
+      const params = canonicalizeApplicationsViewParams(
+        new URLSearchParams(searchParams.toString()),
+        nextView,
+      );
+      router.replace(toUrl(pathname, params), { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
   return {
     clearPageParam,
     clearSelectedApplicationId,
     direction,
     hasInvalidPageParam,
+    isViewInitialized,
     listParams,
     page,
     searchInput,
@@ -163,8 +240,10 @@ export const useApplicationsUrlFilters = () => {
     setPage,
     setSearchInput,
     setSelectedApplicationId,
+    setView,
     size,
     sort,
     stageFilter,
+    view,
   };
 };

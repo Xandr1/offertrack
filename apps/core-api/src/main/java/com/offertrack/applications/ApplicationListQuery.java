@@ -68,7 +68,7 @@ public record ApplicationListQuery(
     }
   }
 
-  private static ApplicationSort parseSort(String value) {
+  static ApplicationSort parseSort(String value) {
     if (value == null) {
       return DEFAULT_SORT;
     }
@@ -82,7 +82,7 @@ public record ApplicationListQuery(
     throw invalidRequest("Invalid sort parameter.");
   }
 
-  private static SortDirection parseDirection(String value) {
+  static SortDirection parseDirection(String value) {
     if (value == null) {
       return DEFAULT_DIRECTION;
     }
@@ -102,10 +102,7 @@ public record ApplicationListQuery(
 
   public enum ApplicationSort {
     UPDATED_AT("updatedAt"),
-    CREATED_AT("createdAt"),
-    COMPANY_NAME("companyName"),
-    POSITION_TITLE("positionTitle"),
-    STAGE("stage");
+    CREATED_AT("createdAt");
 
     private final String value;
 

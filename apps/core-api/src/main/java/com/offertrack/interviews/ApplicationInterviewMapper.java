@@ -13,6 +13,7 @@ public class ApplicationInterviewMapper {
         InterviewType.fromValue(record.getType()),
         InterviewStatus.fromValue(record.getStatus()),
         record.getScheduledAt(),
+        record.getFollowedUpAt(),
         record.getCreatedAt(),
         record.getUpdatedAt());
   }

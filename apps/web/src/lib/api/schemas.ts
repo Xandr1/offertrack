@@ -71,7 +71,7 @@ export const interviewStatusSchema = z.preprocess((value) => {
   }
 
   return value;
-}, z.enum(["planned", "scheduled", "completed", "passed", "rejected"]));
+}, z.enum(["initial", "scheduled", "passed", "rejected"]));
 
 const optionalNullableStringSchema = z.preprocess(
   (value) => (value === undefined ? null : value),
@@ -97,10 +97,15 @@ export const applicationSchema = z.object({
     workModeSchema.nullable(),
   ),
   appliedAt: optionalNullableStringSchema,
+  followedUpAt: optionalNullableStringSchema,
   notes: optionalNullableStringSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
   nextInterview: z.preprocess(
+    (value) => (value === undefined ? null : value),
+    nextInterviewSchema.nullable(),
+  ),
+  lastInterview: z.preprocess(
     (value) => (value === undefined ? null : value),
     nextInterviewSchema.nullable(),
   ),
@@ -116,12 +121,25 @@ export const applicationsPageSchema = z.object({
   totalPages: z.number().int().nonnegative(),
 });
 
+export const applicationBoardColumnSchema = z.object({
+  stage: applicationStageSchema,
+  totalCount: z.number().int().nonnegative(),
+  items: applicationsSchema,
+  nextOffset: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
+export const applicationBoardSchema = z.object({
+  columns: z.array(applicationBoardColumnSchema),
+});
+
 export const applicationInterviewSchema = z.object({
   id: z.string(),
   applicationId: z.string(),
   type: interviewTypeSchema,
   status: interviewStatusSchema,
   scheduledAt: optionalNullableStringSchema,
+  followedUpAt: optionalNullableStringSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -135,7 +153,7 @@ export const applicationWithInterviewsSchema = z.object({
 
 export const applicationDraftInterviewSchema = z.object({
   type: interviewTypeSchema,
-  status: z.literal("planned"),
+  status: z.literal("initial"),
   scheduledAt: z.preprocess((value) => (value === undefined ? null : value), z.null()),
 });
 
@@ -166,6 +184,7 @@ export const dashboardApplicationItemSchema = z.object({
     workModeSchema.nullable(),
   ),
   appliedAt: optionalNullableStringSchema,
+  createdAt: z.string(),
   updatedAt: z.string(),
 });
 
@@ -185,23 +204,32 @@ export const dashboardInterviewItemSchema = z.object({
   status: interviewStatusSchema,
 });
 
+export const dashboardApplicationModulePageSchema = z.object({
+  totalCount: z.number().int().nonnegative(),
+  items: z.array(dashboardApplicationItemSchema),
+  nextOffset: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
+export const dashboardInterviewModulePageSchema = z.object({
+  totalCount: z.number().int().nonnegative(),
+  items: z.array(dashboardInterviewItemSchema),
+  nextOffset: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
 export const dashboardSummarySchema = z.object({
   activeProcesses: z.number().int().nonnegative(),
   needsAttention: z.number().int().nonnegative(),
   interviewing: z.number().int().nonnegative(),
   offers: z.number().int().nonnegative(),
   rejected: z.number().int().nonnegative(),
-  draftsToApplyCount: z.number().int().nonnegative(),
-  applicationsToFollowUpCount: z.number().int().nonnegative(),
-  upcomingInterviewsCount: z.number().int().nonnegative(),
-  interviewsToFollowUpCount: z.number().int().nonnegative(),
   followUpAfterApplyingDays: z.number().int().min(1).max(60),
   upcomingInterviewDays: z.number().int().min(1).max(60),
   followUpAfterInterviewDays: z.number().int().min(1).max(30),
-  draftsToApply: z.array(dashboardApplicationItemSchema),
-  applicationsToFollowUp: z.array(dashboardApplicationItemSchema),
-  upcomingInterviews: z.array(dashboardInterviewItemSchema),
-  interviewsToFollowUp: z.array(dashboardInterviewItemSchema),
+  applicationsToFollowUp: dashboardApplicationModulePageSchema,
+  upcomingInterviews: dashboardInterviewModulePageSchema,
+  interviewsToFollowUp: dashboardInterviewModulePageSchema,
 });
 
 export const settingsSchema = z.object({

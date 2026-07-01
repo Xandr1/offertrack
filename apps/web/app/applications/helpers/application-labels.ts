@@ -31,9 +31,8 @@ export const interviewTypeLabels: Record<InterviewType, string> = {
 };
 
 export const interviewStatusLabels: Record<InterviewStatus, string> = {
-  planned: "Planned",
+  initial: "Initial",
   scheduled: "Scheduled",
-  completed: "Completed",
   passed: "Passed",
   rejected: "Rejected",
 };

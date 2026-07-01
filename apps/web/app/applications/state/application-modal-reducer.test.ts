@@ -13,6 +13,8 @@ const makeApplication = (): Application => ({
   id: "app-1",
   jobUrl: null,
   location: null,
+  followedUpAt: null,
+  lastInterview: null,
   nextInterview: null,
   notes: null,
   positionTitle: "Engineer",
@@ -25,7 +27,7 @@ const makeRow = (id: string, overrides: Partial<InterviewDraftRow> = {}): Interv
   interviewId: id,
   rowId: id,
   scheduledAt: "",
-  status: "planned",
+  status: "initial",
   type: "technical",
   ...overrides,
 });
@@ -242,7 +244,7 @@ describe("application-modal-reducer", () => {
         interviewId: null,
         rowId: "new-row-1",
         scheduledAt: "",
-        status: "planned",
+        status: "initial",
         type: "",
       },
     });
@@ -279,7 +281,7 @@ describe("application-modal-reducer", () => {
         interviewId: null,
         rowId: "new-row-after-undo",
         scheduledAt: "",
-        status: "planned",
+        status: "initial",
         type: "",
       },
     });
@@ -320,7 +322,7 @@ describe("application-modal-reducer", () => {
         interviewId: null,
         rowId: "new-row-after-expiry",
         scheduledAt: "",
-        status: "planned",
+        status: "initial",
         type: "",
       },
     });
@@ -468,7 +470,7 @@ describe("application-modal-reducer", () => {
         interviewId: null,
         rowId: "new-row-after-expiry",
         scheduledAt: "",
-        status: "planned",
+        status: "initial",
         type: "",
       },
     });

@@ -1,8 +1,10 @@
 package com.offertrack;
 
+import static com.offertrack.jooq.generated.tables.JobApplications.JOB_APPLICATIONS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.offertrack.applications.ApplicationBoardQuery;
 import com.offertrack.applications.ApplicationListQuery;
 import com.offertrack.applications.ApplicationNotFoundException;
 import com.offertrack.applications.ApplicationRepository;
@@ -242,22 +244,30 @@ class ApplicationAggregateServiceIntegrationTest {
   @Test
   void listSupportsAllowedSorting() {
     UUID userId = createUser("list-sort@example.com");
-    createApplication(userId, "Beta", "Analyst", ApplicationStage.APPLIED);
-    createApplication(userId, "Acme", "Engineer", ApplicationStage.INTERVIEWING);
+    UUID firstId = createApplication(userId, "Beta", "Analyst", ApplicationStage.APPLIED);
+    UUID secondId = createApplication(userId, "Acme", "Engineer", ApplicationStage.INTERVIEWING);
+    OffsetDateTime older = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+    OffsetDateTime newer = OffsetDateTime.parse("2026-02-01T00:00:00Z");
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, older)
+        .set(JOB_APPLICATIONS.UPDATED_AT, newer)
+        .where(JOB_APPLICATIONS.ID.eq(firstId))
+        .execute();
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, newer)
+        .set(JOB_APPLICATIONS.UPDATED_AT, older)
+        .where(JOB_APPLICATIONS.ID.eq(secondId))
+        .execute();
 
-    var companyAsc =
+    var createdAsc =
         applicationService.list(
-            userId,
-            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
-    var titleDesc =
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, null, "createdAt", "asc"));
+    var updatedDesc =
         applicationService.list(
-            userId,
-            ApplicationListQuery.fromRequestParams(0, 20, null, null, "positionTitle", "desc"));
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, null, "updatedAt", "desc"));
 
-    assertThat(companyAsc.items()).extracting("companyName").containsExactly("Acme", "Beta");
-    assertThat(titleDesc.items())
-        .extracting("positionTitle")
-        .containsExactly("Engineer", "Analyst");
+    assertThat(createdAsc.items()).extracting("id").containsExactly(firstId, secondId);
+    assertThat(updatedDesc.items()).extracting("id").containsExactly(firstId, secondId);
   }
 
   @Test
@@ -267,6 +277,11 @@ class ApplicationAggregateServiceIntegrationTest {
     UUID secondId =
         createApplication(userId, "Acme", "Frontend Engineer", ApplicationStage.INTERVIEWING);
     UUID thirdId = createApplication(userId, "Acme", "Platform Engineer", ApplicationStage.OFFER);
+    OffsetDateTime tiedCreatedAt = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, tiedCreatedAt)
+        .where(JOB_APPLICATIONS.USER_ID.eq(userId))
+        .execute();
     List<UUID> expectedIds =
         List.of(firstId, secondId, thirdId).stream()
             .sorted(Comparator.comparing(UUID::toString))
@@ -274,8 +289,7 @@ class ApplicationAggregateServiceIntegrationTest {
 
     var response =
         applicationService.list(
-            userId,
-            ApplicationListQuery.fromRequestParams(0, 20, null, null, "companyName", "asc"));
+            userId, ApplicationListQuery.fromRequestParams(0, 20, null, null, "createdAt", "asc"));
 
     assertThat(response.items().stream().map(item -> item.id()).toList())
         .containsExactlyElementsOf(expectedIds);
@@ -292,6 +306,141 @@ class ApplicationAggregateServiceIntegrationTest {
 
     assertThat(response.items()).extracting("companyName").containsExactly("Acme");
     assertThat(response.totalItems()).isEqualTo(1);
+  }
+
+  @Test
+  void boardReturnsEveryStageWithCountsAndFixedPageSize() {
+    UUID userId = createUser("board-page-size@example.com");
+    for (int index = 0; index < 21; index++) {
+      createApplication(userId, "Applied " + index, "Engineer", ApplicationStage.APPLIED);
+    }
+    createApplication(userId, "Offer Co", "Engineer", ApplicationStage.OFFER);
+
+    var response = applicationService.board(userId, ApplicationBoardQuery.initial(null));
+
+    assertThat(response.columns())
+        .extracting("stage")
+        .containsExactly(
+            ApplicationStage.INITIAL,
+            ApplicationStage.APPLIED,
+            ApplicationStage.INTERVIEWING,
+            ApplicationStage.OFFER,
+            ApplicationStage.REJECTED);
+    var applied =
+        response.columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    assertThat(applied.items()).hasSize(ApplicationService.BOARD_COLUMN_PAGE_SIZE);
+    assertThat(applied.totalCount()).isEqualTo(21);
+    assertThat(applied.nextOffset()).isEqualTo(20);
+    assertThat(applied.hasMore()).isTrue();
+    assertThat(response.columns().getFirst().items()).isEmpty();
+  }
+
+  @Test
+  void boardGlobalStageFilterKeepsEveryColumnAndEmptiesNonMatchingColumns() {
+    UUID userId = createUser("board-stage-filter@example.com");
+    UUID appliedId = createApplication(userId, "Applied Co", "Engineer", ApplicationStage.APPLIED);
+    createApplication(userId, "Interview Co", "Engineer", ApplicationStage.INTERVIEWING);
+
+    var response =
+        applicationService.board(
+            userId, ApplicationBoardQuery.initial(null, "applied", null, null));
+
+    assertThat(response.columns())
+        .extracting("stage")
+        .containsExactly(
+            ApplicationStage.INITIAL,
+            ApplicationStage.APPLIED,
+            ApplicationStage.INTERVIEWING,
+            ApplicationStage.OFFER,
+            ApplicationStage.REJECTED);
+    for (var column : response.columns()) {
+      if (column.stage() == ApplicationStage.APPLIED) {
+        assertThat(column.totalCount()).isEqualTo(1);
+        assertThat(column.items()).extracting("id").containsExactly(appliedId);
+      } else {
+        assertThat(column.totalCount()).isZero();
+        assertThat(column.items()).isEmpty();
+      }
+    }
+  }
+
+  @Test
+  void boardSearchAndColumnPaginationAreUserIsolated() {
+    UUID firstUserId = createUser("board-isolation-1@example.com");
+    UUID secondUserId = createUser("board-isolation-2@example.com");
+    for (int index = 0; index < 21; index++) {
+      createApplication(firstUserId, "Acme " + index, "Backend Engineer", ApplicationStage.APPLIED);
+    }
+    createApplication(firstUserId, "Globex", "Frontend Engineer", ApplicationStage.INTERVIEWING);
+    createApplication(secondUserId, "Acme Foreign", "Backend Engineer", ApplicationStage.APPLIED);
+
+    var board = applicationService.board(firstUserId, ApplicationBoardQuery.initial("  ACME  "));
+    var applied =
+        board.columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    var nextPage =
+        applicationService.boardColumn(
+            firstUserId, ApplicationStage.APPLIED, ApplicationBoardQuery.column("acme", 20));
+
+    assertThat(applied.totalCount()).isEqualTo(21);
+    assertThat(applied.items()).hasSize(20);
+    assertThat(applied.items()).extracting("companyName").doesNotContain("Acme Foreign");
+    assertThat(nextPage.stage()).isEqualTo(ApplicationStage.APPLIED);
+    assertThat(nextPage.items()).hasSize(1);
+    assertThat(nextPage.totalCount()).isEqualTo(21);
+    assertThat(nextPage.nextOffset()).isEqualTo(21);
+    assertThat(nextPage.hasMore()).isFalse();
+    assertThat(
+            board.columns().stream()
+                .filter(column -> column.stage() == ApplicationStage.INTERVIEWING)
+                .findFirst()
+                .orElseThrow()
+                .items())
+        .isEmpty();
+  }
+
+  @Test
+  void boardAndColumnApplySortAndDirection() {
+    UUID userId = createUser("board-sort@example.com");
+    UUID firstId = createApplication(userId, "First", "Engineer", ApplicationStage.APPLIED);
+    UUID secondId = createApplication(userId, "Second", "Engineer", ApplicationStage.APPLIED);
+    UUID thirdId = createApplication(userId, "Third", "Engineer", ApplicationStage.APPLIED);
+    OffsetDateTime firstCreatedAt = OffsetDateTime.parse("2026-01-01T00:00:00Z");
+    OffsetDateTime secondCreatedAt = OffsetDateTime.parse("2026-02-01T00:00:00Z");
+    OffsetDateTime thirdCreatedAt = OffsetDateTime.parse("2026-03-01T00:00:00Z");
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, firstCreatedAt)
+        .where(JOB_APPLICATIONS.ID.eq(firstId))
+        .execute();
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, secondCreatedAt)
+        .where(JOB_APPLICATIONS.ID.eq(secondId))
+        .execute();
+    dsl.update(JOB_APPLICATIONS)
+        .set(JOB_APPLICATIONS.CREATED_AT, thirdCreatedAt)
+        .where(JOB_APPLICATIONS.ID.eq(thirdId))
+        .execute();
+
+    var board =
+        applicationService.board(userId, ApplicationBoardQuery.initial(null, "createdAt", "asc"));
+    var applied =
+        board.columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    var column =
+        applicationService.boardColumn(
+            userId,
+            ApplicationStage.APPLIED,
+            ApplicationBoardQuery.column(null, 1, "createdAt", "desc"));
+
+    assertThat(applied.items()).extracting("id").containsExactly(firstId, secondId, thirdId);
+    assertThat(column.items()).extracting("id").containsExactly(secondId, firstId);
   }
 
   @Test
@@ -345,7 +494,7 @@ class ApplicationAggregateServiceIntegrationTest {
                         InterviewType.HR, InterviewStatus.SCHEDULED, null))));
 
     assertThat(response.interviews()).hasSize(2);
-    assertThat(response.interviews().getFirst().status()).isEqualTo(InterviewStatus.PLANNED);
+    assertThat(response.interviews().getFirst().status()).isEqualTo(InterviewStatus.INITIAL);
   }
 
   @Test
@@ -367,9 +516,9 @@ class ApplicationAggregateServiceIntegrationTest {
                         null,
                         List.of(
                             new CreateApplicationInterviewItemRequest(
-                                InterviewType.TECHNICAL, InterviewStatus.PLANNED, null),
+                                InterviewType.TECHNICAL, InterviewStatus.INITIAL, null),
                             new CreateApplicationInterviewItemRequest(
-                                null, InterviewStatus.PLANNED, null)))))
+                                null, InterviewStatus.INITIAL, null)))))
         .isInstanceOf(RuntimeException.class);
 
     assertThat(applicationRepository.listByUser(userId)).isEmpty();
@@ -392,7 +541,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.TECHNICAL, InterviewStatus.PLANNED, null),
+                        InterviewType.TECHNICAL, InterviewStatus.INITIAL, null),
                     new CreateApplicationInterviewItemRequest(
                         InterviewType.HR, InterviewStatus.SCHEDULED, null))));
 
@@ -416,10 +565,10 @@ class ApplicationAggregateServiceIntegrationTest {
                     new ReplaceApplicationInterviewItemRequest(
                         keepAndUpdateInterviewId,
                         InterviewType.TECHNICAL,
-                        InterviewStatus.COMPLETED,
+                        InterviewStatus.SCHEDULED,
                         null),
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TEAM_MATCH, InterviewStatus.PLANNED, null))));
+                        null, InterviewType.TEAM_MATCH, InterviewStatus.INITIAL, null))));
 
     assertThat(replaced.application().companyName()).isEqualTo("Updated Acme");
     assertThat(replaced.interviews()).hasSize(2);
@@ -427,7 +576,7 @@ class ApplicationAggregateServiceIntegrationTest {
         .anyMatch(
             interview ->
                 interview.id().equals(keepAndUpdateInterviewId)
-                    && interview.status() == InterviewStatus.COMPLETED);
+                    && interview.status() == InterviewStatus.SCHEDULED);
     assertThat(replaced.interviews())
         .anyMatch(interview -> interview.type() == InterviewType.TEAM_MATCH);
   }
@@ -475,7 +624,7 @@ class ApplicationAggregateServiceIntegrationTest {
                                 InterviewStatus.PASSED,
                                 null),
                             new ReplaceApplicationInterviewItemRequest(
-                                null, null, InterviewStatus.PLANNED, null)))))
+                                null, null, InterviewStatus.INITIAL, null)))))
         .isInstanceOf(RuntimeException.class);
 
     var storedApplication =
@@ -507,7 +656,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))));
+                        InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))));
 
     UUID applicationId = created.application().id();
     UUID interviewId = created.interviews().getFirst().id();
@@ -530,7 +679,7 @@ class ApplicationAggregateServiceIntegrationTest {
                             new ReplaceApplicationInterviewItemRequest(
                                 interviewId,
                                 InterviewType.TECHNICAL,
-                                InterviewStatus.PLANNED,
+                                InterviewStatus.INITIAL,
                                 null),
                             new ReplaceApplicationInterviewItemRequest(
                                 interviewId, InterviewType.HR, InterviewStatus.SCHEDULED, null)))))
@@ -556,7 +705,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))));
+                        InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))));
     var secondApplication =
         applicationService.create(
             userId,
@@ -571,7 +720,7 @@ class ApplicationAggregateServiceIntegrationTest {
                 null,
                 List.of(
                     new CreateApplicationInterviewItemRequest(
-                        InterviewType.HR, InterviewStatus.PLANNED, null))));
+                        InterviewType.HR, InterviewStatus.INITIAL, null))));
 
     UUID wrongInterviewId = secondApplication.interviews().getFirst().id();
 
@@ -622,7 +771,7 @@ class ApplicationAggregateServiceIntegrationTest {
             .mapToObj(
                 index ->
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TECHNICAL, InterviewStatus.PLANNED, null))
+                        null, InterviewType.TECHNICAL, InterviewStatus.INITIAL, null))
             .toList();
 
     assertThatThrownBy(
@@ -648,8 +797,8 @@ class ApplicationAggregateServiceIntegrationTest {
   @Test
   void nextInterviewIsRecomputedAfterCreateAndReplaceSync() {
     UUID userId = createUser("next-interview@example.com");
-    OffsetDateTime later = OffsetDateTime.parse("2026-06-01T10:00:00Z");
-    OffsetDateTime sooner = OffsetDateTime.parse("2026-05-20T10:00:00Z");
+    OffsetDateTime later = OffsetDateTime.now().plusDays(20);
+    OffsetDateTime sooner = OffsetDateTime.now().minusDays(5);
 
     var created =
         applicationService.create(
@@ -698,12 +847,82 @@ class ApplicationAggregateServiceIntegrationTest {
                         technicalInterviewId,
                         InterviewType.TECHNICAL,
                         InterviewStatus.PASSED,
-                        later),
+                        sooner),
                     new ReplaceApplicationInterviewItemRequest(
-                        null, InterviewType.TEAM_MATCH, InterviewStatus.PLANNED, sooner))));
+                        null, InterviewType.TEAM_MATCH, InterviewStatus.INITIAL, sooner))));
 
-    assertThat(replaced.application().nextInterview()).isNotNull();
-    assertThat(replaced.application().nextInterview().type()).isEqualTo(InterviewType.TEAM_MATCH);
+    assertThat(replaced.application().nextInterview()).isNull();
+    assertThat(replaced.application().lastInterview()).isNotNull();
+    assertThat(replaced.application().lastInterview().type()).isEqualTo(InterviewType.TECHNICAL);
+  }
+
+  @Test
+  void nextInterviewUsesUndatedScheduledFallbackInSingleListAndBoardResponses() {
+    UUID userId = createUser("undated-next-interview@example.com");
+    OffsetDateTime future = OffsetDateTime.now().plusDays(20);
+
+    var datedPreferred =
+        applicationService.create(
+            userId,
+            new CreateApplicationRequest(
+                "Dated Preferred",
+                "Backend Engineer",
+                null,
+                null,
+                null,
+                ApplicationStage.APPLIED,
+                null,
+                null,
+                List.of(
+                    new CreateApplicationInterviewItemRequest(
+                        InterviewType.TECHNICAL, InterviewStatus.SCHEDULED, null),
+                    new CreateApplicationInterviewItemRequest(
+                        InterviewType.HR, InterviewStatus.SCHEDULED, future))));
+    var undatedFallback =
+        applicationService.create(
+            userId,
+            new CreateApplicationRequest(
+                "Undated Fallback",
+                "Frontend Engineer",
+                null,
+                null,
+                null,
+                ApplicationStage.APPLIED,
+                null,
+                null,
+                List.of(
+                    new CreateApplicationInterviewItemRequest(
+                        InterviewType.TECHNICAL, InterviewStatus.SCHEDULED, null))));
+
+    assertThat(datedPreferred.application().nextInterview().type()).isEqualTo(InterviewType.HR);
+    assertThat(undatedFallback.application().nextInterview().type())
+        .isEqualTo(InterviewType.TECHNICAL);
+    assertThat(undatedFallback.application().nextInterview().scheduledAt()).isNull();
+    assertThat(applicationService.get(userId, undatedFallback.application().id()).nextInterview())
+        .isEqualTo(undatedFallback.application().nextInterview());
+
+    var list = applicationService.list(userId);
+    assertThat(list.items())
+        .filteredOn(item -> item.id().equals(datedPreferred.application().id()))
+        .singleElement()
+        .extracting(item -> item.nextInterview().type())
+        .isEqualTo(InterviewType.HR);
+    assertThat(list.items())
+        .filteredOn(item -> item.id().equals(undatedFallback.application().id()))
+        .singleElement()
+        .extracting(item -> item.nextInterview().scheduledAt())
+        .isNull();
+
+    var appliedColumn =
+        applicationService.board(userId, ApplicationBoardQuery.initial(null)).columns().stream()
+            .filter(column -> column.stage() == ApplicationStage.APPLIED)
+            .findFirst()
+            .orElseThrow();
+    assertThat(appliedColumn.items())
+        .filteredOn(item -> item.id().equals(undatedFallback.application().id()))
+        .singleElement()
+        .extracting(item -> item.nextInterview().scheduledAt())
+        .isNull();
   }
 
   private UUID createUser(String email) {

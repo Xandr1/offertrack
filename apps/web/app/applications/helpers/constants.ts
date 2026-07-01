@@ -49,9 +49,8 @@ export const interviewTypes: InterviewType[] = [
 ];
 
 export const interviewStatuses: InterviewStatus[] = [
-  "planned",
+  "initial",
   "scheduled",
-  "completed",
   "passed",
   "rejected",
 ];
@@ -62,9 +61,6 @@ export const applicationSortFieldOptions: Array<{
 }> = [
   { label: "Updated", value: "updatedAt" },
   { label: "Created", value: "createdAt" },
-  { label: "Company", value: "companyName" },
-  { label: "Position", value: "positionTitle" },
-  { label: "Stage", value: "stage" },
 ];
 
 export const sortDirectionOptions: Array<{

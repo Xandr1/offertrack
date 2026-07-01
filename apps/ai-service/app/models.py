@@ -68,7 +68,7 @@ class ExtractedDraft(BaseModel):
 
 class DraftInterview(BaseModel):
     type: InterviewType
-    status: Literal["planned"] = "planned"
+    status: Literal["initial"] = "initial"
     scheduled_at: None = Field(default=None, alias="scheduledAt")
 
     model_config = ConfigDict(populate_by_name=True)

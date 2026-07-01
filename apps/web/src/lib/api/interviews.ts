@@ -30,3 +30,14 @@ export const updateApplicationInterviewStatus = (
     },
   );
 };
+
+export const markInterviewFollowedUp = (
+  applicationId: string,
+  interviewId: string,
+): Promise<ApplicationInterview> => {
+  return request<ApplicationInterview>(
+    `/api/applications/${applicationId}/interviews/${interviewId}/follow-up`,
+    applicationInterviewSchema,
+    { method: "PATCH" },
+  );
+};

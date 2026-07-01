@@ -12,6 +12,7 @@ import { ApplicationModalBody } from "./components/application-modal-body";
 import { ApplicationToolbar } from "./components/application-toolbar";
 import { ApplicationsPagination } from "./components/applications-pagination";
 import { ApplicationsList } from "./components/applications-list";
+import { ApplicationsBoard } from "./components/applications-board";
 import { CreateWithAiModal } from "./components/create-with-ai-modal";
 import { DeleteApplicationConfirmModal } from "./components/delete-application-confirm-modal";
 import { IconPlus, IconSparkles } from "./components/ui-icons";
@@ -58,6 +59,7 @@ const ApplicationsPage = () => {
           searchInput={controller.searchInput}
           sort={controller.sort}
           stageFilter={controller.stageFilter}
+          view={controller.view}
           onDirectionChange={(value) =>
             controller.setFilters({ direction: value })
           }
@@ -66,6 +68,7 @@ const ApplicationsPage = () => {
           onSearchSubmit={controller.submitSearch}
           onSortChange={(value) => controller.setFilters({ sort: value })}
           onStageChange={(value) => controller.setFilters({ stage: value })}
+          onViewChange={controller.setView}
         />
       </div>
 
@@ -90,40 +93,61 @@ const ApplicationsPage = () => {
       )}
 
       <section className={layoutStyles.section}>
-        <ApplicationsList
-          applications={controller.applications}
-          deletingApplicationId={
-            controller.deleteApplicationMutation.isPending
-              ? controller.deletingApplicationId
-              : undefined
-          }
-          errorMessage={controller.listErrorMessage}
-          isLoading={controller.applicationsQuery.isPending}
-          nextInterviewStatusApplicationId={
-            controller.updateInterviewStatusMutation.isPending
-              ? controller.nextInterviewStatusApplicationId
-              : undefined
-          }
-          onDelete={controller.handleDeleteRequest}
-          onEdit={controller.openEditApplicationModal}
-          onNextInterviewStatusChange={
-            controller.handleNextInterviewStatusChange
-          }
-          onRetry={() => {
-            void controller.applicationsQuery.refetch();
-          }}
-          onStageChange={controller.handleStageChange}
-          stageUpdatingApplicationId={
-            controller.updateStageMutation.isPending
-              ? controller.stageUpdatingApplicationId
-              : undefined
-          }
-        />
-        <ApplicationsPagination
-          page={controller.page}
-          totalPages={controller.totalPages}
-          onPageChange={controller.setPage}
-        />
+        {controller.view === "list" ? (
+          <>
+            <ApplicationsList
+              applications={controller.applications}
+              deletingApplicationId={
+                controller.deleteApplicationMutation.isPending
+                  ? controller.deletingApplicationId
+                  : undefined
+              }
+              errorMessage={controller.listErrorMessage}
+              isLoading={controller.applicationsQuery.isPending}
+              nextInterviewStatusApplicationId={
+                controller.updateInterviewStatusMutation.isPending
+                  ? controller.nextInterviewStatusApplicationId
+                  : undefined
+              }
+              onDelete={controller.handleDeleteRequest}
+              onEdit={controller.openEditApplicationModal}
+              onNextInterviewStatusChange={
+                controller.handleNextInterviewStatusChange
+              }
+              onRetry={() => {
+                void controller.applicationsQuery.refetch();
+              }}
+              onStageChange={controller.handleStageChange}
+              stageUpdatingApplicationId={
+                controller.updateStageMutation.isPending
+                  ? controller.stageUpdatingApplicationId
+                  : undefined
+              }
+            />
+            <ApplicationsPagination
+              page={controller.page}
+              totalPages={controller.totalPages}
+              onPageChange={controller.setPage}
+            />
+          </>
+        ) : (
+          <ApplicationsBoard
+            board={controller.boardController.boardQuery.data}
+            errorMessage={controller.boardErrorMessage}
+            isLoading={controller.boardController.boardQuery.isPending}
+            isStageUpdatePending={
+              controller.boardController.isStageUpdatePending
+            }
+            loadMoreState={controller.boardController.loadMoreState}
+            onDragEnd={controller.boardController.handleDragEnd}
+            onDelete={controller.handleDeleteRequest}
+            onEdit={controller.openEditApplicationModal}
+            onLoadMore={controller.boardController.loadMore}
+            onRetry={() => {
+              void controller.boardController.boardQuery.refetch();
+            }}
+          />
+        )}
       </section>
 
       <ApplicationModal

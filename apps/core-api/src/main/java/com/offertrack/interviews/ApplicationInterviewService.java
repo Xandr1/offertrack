@@ -4,6 +4,8 @@ import com.offertrack.applications.ApplicationNotFoundException;
 import com.offertrack.applications.ApplicationRepository;
 import com.offertrack.interviews.dto.ApplicationInterviewResponse;
 import com.offertrack.interviews.dto.UpdateInterviewStatusRequest;
+import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -12,12 +14,15 @@ import org.springframework.stereotype.Service;
 public class ApplicationInterviewService {
   private final ApplicationInterviewRepository applicationInterviewRepository;
   private final ApplicationRepository applicationRepository;
+  private final Clock clock;
 
   public ApplicationInterviewService(
       ApplicationInterviewRepository applicationInterviewRepository,
-      ApplicationRepository applicationRepository) {
+      ApplicationRepository applicationRepository,
+      Clock clock) {
     this.applicationInterviewRepository = applicationInterviewRepository;
     this.applicationRepository = applicationRepository;
+    this.clock = clock;
   }
 
   public List<ApplicationInterviewResponse> list(UUID userId, UUID applicationId) {
@@ -35,6 +40,15 @@ public class ApplicationInterviewService {
             .updateStatus(applicationId, interviewId, userId, request.status())
             .orElseThrow(InterviewNotFoundException::new);
 
+    return ApplicationInterviewResponseMapper.toResponse(interview);
+  }
+
+  public ApplicationInterviewResponse markFollowedUp(
+      UUID userId, UUID applicationId, UUID interviewId) {
+    ApplicationInterview interview =
+        applicationInterviewRepository
+            .markFollowedUp(applicationId, interviewId, userId, OffsetDateTime.now(clock))
+            .orElseThrow(InterviewNotFoundException::new);
     return ApplicationInterviewResponseMapper.toResponse(interview);
   }
 

@@ -318,7 +318,7 @@ def test_does_not_invent_interview_rounds_when_none_are_present() -> None:
     assert "Interview rounds were omitted" in response.json()["warnings"][0]
 
 
-def test_parses_explicit_interview_rounds_as_planned_interviews() -> None:
+def test_parses_explicit_interview_rounds_as_initial_interviews() -> None:
     client = _client(
         b"<html><body>The process includes a recruiter call and technical interview.</body></html>",
         FakeExtractor(
@@ -341,8 +341,8 @@ def test_parses_explicit_interview_rounds_as_planned_interviews() -> None:
 
     assert response.status_code == 200
     assert response.json()["interviews"] == [
-        {"type": "recruiter", "status": "planned", "scheduledAt": None},
-        {"type": "technical", "status": "planned", "scheduledAt": None},
+        {"type": "recruiter", "status": "initial", "scheduledAt": None},
+        {"type": "technical", "status": "initial", "scheduledAt": None},
     ]
 
 

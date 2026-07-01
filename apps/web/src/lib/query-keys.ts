@@ -1,4 +1,7 @@
-import type { ApplicationsListParams } from "./api/types";
+import type {
+  ApplicationsBoardParams,
+  ApplicationsListParams,
+} from "./api/types";
 
 export const queryKeys = {
   authMe: ["auth", "me"] as const,
@@ -8,6 +11,10 @@ export const queryKeys = {
   applications: {
     list: (params?: ApplicationsListParams) =>
       params ? (["applications", "list", params] as const) : (["applications", "list"] as const),
+    board: (params?: ApplicationsBoardParams) =>
+      params === undefined
+        ? (["applications", "board"] as const)
+        : (["applications", "board", params] as const),
     detail: (applicationId: string) =>
       ["applications", "detail", applicationId] as const,
     interviews: (applicationId: string) =>

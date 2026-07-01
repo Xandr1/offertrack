@@ -21,6 +21,7 @@ import { useApplicationMutations } from "./use-application-mutations";
 import { useApplicationQuery } from "./use-application-query";
 import { useApplicationSave } from "./use-application-save";
 import { useApplicationsQuery } from "./use-applications-query";
+import { useApplicationsBoardController } from "./use-applications-board-controller";
 import { useApplicationsUrlFilters } from "./use-applications-url-filters";
 import { useInterviewMutations } from "./use-interview-mutations";
 import {
@@ -121,7 +122,7 @@ const toInitialDraftRows = (
     rowId: createDraftRowId(index),
     interviewId: null,
     type: interview.type,
-    status: "planned",
+    status: "initial",
     scheduledAt: "",
   }));
 };
@@ -147,19 +148,26 @@ export const useApplicationsPageController = () => {
     clearSelectedApplicationId,
     direction,
     hasInvalidPageParam,
+    isViewInitialized,
     listParams,
     page,
     searchInput,
+    searchQuery,
     selectedApplicationId,
     setFilters,
     setPage,
     setSearchInput,
     setSelectedApplicationId,
+    setView,
     sort,
     stageFilter,
+    view,
   } = useApplicationsUrlFilters();
   const modalController = useApplicationModalController();
-  const applicationsQuery = useApplicationsQuery(listParams);
+  const applicationsQuery = useApplicationsQuery(
+    listParams,
+    isViewInitialized && view === "list",
+  );
   const applicationDetailQuery = useApplicationQuery(
     selectedApplicationId,
     selectedApplicationId !== null,
@@ -182,7 +190,7 @@ export const useApplicationsPageController = () => {
   }, [applicationsQuery.error, router]);
 
   useEffect(() => {
-    if (!applicationsQuery.data) {
+    if (view !== "list" || !applicationsQuery.data) {
       return;
     }
 
@@ -195,7 +203,7 @@ export const useApplicationsPageController = () => {
     }
 
     clearPageParam();
-  }, [applicationsQuery.data, clearPageParam, hasInvalidPageParam, page]);
+  }, [applicationsQuery.data, clearPageParam, hasInvalidPageParam, page, view]);
 
   useEffect(() => {
     if (!applicationDetailQuery.error) {
@@ -307,6 +315,23 @@ export const useApplicationsPageController = () => {
     },
     [modalController, router],
   );
+
+  const boardController = useApplicationsBoardController({
+    enabled: isViewInitialized && view === "board",
+    search: searchQuery,
+    stage: stageFilter === "all" ? null : stageFilter,
+    sort,
+    direction,
+    onMutationError: onPageMutationError,
+  });
+
+  useEffect(() => {
+    if (!boardController.boardQuery.error) {
+      return;
+    }
+
+    void redirectToLoginIfProtectedRoute(boardController.boardQuery.error, router);
+  }, [boardController.boardQuery.error, router]);
 
   const { deleteApplicationMutation, updateStageMutation } = useApplicationMutations({
     onMutationError: onPageMutationError,
@@ -476,7 +501,7 @@ export const useApplicationsPageController = () => {
     [clearPageError],
   );
 
-  const handleDeleteConfirm = useCallback(() => {
+  const handleDeleteConfirm = useCallback(async () => {
     if (!applicationToDelete) {
       return;
     }
@@ -492,14 +517,23 @@ export const useApplicationsPageController = () => {
       clearSelectedApplicationId();
     }
 
-    deleteApplicationMutation.mutate({ applicationId });
+    try {
+      await deleteApplicationMutation.mutateAsync({ applicationId });
+      if (view === "board") {
+        void boardController.refreshPreservingLoadedCounts();
+      }
+    } catch {
+      // Mutation onError handles page-level error state.
+    }
   }, [
     applicationToDelete,
+    boardController,
     clearPageError,
     clearSelectedApplicationId,
     deleteApplicationMutation,
     modalController,
     selectedApplicationId,
+    view,
   ]);
 
   const handleStageChange = useCallback(
@@ -519,14 +553,15 @@ export const useApplicationsPageController = () => {
 
   const handleNextInterviewStatusChange = useCallback(
     (application: Application, status: InterviewStatus) => {
-      if (!application.nextInterview || application.nextInterview.status === status) {
+      const interview = application.nextInterview ?? application.lastInterview;
+      if (!interview || interview.status === status) {
         return;
       }
 
       clearPageError();
       updateInterviewStatusMutation.mutate({
         applicationId: application.id,
-        interviewId: application.nextInterview.id,
+        interviewId: interview.id,
         status,
       });
     },
@@ -576,15 +611,20 @@ export const useApplicationsPageController = () => {
           suppressedDetailIdRef.current = selectedApplicationId;
           clearSelectedApplicationId();
         }
+        if (view === "board") {
+          void boardController.refreshPreservingLoadedCounts();
+        }
       } catch {
         // Mutation onError handles UI state side-effects.
       }
     },
     [
       clearSelectedApplicationId,
+      boardController,
       modalController,
       saveApplicationMutation,
       selectedApplicationId,
+      view,
     ],
   );
 
@@ -601,6 +641,7 @@ export const useApplicationsPageController = () => {
     !modalController.interviewsLoadedForEdit;
 
   const isListAuthError = isAuthError(applicationsQuery.error);
+  const isBoardAuthError = isAuthError(boardController.boardQuery.error);
   const isApplicationDetailAuthError = isAuthError(applicationDetailQuery.error);
   const applicationDetailStatusMessage =
     selectedApplicationId && applicationDetailQuery.isPending
@@ -618,6 +659,11 @@ export const useApplicationsPageController = () => {
     applications: applicationsQuery.data?.items ?? [],
     applicationToDelete,
     applicationsQuery,
+    boardController,
+    boardErrorMessage:
+      isBoardAuthError || !boardController.boardQuery.error
+        ? null
+        : getErrorMessage(boardController.boardQuery.error),
     closeApplicationModal,
     closeCreateWithAiModal,
     createApplicationDraftMutation,
@@ -650,12 +696,14 @@ export const useApplicationsPageController = () => {
     setCreateWithAiJobUrl: updateCreateWithAiJobUrl,
     setFilters,
     setPage,
+    setView,
     setSearchInput,
     submitSearch,
     sort,
     stageFilter,
     stageUpdatingApplicationId,
     totalPages: applicationsQuery.data?.totalPages ?? 0,
+    view,
     updateInterviewStatusMutation,
     updateStageMutation,
     listErrorMessage:
