@@ -1,10 +1,9 @@
 "use client";
 
 import { QueryClient, useMutation } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/query-keys";
 import { InterviewDraftRow } from "../models/interview-row-model";
 import { ApplicationFormState } from "../models/application-form-model";
-import { invalidateApplicationsFeatureQueries } from "../services/applications-invalidation";
+import { setSavedApplicationWithInterviews } from "../services/applications-cache-service";
 import {
   SaveApplicationWithInterviewsResult,
   saveApplicationWithInterviews,
@@ -47,18 +46,7 @@ export const useApplicationSave = ({
       void onMutationError(error);
     },
     onSuccess: (result) => {
-      queryClient.setQueryData(
-        queryKeys.applications.interviews(result.applicationId),
-        result.interviews,
-      );
-      queryClient.setQueryData(
-        queryKeys.applications.detail(result.applicationId),
-        result.application,
-      );
-      invalidateApplicationsFeatureQueries(queryClient, {
-        applicationId: result.applicationId,
-        refetchInterviews: false,
-      });
+      setSavedApplicationWithInterviews(queryClient, result);
     },
   });
 

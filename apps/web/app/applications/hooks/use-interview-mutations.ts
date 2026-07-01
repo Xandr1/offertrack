@@ -6,7 +6,7 @@ import {
   InterviewStatus,
   updateApplicationInterviewStatus,
 } from "@/lib/api";
-import { invalidateApplicationsFeatureQueries } from "../services/applications-invalidation";
+import { invalidateAfterInterviewChange } from "../services/applications-cache-service";
 
 type UpdateInterviewStatusVariables = {
   applicationId: string;
@@ -38,7 +38,7 @@ export const useInterviewMutations = ({
         return;
       }
 
-      invalidateApplicationsFeatureQueries(queryClient, {
+      invalidateAfterInterviewChange(queryClient, {
         applicationId: variables.applicationId,
       });
     },

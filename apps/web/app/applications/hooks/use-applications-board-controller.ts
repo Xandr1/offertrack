@@ -19,6 +19,7 @@ import type {
 import { queryKeys } from "@/lib/query-keys";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { applicationStages } from "../helpers/constants";
+import { invalidateAfterBoardStageChange } from "../services/applications-cache-service";
 import { refreshApplicationsBoardPreservingLoadedCounts } from "../services/applications-board-refresh";
 import {
   appendBoardColumn,
@@ -197,17 +198,7 @@ export const useApplicationsBoardController = ({
       queryClient.setQueryData<ApplicationBoard>(boardQueryKey, (current) =>
         current ? replaceBoardApplication(current, application) : current,
       );
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.applications.board(),
-        refetchType: "none",
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.applications.list(),
-      });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardSummary });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.applications.detail(application.id),
-      });
+      invalidateAfterBoardStageChange(queryClient, application.id);
     },
     onError: (error, _variables, context) => {
       if (context?.previousBoard) {

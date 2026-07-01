@@ -23,6 +23,7 @@ import {
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
 import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
+import { invalidateAfterDashboardFollowUp } from "../applications/services/applications-cache-service";
 import { DashboardActionModule } from "./components/dashboard-action-module";
 
 export const FOLLOW_UP_UNDO_TIMEOUT_MS = 3000;
@@ -107,9 +108,10 @@ export default function DashboardPage() {
       queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) =>
         current ? removeApplicationItem(current, variables.applicationId) : current,
       );
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.list() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.board() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.detail(variables.applicationId) });
+      invalidateAfterDashboardFollowUp(queryClient, {
+        applicationId: variables.applicationId,
+        kind: "application",
+      });
     },
     onError: (error) => setApplicationError(getRequestErrorMessage(error)),
     onSettled: (_data, _error, variables) => {
@@ -126,9 +128,10 @@ export default function DashboardPage() {
       queryClient.setQueryData<DashboardSummary>(queryKeys.dashboardSummary, (current) =>
         current ? removeInterviewItem(current, variables.interviewId!) : current,
       );
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.list() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.board() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.applications.interviews(variables.applicationId) });
+      invalidateAfterDashboardFollowUp(queryClient, {
+        applicationId: variables.applicationId,
+        kind: "interview",
+      });
     },
     onError: (error) => setInterviewError(getRequestErrorMessage(error)),
     onSettled: (_data, _error, variables) => {
