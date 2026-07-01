@@ -35,6 +35,10 @@ public class AiDraftCacheKeyFactory {
 
     try {
       URI uri = new URI(jobUrl.trim());
+      if (uri.getRawUserInfo() != null) {
+        throw new IllegalArgumentException("Job URL with userinfo is not cacheable");
+      }
+
       String scheme = uri.getScheme();
       String host = uri.getHost();
 
@@ -64,10 +68,6 @@ public class AiDraftCacheKeyFactory {
 
   private static String normalizedAuthority(URI uri, String normalizedHost) {
     StringBuilder authority = new StringBuilder();
-    if (uri.getRawUserInfo() != null) {
-      authority.append(uri.getRawUserInfo()).append('@');
-    }
-
     if (normalizedHost.contains(":")
         && !(normalizedHost.startsWith("[") && normalizedHost.endsWith("]"))) {
       authority.append('[').append(normalizedHost).append(']');

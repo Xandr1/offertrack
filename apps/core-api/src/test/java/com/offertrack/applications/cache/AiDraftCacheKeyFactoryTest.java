@@ -1,6 +1,7 @@
 package com.offertrack.applications.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,23 @@ class AiDraftCacheKeyFactoryTest {
   void lowercasesOnlySchemeAndHostAndPreservesPortAndPath() {
     assertThat(normalize("HTTPS://EXAMPLE.COM:8443/Jobs/../Jobs/123%2Fdetail#section"))
         .isEqualTo("https://example.com:8443/Jobs/../Jobs/123%2Fdetail");
+  }
+
+  @Test
+  void rejectsUrlsWithUserInfoInsteadOfNormalizingCredentials() {
+    assertThatThrownBy(() -> factory.create("https://user@example.com/jobs/123"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Job URL with userinfo is not cacheable");
+    assertThatThrownBy(() -> factory.create("https://user:password@example.com/jobs/123"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Job URL with userinfo is not cacheable");
+  }
+
+  @Test
+  void normalizedUrlContainsOnlyHostAndPortAuthority() {
+    assertThat(factory.create("https://EXAMPLE.com:8443/jobs/123").normalizedUrl())
+        .isEqualTo("https://example.com:8443/jobs/123")
+        .doesNotContain("@");
   }
 
   @Test
