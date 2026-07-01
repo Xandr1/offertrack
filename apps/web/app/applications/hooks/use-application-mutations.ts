@@ -7,7 +7,7 @@ import {
   deleteApplication,
   updateApplicationStage,
 } from "@/lib/api";
-import { invalidateApplicationsFeatureQueries } from "../services/applications-invalidation";
+import { invalidateAfterApplicationChange } from "../services/applications-cache-service";
 
 type StageMutationVariables = {
   applicationId: string;
@@ -38,7 +38,7 @@ export const useApplicationMutations = ({
       void onMutationError(mutationError);
     },
     onSettled: (_data, _error, variables) => {
-      invalidateApplicationsFeatureQueries(queryClient, {
+      invalidateAfterApplicationChange(queryClient, {
         applicationId: variables?.applicationId,
       });
     },
@@ -51,7 +51,7 @@ export const useApplicationMutations = ({
         void onMutationError(mutationError);
       },
       onSettled: (_data, _error, variables) => {
-        invalidateApplicationsFeatureQueries(queryClient, {
+        invalidateAfterApplicationChange(queryClient, {
           applicationId: variables?.applicationId,
         });
       },

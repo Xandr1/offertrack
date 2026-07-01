@@ -912,6 +912,45 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("direction")).toBe("asc");
   });
 
+  it("saving the selected edit modal removes id from the URL", async () => {
+    currentUrl = "/applications?search=acme&id=app-1";
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Edit application" });
+    const saveButton = await screen.findByRole("button", { name: "Save changes" });
+    await waitFor(() => expect((saveButton as HTMLButtonElement).disabled).toBe(false));
+    await user.click(saveButton);
+
+    await waitFor(() => expect(mockedReplaceApplication).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Edit application" })).toBeNull(),
+    );
+    const url = lastReplaceUrl();
+    expect(url.searchParams.get("id")).toBeNull();
+    expect(url.searchParams.get("search")).toBe("acme");
+  });
+
+  it("deleting the selected application closes edit and removes id from the URL", async () => {
+    currentUrl = "/applications?search=acme&id=app-1";
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Edit application" });
+    await user.click(screen.getAllByRole("button", { name: "Delete" })[0]);
+    await user.click(screen.getByRole("button", { name: "Delete application" }));
+
+    await waitFor(() => expect(mockedDeleteApplication).toHaveBeenCalledWith("app-1"));
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Edit application" })).toBeNull(),
+    );
+    const url = lastReplaceUrl();
+    expect(url.searchParams.get("id")).toBeNull();
+    expect(url.searchParams.get("search")).toBe("acme");
+  });
+
   it("opens the Create with AI modal", async () => {
     installApiMocks();
     const user = userEvent.setup();

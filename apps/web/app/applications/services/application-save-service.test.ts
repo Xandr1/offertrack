@@ -49,7 +49,7 @@ const makeInterviewRow = (
 });
 
 describe("application-save-service", () => {
-  it("create save calls exactly one aggregate application API request", async () => {
+  it("create save calls one aggregate API request and returns its interviews", async () => {
     const deps = {
       createApplication: jest
         .fn()
@@ -57,7 +57,7 @@ describe("application-save-service", () => {
       replaceApplication: jest.fn(),
     };
 
-    await saveApplicationWithInterviews(
+    const result = await saveApplicationWithInterviews(
       {
         form: {
           appliedAt: "2026-01-12",
@@ -94,9 +94,15 @@ describe("application-save-service", () => {
       stage: "applied",
       workMode: null,
     });
+    expect(result).toEqual({
+      application: makeApplication("app-1"),
+      applicationId: "app-1",
+      interviews: [makeInterview("int-1")],
+      mode: "create",
+    });
   });
 
-  it("edit save calls exactly one aggregate application API request", async () => {
+  it("edit save calls one aggregate API request and returns its interviews", async () => {
     const deps = {
       createApplication: jest.fn(),
       replaceApplication: jest
@@ -104,7 +110,7 @@ describe("application-save-service", () => {
         .mockResolvedValue(makeAggregateResponse("app-1")),
     };
 
-    await saveApplicationWithInterviews(
+    const result = await saveApplicationWithInterviews(
       {
         applicationId: "app-1",
         form: {
@@ -150,6 +156,12 @@ describe("application-save-service", () => {
       positionTitle: "Engineer",
       stage: "interviewing",
       workMode: null,
+    });
+    expect(result).toEqual({
+      application: makeApplication("app-1"),
+      applicationId: "app-1",
+      interviews: [makeInterview("int-1")],
+      mode: "edit",
     });
   });
 

@@ -1,5 +1,6 @@
 import {
   Application,
+  ApplicationInterview,
   createApplication,
   replaceApplication,
 } from "@/lib/api";
@@ -35,6 +36,7 @@ type SaveApplicationWithInterviewsInput = SaveCreateInput | SaveEditInput;
 export type SaveApplicationWithInterviewsResult = {
   application: Application;
   applicationId: string;
+  interviews: ApplicationInterview[];
   mode: "create" | "edit";
 };
 
@@ -77,6 +79,7 @@ export const saveApplicationWithInterviews = async (
     return {
       application: response.application,
       applicationId: response.application.id,
+      interviews: response.interviews,
       mode: "create",
     };
   }
@@ -92,6 +95,7 @@ export const saveApplicationWithInterviews = async (
   return {
     application: response.application,
     applicationId: input.applicationId,
+    interviews: response.interviews,
     mode: "edit",
   };
 };

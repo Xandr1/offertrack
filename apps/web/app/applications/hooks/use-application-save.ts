@@ -3,7 +3,7 @@
 import { QueryClient, useMutation } from "@tanstack/react-query";
 import { InterviewDraftRow } from "../models/interview-row-model";
 import { ApplicationFormState } from "../models/application-form-model";
-import { invalidateApplicationsFeatureQueries } from "../services/applications-invalidation";
+import { setSavedApplicationWithInterviews } from "../services/applications-cache-service";
 import {
   SaveApplicationWithInterviewsResult,
   saveApplicationWithInterviews,
@@ -46,10 +46,7 @@ export const useApplicationSave = ({
       void onMutationError(error);
     },
     onSuccess: (result) => {
-      invalidateApplicationsFeatureQueries(queryClient, {
-        applicationId: result.applicationId,
-        refetchInterviews: false,
-      });
+      setSavedApplicationWithInterviews(queryClient, result);
     },
   });
 
