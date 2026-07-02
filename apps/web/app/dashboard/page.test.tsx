@@ -4,6 +4,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
+  ApiError,
   getCurrentUser,
   getDashboardApplicationsToFollowUp,
   getDashboardInterviewsToFollowUp,
@@ -13,10 +14,13 @@ import {
   markInterviewFollowedUp,
 } from "@/lib/api";
 import type { DashboardSummary } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import DashboardPage, { FOLLOW_UP_UNDO_TIMEOUT_MS } from "./page";
 
+const mockReplace = jest.fn();
+
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: jest.fn() }),
+  useRouter: () => ({ replace: mockReplace }),
 }));
 
 jest.mock("@/components/layout/shell-layout", () => ({
@@ -87,6 +91,81 @@ describe("DashboardPage follow-up actions", () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it("redirects and clears session caches when the summary query is unauthorized", async () => {
+    let rejectSummary: (error: unknown) => void = () => undefined;
+    mockedGetSummary.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectSummary = reject;
+      }),
+    );
+    const view = renderPage();
+
+    await waitFor(() => expect(mockedGetSummary).toHaveBeenCalled());
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    seedProtectedCaches(view.queryClient);
+    await act(async () => {
+      rejectSummary(new ApiError(401, "Unauthorized"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expectProtectedCachesCleared(view.queryClient);
+    expect(screen.queryByText("Summary unavailable")).toBeNull();
+  });
+
+  it("redirects and clears session caches when a follow-up mutation is unauthorized", async () => {
+    mockedMarkApplication.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    const view = renderPage();
+    const markButton = await screen.findByRole("button", {
+      name: "Mark followed up",
+    });
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    seedProtectedCaches(view.queryClient);
+    jest.useFakeTimers();
+
+    fireEvent.click(markButton);
+    await act(async () => {
+      jest.advanceTimersByTime(FOLLOW_UP_UNDO_TIMEOUT_MS);
+      await Promise.resolve();
+    });
+    jest.useRealTimers();
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expectProtectedCachesCleared(view.queryClient);
+    expect(
+      screen.queryByText("Something went wrong. Please try again."),
+    ).toBeNull();
+  });
+
+  it("redirects and clears session caches when load more is unauthorized", async () => {
+    mockedGetSummary.mockResolvedValue(summary(true));
+    mockedLoadApplications.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    const view = renderPage();
+
+    const loadMoreButton = await screen.findByRole("button", {
+      name: "Load more",
+    });
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    seedProtectedCaches(view.queryClient);
+    fireEvent.click(loadMoreButton);
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expectProtectedCachesCleared(view.queryClient);
+    expect(
+      screen.queryByText("Something went wrong. Please try again."),
+    ).toBeNull();
+  });
+
+  it("keeps the retryable summary error for non-auth failures", async () => {
+    mockedGetSummary.mockRejectedValue(new Error("network failed"));
+
+    renderPage();
+
+    expect(await screen.findByText("Summary unavailable")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalledWith("/login");
   });
 
   it("does not load or render dashboard data before fresh auth succeeds", async () => {
@@ -215,15 +294,35 @@ describe("DashboardPage follow-up actions", () => {
 });
 
 const renderPage = () => {
-  const client = new QueryClient({
+  const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
     },
   });
-  return render(
-    <QueryClientProvider client={client}>
+  const view = render(
+    <QueryClientProvider client={queryClient}>
       <DashboardPage />
     </QueryClientProvider>,
   );
+
+  return { ...view, queryClient };
+};
+
+const seedProtectedCaches = (queryClient: QueryClient) => {
+  queryClient.setQueryData(queryKeys.authMe, {
+    id: "stale-user",
+    email: "stale@example.com",
+    name: null,
+  });
+  queryClient.setQueryData(queryKeys.dashboardSummary, summary());
+  queryClient.setQueryData(queryKeys.settings, { stale: true });
+  queryClient.setQueryData(queryKeys.applications.list(), { stale: true });
+};
+
+const expectProtectedCachesCleared = (queryClient: QueryClient) => {
+  expect(queryClient.getQueryData(queryKeys.authMe)).toBeUndefined();
+  expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeUndefined();
+  expect(queryClient.getQueryData(queryKeys.settings)).toBeUndefined();
+  expect(queryClient.getQueryData(queryKeys.applications.list())).toBeUndefined();
 };

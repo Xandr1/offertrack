@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getDashboardApplicationsToFollowUp,
@@ -16,7 +17,11 @@ import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
-import { getRequestErrorMessage } from "@/lib/request-errors";
+import {
+  getRequestErrorMessage,
+  isAuthError,
+  redirectToLoginIfProtectedRoute,
+} from "@/lib/request-errors";
 import { formStyles, layoutStyles, textStyles } from "@/lib/styles";
 import { invalidateAfterDashboardFollowUp } from "../applications/services/applications-cache-service";
 import { DashboardActionModule } from "./components/dashboard-action-module";
@@ -71,6 +76,7 @@ const removeInterviewItem = (
 };
 
 function DashboardPageContent() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [pendingApplicationIds, setPendingApplicationIds] = useState(new Set<string>());
@@ -84,6 +90,29 @@ function DashboardPageContent() {
     queryFn: getDashboardSummary,
     retry: false,
   });
+
+  const handleDashboardError = useCallback(
+    async (error: unknown, setError: (message: string) => void) => {
+      if (await redirectToLoginIfProtectedRoute(error, router, queryClient)) {
+        return;
+      }
+
+      setError(getRequestErrorMessage(error));
+    },
+    [queryClient, router],
+  );
+
+  useEffect(() => {
+    if (!summaryQuery.error) {
+      return;
+    }
+
+    void redirectToLoginIfProtectedRoute(
+      summaryQuery.error,
+      router,
+      queryClient,
+    );
+  }, [queryClient, router, summaryQuery.error]);
 
   useEffect(() => () => {
     for (const timer of timersRef.current.values()) clearTimeout(timer);
@@ -101,7 +130,9 @@ function DashboardPageContent() {
         kind: "application",
       });
     },
-    onError: (error) => setApplicationError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setApplicationError);
+    },
     onSettled: (_data, _error, variables) => {
       setPendingApplicationIds((current) => {
         const next = new Set(current); next.delete(variables.applicationId); return next;
@@ -121,7 +152,9 @@ function DashboardPageContent() {
         kind: "interview",
       });
     },
-    onError: (error) => setInterviewError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setInterviewError);
+    },
     onSettled: (_data, _error, variables) => {
       setPendingInterviewIds((current) => {
         const next = new Set(current); next.delete(variables.interviewId!); return next;
@@ -135,7 +168,9 @@ function DashboardPageContent() {
       ...current,
       applicationsToFollowUp: { ...page, items: [...current.applicationsToFollowUp.items, ...page.items] },
     })),
-    onError: (error) => setApplicationError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setApplicationError);
+    },
   });
   const upcomingLoadMore = useMutation({
     mutationFn: getDashboardUpcomingInterviews,
@@ -143,7 +178,9 @@ function DashboardPageContent() {
       ...current,
       upcomingInterviews: { ...page, items: [...current.upcomingInterviews.items, ...page.items] },
     })),
-    onError: (error) => setUpcomingError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setUpcomingError);
+    },
   });
   const interviewLoadMore = useMutation({
     mutationFn: getDashboardInterviewsToFollowUp,
@@ -151,7 +188,9 @@ function DashboardPageContent() {
       ...current,
       interviewsToFollowUp: { ...page, items: [...current.interviewsToFollowUp.items, ...page.items] },
     })),
-    onError: (error) => setInterviewError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setInterviewError);
+    },
   });
 
   const markFollowedUp = (applicationId: string, interviewId?: string) => {
@@ -182,7 +221,13 @@ function DashboardPageContent() {
   };
 
   const summary = summaryQuery.data;
+  const isSummaryAuthError = isAuthError(summaryQuery.error);
   const now = new Date();
+
+  if (isSummaryAuthError) {
+    return null;
+  }
+
   return (
     <ShellLayout activeRoute="/dashboard">
       <div className={layoutStyles.container}>

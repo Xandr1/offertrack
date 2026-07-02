@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -18,6 +18,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
 import {
   getRequestErrorMessage,
+  isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
 import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
@@ -52,6 +53,18 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
     retry: false,
   });
 
+  useEffect(() => {
+    if (!settingsQuery.error) {
+      return;
+    }
+
+    void redirectToLoginIfProtectedRoute(
+      settingsQuery.error,
+      router,
+      queryClient,
+    );
+  }, [queryClient, router, settingsQuery.error]);
+
   async function handleLogout() {
     try {
       await logout();
@@ -59,6 +72,10 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
       clearAuthSessionQueries(queryClient);
       router.replace("/login");
     }
+  }
+
+  if (isAuthError(settingsQuery.error)) {
+    return null;
   }
 
   return (
