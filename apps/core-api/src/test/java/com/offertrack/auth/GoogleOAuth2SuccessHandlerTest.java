@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.offertrack.auth.dto.AuthResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -30,7 +33,7 @@ import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class GoogleOAuth2SuccessHandlerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
@@ -42,10 +45,12 @@ class GoogleOAuth2SuccessHandlerTest {
 
   @BeforeEach
   void setUp() {
+    JwtProperties jwtProperties = new JwtProperties();
+    jwtProperties.setAccessTokenTtl(Duration.ofHours(48));
     handler =
         new GoogleOAuth2SuccessHandler(
             authService,
-            new CookieService(),
+            new CookieService(jwtProperties),
             authorizationRequestRepository,
             "http://localhost:3000/");
   }
@@ -114,11 +119,22 @@ class GoogleOAuth2SuccessHandlerTest {
   }
 
   @Test
-  void serviceFailureFailsWithoutSettingAccessToken() throws Exception {
+  void serviceFailureLogsOnlySafeOAuthFields(CapturedOutput output) throws Exception {
     when(authService.loginWithGoogle(anyString(), anyString(), anyBoolean()))
-        .thenThrow(new IllegalStateException("failed"));
+        .thenThrow(
+            new IllegalStateException(
+                "provider-message-marker oauth-code-marker oauth-token-marker oauth-state-marker"));
 
     expectFailure(googleAuthentication(oidcUser("user@example.com", true)), true);
+
+    assertThat(output.getOut())
+        .contains(
+            "oauth_login_failed operation=google_oauth_login error_type=IllegalStateException")
+        .doesNotContain(
+            "provider-message-marker",
+            "oauth-code-marker",
+            "oauth-token-marker",
+            "oauth-state-marker");
   }
 
   private void expectFailure(Authentication authentication, boolean authServiceExpected)

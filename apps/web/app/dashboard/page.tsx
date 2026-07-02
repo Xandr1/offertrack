@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getCurrentUser,
   getDashboardApplicationsToFollowUp,
   getDashboardInterviewsToFollowUp,
   getDashboardSummary,
@@ -13,16 +11,13 @@ import {
   markInterviewFollowedUp,
 } from "@/lib/api";
 import type { DashboardSummary } from "@/lib/api";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
-import {
-  getRequestErrorMessage,
-  isAuthError,
-  redirectToLoginIfProtectedRoute,
-} from "@/lib/request-errors";
-import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
+import { getRequestErrorMessage } from "@/lib/request-errors";
+import { formStyles, layoutStyles, textStyles } from "@/lib/styles";
 import { invalidateAfterDashboardFollowUp } from "../applications/services/applications-cache-service";
 import { DashboardActionModule } from "./components/dashboard-action-module";
 
@@ -75,8 +70,7 @@ const removeInterviewItem = (
   };
 };
 
-export default function DashboardPage() {
-  const router = useRouter();
+function DashboardPageContent() {
   const queryClient = useQueryClient();
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [pendingApplicationIds, setPendingApplicationIds] = useState(new Set<string>());
@@ -85,17 +79,11 @@ export default function DashboardPage() {
   const [upcomingError, setUpcomingError] = useState<string | null>(null);
   const [interviewError, setInterviewError] = useState<string | null>(null);
 
-  const userQuery = useQuery({ queryKey: queryKeys.authMe, queryFn: getCurrentUser, retry: false });
   const summaryQuery = useQuery({
     queryKey: queryKeys.dashboardSummary,
     queryFn: getDashboardSummary,
     retry: false,
-    enabled: Boolean(userQuery.data),
   });
-
-  useEffect(() => {
-    if (userQuery.error) void redirectToLoginIfProtectedRoute(userQuery.error, router);
-  }, [router, userQuery.error]);
 
   useEffect(() => () => {
     for (const timer of timersRef.current.values()) clearTimeout(timer);
@@ -193,11 +181,6 @@ export default function DashboardPage() {
     setPendingInterviewIds((current) => { const next = new Set(current); next.delete(id); return next; });
   };
 
-  if (userQuery.isPending) return <main className={pageStyles.centered}><div className={pageStyles.statusMessage}>Loading dashboard...</div></main>;
-  if (isAuthError(userQuery.error)) return null;
-  if (userQuery.error) return <main className={pageStyles.centered}><Card variant="auth"><h1 className={textStyles.pageTitle}>Dashboard unavailable</h1><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(userQuery.error)}</div><Button className="mt-4" onClick={() => userQuery.refetch()} variant="secondary">Retry</Button></Card></main>;
-  if (!userQuery.data) return null;
-
   const summary = summaryQuery.data;
   const now = new Date();
   return (
@@ -258,5 +241,16 @@ export default function DashboardPage() {
         </section>}
       </div>
     </ShellLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute
+      errorTitle="Dashboard unavailable"
+      loadingLabel="Loading dashboard..."
+    >
+      {() => <DashboardPageContent />}
+    </ProtectedRoute>
   );
 }

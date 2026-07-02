@@ -9,6 +9,7 @@ export const queryKeys = {
   dashboardSummary: ["dashboard", "summary"] as const,
   settings: ["settings"] as const,
   applications: {
+    all: ["applications"] as const,
     list: (params?: ApplicationsListParams) =>
       params ? (["applications", "list", params] as const) : (["applications", "list"] as const),
     board: (params?: ApplicationsBoardParams) =>

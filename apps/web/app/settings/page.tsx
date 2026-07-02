@@ -1,22 +1,23 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Settings,
-  getCurrentUser,
   getSettings,
   logout,
   updateSettings,
 } from "@/lib/api";
+import type { UserSummary } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
 import {
   getRequestErrorMessage,
-  isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
 import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
@@ -31,80 +32,34 @@ import { SettingsFormState } from "./models/settings-form-model";
 import { invalidateSettingsFeatureQueries } from "./services/settings-invalidation";
 
 export default function SettingsPage() {
+  return (
+    <ProtectedRoute
+      errorTitle="Settings unavailable"
+      loadingLabel="Loading settings..."
+    >
+      {(user) => <SettingsPageContent user={user} />}
+    </ProtectedRoute>
+  );
+}
+
+const SettingsPageContent = ({ user }: { user: UserSummary }) => {
   const router = useRouter();
   const queryClient = useQueryClient();
-
-  const userQuery = useQuery({
-    queryKey: queryKeys.authMe,
-    queryFn: getCurrentUser,
-    retry: false,
-  });
 
   const settingsQuery = useQuery({
     queryKey: queryKeys.settings,
     queryFn: getSettings,
     retry: false,
-    enabled: Boolean(userQuery.data),
   });
-
-  const shouldRedirectToLogin = isAuthError(userQuery.error);
-
-  useEffect(() => {
-    if (!userQuery.error) {
-      return;
-    }
-
-    void redirectToLoginIfProtectedRoute(userQuery.error, router);
-  }, [router, userQuery.error]);
 
   async function handleLogout() {
     try {
       await logout();
     } finally {
-      queryClient.clear();
+      clearAuthSessionQueries(queryClient);
       router.replace("/login");
     }
   }
-
-  if (userQuery.isPending) {
-    return (
-      <main className={pageStyles.centered}>
-        <div className={pageStyles.statusMessage}>Loading settings...</div>
-      </main>
-    );
-  }
-
-  if (shouldRedirectToLogin) {
-    return null;
-  }
-
-  if (userQuery.error) {
-    return (
-      <main className={pageStyles.centered}>
-        <Card variant="auth">
-          <h1 className={textStyles.pageTitle}>Settings unavailable</h1>
-          <div className="mt-4">
-            <div className={formStyles.error}>
-              {getRequestErrorMessage(userQuery.error)}
-            </div>
-          </div>
-          <Button
-            className="mt-4"
-            onClick={() => userQuery.refetch()}
-            variant="secondary"
-          >
-            Retry
-          </Button>
-        </Card>
-      </main>
-    );
-  }
-
-  if (!userQuery.data) {
-    return null;
-  }
-
-  const user = userQuery.data;
 
   return (
     <ShellLayout activeRoute="/settings">
@@ -143,7 +98,7 @@ export default function SettingsPage() {
       </div>
     </ShellLayout>
   );
-}
+};
 
 type SettingsEditorProps = {
   settings: Settings;
@@ -172,7 +127,7 @@ const SettingsEditor = ({ settings }: SettingsEditorProps) => {
   });
 
   async function handleMutationError(error: unknown) {
-    if (await redirectToLoginIfProtectedRoute(error, router)) {
+    if (await redirectToLoginIfProtectedRoute(error, router, queryClient)) {
       return;
     }
 

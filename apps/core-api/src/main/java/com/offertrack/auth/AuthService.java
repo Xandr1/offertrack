@@ -194,7 +194,16 @@ public class AuthService {
 
   private void sendEmailVerification(User user) {
     String token = authTokenService.createEmailVerificationToken(user.id());
-    authEmailService.sendVerificationEmail(user, token);
+
+    try {
+      authEmailService.sendVerificationEmail(user, token);
+    } catch (RuntimeException exception) {
+      log.warn(
+          "email_verification_send_failed user_id={} error_type={}",
+          user.id(),
+          exception.getClass().getSimpleName());
+      throw exception;
+    }
   }
 
   private void sendPasswordResetEmail(User user) {
@@ -203,7 +212,10 @@ public class AuthService {
     try {
       authEmailService.sendPasswordResetEmail(user, token);
     } catch (RuntimeException exception) {
-      log.warn("Could not send password reset email for user {}", user.id(), exception);
+      log.warn(
+          "password_reset_send_failed user_id={} error_type={}",
+          user.id(),
+          exception.getClass().getSimpleName());
     }
   }
 

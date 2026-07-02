@@ -8,24 +8,21 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 import javax.crypto.SecretKey;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
   private final SecretKey signingKey;
-  private final long expirationMinutes;
+  private final JwtProperties properties;
 
-  public JwtService(
-      @Value("${app.jwt.secret}") String secret,
-      @Value("${app.jwt.expiration-minutes}") long expirationMinutes) {
-    this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-    this.expirationMinutes = expirationMinutes;
+  public JwtService(JwtProperties properties) {
+    this.properties = properties;
+    this.signingKey = Keys.hmacShaKeyFor(properties.getSecret().getBytes(StandardCharsets.UTF_8));
   }
 
   public String generateAccessToken(UUID userId, String email) {
     Instant now = Instant.now();
-    Instant expiresAt = now.plusSeconds(expirationMinutes * 60);
+    Instant expiresAt = now.plus(properties.getAccessTokenTtl());
 
     return Jwts.builder()
         .subject(userId.toString())

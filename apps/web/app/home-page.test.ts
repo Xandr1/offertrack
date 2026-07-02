@@ -3,7 +3,8 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import { getCurrentUser } from "@/lib/api";
+import { ApiError, getCurrentUser } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { HomeClient } from "./home-client";
 import { LANDING_HEADLINE } from "./landing-content";
 
@@ -16,6 +17,7 @@ jest.mock("next/navigation", () => ({
 }));
 
 jest.mock("@/lib/api", () => ({
+  ...jest.requireActual("@/lib/api"),
   getCurrentUser: jest.fn(),
 }));
 
@@ -63,9 +65,25 @@ describe("HomeClient", () => {
 
     expect(screen.getByRole("heading", { name: LANDING_HEADLINE })).toBeTruthy();
   });
+
+  it("ignores and clears stale auth when the fresh check is unauthorized", async () => {
+    mockedGetCurrentUser.mockRejectedValueOnce(new ApiError(401, "Unauthorized"));
+    const queryClient = renderWithQueryClient(
+      React.createElement(HomeClient),
+      true,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: LANDING_HEADLINE }),
+    ).toBeTruthy();
+    await waitFor(() => {
+      expect(queryClient.getQueryData(queryKeys.authMe)).toBeUndefined();
+    });
+    expect(mockReplace).not.toHaveBeenCalledWith("/dashboard");
+  });
 });
 
-const renderWithQueryClient = (ui: React.ReactElement) => {
+const renderWithQueryClient = (ui: React.ReactElement, seedStaleAuth = false) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -74,7 +92,17 @@ const renderWithQueryClient = (ui: React.ReactElement) => {
     },
   });
 
-  return render(
+  if (seedStaleAuth) {
+    queryClient.setQueryData(queryKeys.authMe, {
+      id: "stale-user",
+      email: "stale@example.com",
+      name: null,
+    });
+  }
+
+  render(
     React.createElement(QueryClientProvider, { client: queryClient }, ui),
   );
+
+  return queryClient;
 };

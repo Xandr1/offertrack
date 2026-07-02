@@ -2,27 +2,30 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser } from "@/lib/api";
-import { queryKeys } from "@/lib/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
+import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
+import { useFreshAuthSession } from "@/lib/auth/use-fresh-auth-session";
 import { LandingContent } from "./landing-content";
 
 export const HomeClient = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const sessionQuery = useQuery({
-    queryKey: queryKeys.authMe,
-    queryFn: getCurrentUser,
-    retry: false,
-  });
+  const session = useFreshAuthSession();
 
   useEffect(() => {
-    if (sessionQuery.data) {
+    if (session.status === "authenticated") {
       router.replace("/dashboard");
     }
-  }, [router, sessionQuery.data]);
+  }, [router, session.status]);
 
-  if (sessionQuery.data) {
+  useEffect(() => {
+    if (session.status === "unauthenticated") {
+      clearAuthSessionQueries(queryClient);
+    }
+  }, [queryClient, session.status]);
+
+  if (session.status === "authenticated") {
     return null;
   }
 

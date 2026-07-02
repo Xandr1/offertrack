@@ -10,6 +10,7 @@ import {
   createApplicationDraft,
   deleteApplication,
   getApplication,
+  getCurrentUser,
   getApplicationBoardColumn,
   getApplicationsBoard,
   listApplicationInterviews,
@@ -29,6 +30,8 @@ import {
   storeApplicationsView,
 } from "./helpers/application-filters";
 import ApplicationsPage from "./page";
+import { LoginClient } from "../login/login-client";
+import { queryKeys } from "@/lib/query-keys";
 
 let currentUrl = "/applications";
 const mockReplace = jest.fn((url: string) => {
@@ -57,6 +60,7 @@ jest.mock("@/lib/api", () => {
     createApplicationDraft: jest.fn(),
     deleteApplication: jest.fn(),
     getApplication: jest.fn(),
+    getCurrentUser: jest.fn(),
     getApplicationBoardColumn: jest.fn(),
     getApplicationsBoard: jest.fn(),
     listApplicationInterviews: jest.fn(),
@@ -79,6 +83,9 @@ const mockedDeleteApplication = deleteApplication as jest.MockedFunction<
 >;
 const mockedGetApplication = getApplication as jest.MockedFunction<
   typeof getApplication
+>;
+const mockedGetCurrentUser = getCurrentUser as jest.MockedFunction<
+  typeof getCurrentUser
 >;
 const mockedGetApplicationBoardColumn =
   getApplicationBoardColumn as jest.MockedFunction<
@@ -183,6 +190,11 @@ const installApiMocks = ({
   detailMode?: "success" | "failure" | "pending";
   listPage?: ApplicationsPageResponse;
 } = {}) => {
+  mockedGetCurrentUser.mockResolvedValue({
+    id: "user-1",
+    email: "person@example.com",
+    name: null,
+  });
   mockedListApplications.mockResolvedValue(listPage);
   mockedGetApplicationsBoard.mockResolvedValue(makeBoard());
   mockedGetApplicationBoardColumn.mockResolvedValue({
@@ -251,6 +263,7 @@ const renderPage = () => {
 
   return {
     ...view,
+    queryClient,
     rerenderPage: () => view.rerender(makeUi()),
   };
 };
@@ -285,11 +298,52 @@ describe("ApplicationsPage", () => {
     mockedCreateApplicationDraft.mockReset();
     mockedDeleteApplication.mockReset();
     mockedGetApplication.mockReset();
+    mockedGetCurrentUser.mockReset();
     mockedGetApplicationBoardColumn.mockReset();
     mockedGetApplicationsBoard.mockReset();
     mockedListApplicationInterviews.mockReset();
     mockedListApplications.mockReset();
     mockedReplaceApplication.mockReset();
+  });
+
+  it("does not render or query protected applications before fresh auth succeeds", async () => {
+    installApiMocks();
+    let resolveSession: (value: {
+      id: string;
+      email: string;
+      name: null;
+    }) => void = () => undefined;
+    mockedGetCurrentUser.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    renderPage();
+
+    expect(screen.getByText("Loading applications...")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Applications" })).toBeNull();
+    expect(mockedListApplications).not.toHaveBeenCalled();
+    expect(mockedGetApplicationsBoard).not.toHaveBeenCalled();
+
+    resolveSession({ id: "user-1", email: "person@example.com", name: null });
+
+    expect(
+      await screen.findByRole("heading", { name: "Applications" }),
+    ).toBeTruthy();
+    await waitFor(() => expect(mockedListApplications).toHaveBeenCalled());
+  });
+
+  it("redirects without flashing protected applications after fresh auth fails", async () => {
+    installApiMocks();
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+
+    renderPage();
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expect(screen.queryByRole("heading", { name: "Applications" })).toBeNull();
+    expect(mockedListApplications).not.toHaveBeenCalled();
+    expect(mockedGetApplicationsBoard).not.toHaveBeenCalled();
   });
 
   it("sends URL params to the applications list API", async () => {
@@ -1048,6 +1102,44 @@ describe("ApplicationsPage", () => {
     expect(screen.getByRole("heading", { name: "Create with AI" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Create application" })).toBeNull();
     expect(mockedCreateApplication).not.toHaveBeenCalled();
+  });
+
+  it("clears session caches after an action 401 and does not bounce from login", async () => {
+    installApiMocks();
+    mockedCreateApplicationDraft.mockRejectedValue(
+      new ApiError(401, "Unauthorized"),
+    );
+    const user = userEvent.setup();
+    const view = renderPage();
+
+    await screen.findByRole("heading", { name: "Applications" });
+    view.queryClient.setQueryData(queryKeys.dashboardSummary, { stale: true });
+    await user.click(screen.getByRole("button", { name: "Create with AI" }));
+    await user.type(
+      screen.getByPlaceholderText("https://company.com/jobs/123"),
+      "https://example.com/jobs/123",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expect(view.queryClient.getQueryData(queryKeys.authMe)).toBeUndefined();
+    expect(
+      view.queryClient.getQueryData(queryKeys.dashboardSummary),
+    ).toBeUndefined();
+
+    view.unmount();
+    mockReplace.mockClear();
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    render(
+      React.createElement(
+        QueryClientProvider,
+        { client: view.queryClient },
+        React.createElement(LoginClient),
+      ),
+    );
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeTruthy();
+    expect(mockReplace).not.toHaveBeenCalledWith("/dashboard");
   });
 
   it("opens the application modal prefilled with an AI draft and warnings", async () => {

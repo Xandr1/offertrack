@@ -1,6 +1,8 @@
 package com.offertrack.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,8 +24,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class AuthServiceTest {
   private static final Clock CLOCK =
       Clock.fixed(Instant.parse("2026-06-13T10:15:30Z"), ZoneOffset.UTC);
@@ -130,6 +134,58 @@ class AuthServiceTest {
     assertGoogleDisplayNameNormalized("a".repeat(300), "a".repeat(255));
   }
 
+  @Test
+  void verificationSendFailureIsSafelyLoggedAndStillPropagated(CapturedOutput output) {
+    User user = unverifiedUser("verify@example.com");
+    when(userRepository.findByEmail("verify@example.com")).thenReturn(Optional.of(user));
+    when(authTokenService.createEmailVerificationToken(USER_ID))
+        .thenReturn("email-verification-token-marker");
+    org.mockito.Mockito.doThrow(
+            new IllegalStateException(
+                "provider-message-marker smtp-password-marker email-verification-token-marker"))
+        .when(authEmailService)
+        .sendVerificationEmail(user, "email-verification-token-marker");
+
+    assertThatThrownBy(
+            () ->
+                authService.resendVerificationEmail(
+                    new com.offertrack.auth.dto.ResendVerificationRequest("verify@example.com")))
+        .isInstanceOf(IllegalStateException.class);
+
+    assertThat(output.getOut())
+        .contains(
+            "email_verification_send_failed user_id="
+                + USER_ID
+                + " error_type=IllegalStateException")
+        .doesNotContain(
+            "provider-message-marker", "smtp-password-marker", "email-verification-token-marker");
+  }
+
+  @Test
+  void passwordResetSendFailureIsSafelyLoggedAndStillSwallowed(CapturedOutput output) {
+    User user = verifiedUser("reset@example.com", "Reset User");
+    when(userRepository.findByEmail("reset@example.com")).thenReturn(Optional.of(user));
+    when(authTokenService.createPasswordResetToken(USER_ID))
+        .thenReturn("password-reset-token-marker");
+    org.mockito.Mockito.doThrow(
+            new IllegalStateException(
+                "provider-message-marker smtp-password-marker password-reset-token-marker"))
+        .when(authEmailService)
+        .sendPasswordResetEmail(user, "password-reset-token-marker");
+
+    assertThatCode(
+            () ->
+                authService.forgotPassword(
+                    new com.offertrack.auth.dto.ForgotPasswordRequest("reset@example.com")))
+        .doesNotThrowAnyException();
+
+    assertThat(output.getOut())
+        .contains(
+            "password_reset_send_failed user_id=" + USER_ID + " error_type=IllegalStateException")
+        .doesNotContain(
+            "provider-message-marker", "smtp-password-marker", "password-reset-token-marker");
+  }
+
   private void assertGoogleDisplayNameNormalized(String inputName, String expectedName) {
     User insertedUser = verifiedUser("name@example.com", expectedName);
     ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
@@ -148,5 +204,9 @@ class AuthServiceTest {
 
   private static User verifiedUser(String email, String name) {
     return new User(USER_ID, email, null, name, NOW, NOW, NOW);
+  }
+
+  private static User unverifiedUser(String email) {
+    return new User(USER_ID, email, "password-hash", "User", null, NOW, NOW);
   }
 }

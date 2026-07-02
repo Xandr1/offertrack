@@ -89,6 +89,38 @@ describe("DashboardPage follow-up actions", () => {
     jest.useRealTimers();
   });
 
+  it("does not load or render dashboard data before fresh auth succeeds", async () => {
+    let resolveSession: (value: {
+      id: string;
+      email: string;
+      name: string;
+    }) => void = () => undefined;
+    mockedGetCurrentUser.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSession = resolve;
+      }),
+    );
+
+    renderPage();
+
+    expect(screen.getByText("Loading dashboard...")).toBeTruthy();
+    expect(mockedGetSummary).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("heading", { name: "Applications to follow up" }),
+    ).toBeNull();
+
+    resolveSession({
+      id: "user-1",
+      email: "person@example.com",
+      name: "Person",
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "Applications to follow up" }),
+    ).toBeTruthy();
+    expect(mockedGetSummary).toHaveBeenCalledTimes(1);
+  });
+
   it("renders exactly the three action modules", async () => {
     renderPage();
 
