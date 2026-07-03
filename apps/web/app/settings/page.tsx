@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedRoute } from "@/components/auth/protected-route";
@@ -16,9 +16,9 @@ import {
 import type { UserSummary } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
+import { useRedirectToLoginOnProtectedError } from "@/lib/auth/use-redirect-to-login-on-protected-error";
 import {
   getRequestErrorMessage,
-  isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
 import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
@@ -52,18 +52,9 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
     queryFn: getSettings,
     retry: false,
   });
-
-  useEffect(() => {
-    if (!settingsQuery.error) {
-      return;
-    }
-
-    void redirectToLoginIfProtectedRoute(
-      settingsQuery.error,
-      router,
-      queryClient,
-    );
-  }, [queryClient, router, settingsQuery.error]);
+  const isRedirectingToLogin = useRedirectToLoginOnProtectedError(
+    settingsQuery.error,
+  );
 
   async function handleLogout() {
     try {
@@ -74,7 +65,7 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
     }
   }
 
-  if (isAuthError(settingsQuery.error)) {
+  if (isRedirectingToLogin) {
     return null;
   }
 

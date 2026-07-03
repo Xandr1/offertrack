@@ -101,6 +101,47 @@ describe("SettingsPage auth gate", () => {
     expect(screen.queryByText("Settings unavailable")).toBeNull();
   });
 
+  it("redirects for forbidden settings when session verification fails", async () => {
+    let rejectSettings: (error: unknown) => void = () => undefined;
+    mockedGetSettings.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectSettings = reject;
+      }),
+    );
+    const queryClient = createQueryClient();
+
+    renderPage(queryClient);
+    await waitFor(() => expect(mockedGetSettings).toHaveBeenCalled());
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    seedProtectedCaches(queryClient);
+    rejectSettings(new ApiError(403, "Forbidden"));
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expectProtectedCachesCleared(queryClient);
+    expect(screen.queryByText("Settings unavailable")).toBeNull();
+  });
+
+  it("shows retryable forbidden settings when session verification succeeds", async () => {
+    let rejectSettings: (error: unknown) => void = () => undefined;
+    mockedGetSettings.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectSettings = reject;
+      }),
+    );
+    const queryClient = createQueryClient();
+
+    renderPage(queryClient);
+    await waitFor(() => expect(mockedGetSettings).toHaveBeenCalled());
+    seedProtectedCaches(queryClient);
+    rejectSettings(new ApiError(403, "Forbidden"));
+
+    expect(await screen.findByText("Settings unavailable")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    await waitFor(() => expect(mockedGetCurrentUser).toHaveBeenCalledTimes(2));
+    expect(mockReplace).not.toHaveBeenCalledWith("/login");
+    expectProtectedCachesRetained(queryClient);
+  });
+
   it("keeps the retryable settings error for non-auth failures", async () => {
     mockedGetSettings.mockRejectedValue(new Error("network failed"));
 
@@ -163,4 +204,11 @@ const expectProtectedCachesCleared = (queryClient: QueryClient) => {
   expect(queryClient.getQueryData(queryKeys.settings)).toBeUndefined();
   expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeUndefined();
   expect(queryClient.getQueryData(queryKeys.applications.list())).toBeUndefined();
+};
+
+const expectProtectedCachesRetained = (queryClient: QueryClient) => {
+  expect(queryClient.getQueryData(queryKeys.authMe)).toBeDefined();
+  expect(queryClient.getQueryData(queryKeys.settings)).toBeDefined();
+  expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeDefined();
+  expect(queryClient.getQueryData(queryKeys.applications.list())).toBeDefined();
 };

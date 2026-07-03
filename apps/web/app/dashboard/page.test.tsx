@@ -115,6 +115,51 @@ describe("DashboardPage follow-up actions", () => {
     expect(screen.queryByText("Summary unavailable")).toBeNull();
   });
 
+  it("redirects for a forbidden summary when session verification fails", async () => {
+    let rejectSummary: (error: unknown) => void = () => undefined;
+    mockedGetSummary.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectSummary = reject;
+      }),
+    );
+    const view = renderPage();
+
+    await waitFor(() => expect(mockedGetSummary).toHaveBeenCalled());
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    seedProtectedCaches(view.queryClient);
+    await act(async () => {
+      rejectSummary(new ApiError(403, "Forbidden"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expectProtectedCachesCleared(view.queryClient);
+    expect(screen.queryByText("Summary unavailable")).toBeNull();
+  });
+
+  it("shows a retryable forbidden summary when session verification succeeds", async () => {
+    let rejectSummary: (error: unknown) => void = () => undefined;
+    mockedGetSummary.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectSummary = reject;
+      }),
+    );
+    const view = renderPage();
+
+    await waitFor(() => expect(mockedGetSummary).toHaveBeenCalled());
+    seedProtectedCaches(view.queryClient);
+    await act(async () => {
+      rejectSummary(new ApiError(403, "Forbidden"));
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText("Summary unavailable")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    await waitFor(() => expect(mockedGetCurrentUser).toHaveBeenCalledTimes(2));
+    expect(mockReplace).not.toHaveBeenCalledWith("/login");
+    expectProtectedCachesRetained(view.queryClient);
+  });
+
   it("redirects and clears session caches when a follow-up mutation is unauthorized", async () => {
     mockedMarkApplication.mockRejectedValue(new ApiError(401, "Unauthorized"));
     const view = renderPage();
@@ -122,6 +167,7 @@ describe("DashboardPage follow-up actions", () => {
       name: "Mark followed up",
     });
     mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    mockedGetSummary.mockReturnValue(new Promise(() => undefined));
     seedProtectedCaches(view.queryClient);
     jest.useFakeTimers();
 
@@ -148,6 +194,7 @@ describe("DashboardPage follow-up actions", () => {
       name: "Load more",
     });
     mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    mockedGetSummary.mockReturnValue(new Promise(() => undefined));
     seedProtectedCaches(view.queryClient);
     fireEvent.click(loadMoreButton);
 
@@ -325,4 +372,11 @@ const expectProtectedCachesCleared = (queryClient: QueryClient) => {
   expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeUndefined();
   expect(queryClient.getQueryData(queryKeys.settings)).toBeUndefined();
   expect(queryClient.getQueryData(queryKeys.applications.list())).toBeUndefined();
+};
+
+const expectProtectedCachesRetained = (queryClient: QueryClient) => {
+  expect(queryClient.getQueryData(queryKeys.authMe)).toBeDefined();
+  expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeDefined();
+  expect(queryClient.getQueryData(queryKeys.settings)).toBeDefined();
+  expect(queryClient.getQueryData(queryKeys.applications.list())).toBeDefined();
 };

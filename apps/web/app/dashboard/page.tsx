@@ -17,9 +17,9 @@ import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
+import { useRedirectToLoginOnProtectedError } from "@/lib/auth/use-redirect-to-login-on-protected-error";
 import {
   getRequestErrorMessage,
-  isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
 import { formStyles, layoutStyles, textStyles } from "@/lib/styles";
@@ -90,6 +90,9 @@ function DashboardPageContent() {
     queryFn: getDashboardSummary,
     retry: false,
   });
+  const isRedirectingToLogin = useRedirectToLoginOnProtectedError(
+    summaryQuery.error,
+  );
 
   const handleDashboardError = useCallback(
     async (error: unknown, setError: (message: string) => void) => {
@@ -101,18 +104,6 @@ function DashboardPageContent() {
     },
     [queryClient, router],
   );
-
-  useEffect(() => {
-    if (!summaryQuery.error) {
-      return;
-    }
-
-    void redirectToLoginIfProtectedRoute(
-      summaryQuery.error,
-      router,
-      queryClient,
-    );
-  }, [queryClient, router, summaryQuery.error]);
 
   useEffect(() => () => {
     for (const timer of timersRef.current.values()) clearTimeout(timer);
@@ -221,10 +212,9 @@ function DashboardPageContent() {
   };
 
   const summary = summaryQuery.data;
-  const isSummaryAuthError = isAuthError(summaryQuery.error);
   const now = new Date();
 
-  if (isSummaryAuthError) {
+  if (isRedirectingToLogin) {
     return null;
   }
 
