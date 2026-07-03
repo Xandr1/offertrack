@@ -2,18 +2,17 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  getCurrentUser,
   getErrorMessage,
   getGoogleLoginUrl,
   login,
   resendVerificationEmail,
 } from "@/lib/api";
-import { queryKeys } from "@/lib/query-keys";
+import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
+import { useFreshAuthSession } from "@/lib/auth/use-fresh-auth-session";
 import {
   getRequestErrorMessage,
-  isAuthError,
   isEmailNotVerifiedError,
   resolveRequestError,
 } from "@/lib/request-errors";
@@ -24,6 +23,7 @@ import { buttonStyles, formStyles, pageStyles, textStyles } from "@/lib/styles";
 
 export const LoginClient = () => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const oauthError = searchParams.get("oauthError");
 
@@ -37,19 +37,19 @@ export const LoginClient = () => {
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
 
-  const sessionQuery = useQuery({
-    queryKey: queryKeys.authMe,
-    queryFn: getCurrentUser,
-    retry: false,
-  });
+  const session = useFreshAuthSession();
 
   useEffect(() => {
-    if (sessionQuery.data) {
+    if (session.status === "authenticated") {
       router.replace("/dashboard");
     }
-  }, [sessionQuery.data, router]);
+  }, [router, session.status]);
 
-  const isSessionAuthError = isAuthError(sessionQuery.error);
+  useEffect(() => {
+    if (session.status === "unauthenticated") {
+      clearAuthSessionQueries(queryClient);
+    }
+  }, [queryClient, session.status]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -61,6 +61,7 @@ export const LoginClient = () => {
 
     try {
       await login({ email, password });
+      clearAuthSessionQueries(queryClient);
       router.push("/dashboard");
     } catch (requestError) {
       if (isEmailNotVerifiedError(requestError)) {
@@ -104,7 +105,7 @@ export const LoginClient = () => {
     setResendError(null);
   };
 
-  if (sessionQuery.isPending) {
+  if (session.status === "verifying") {
     return (
       <main className={pageStyles.centered}>
         <div className={pageStyles.statusMessage}>Checking session...</div>
@@ -112,14 +113,12 @@ export const LoginClient = () => {
     );
   }
 
-  if (sessionQuery.data) {
+  if (session.status === "authenticated") {
     return null;
   }
 
   const sessionError =
-    sessionQuery.error && !isSessionAuthError
-      ? getErrorMessage(sessionQuery.error)
-      : null;
+    session.status === "error" ? getErrorMessage(session.error) : null;
 
   return (
     <main className={pageStyles.centered}>

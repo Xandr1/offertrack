@@ -50,7 +50,9 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
       result = authService.loginWithGoogle(email, name, emailVerified);
     } catch (RuntimeException exception) {
-      log.warn("Google OAuth login failed", exception);
+      log.warn(
+          "oauth_login_failed operation=google_oauth_login error_type={}",
+          exception.getClass().getSimpleName());
       redirectToFailure(response);
       return;
     }

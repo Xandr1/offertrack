@@ -1,14 +1,17 @@
 package com.offertrack.auth;
 
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import org.springframework.stereotype.Service;
 
 @Service
 public class CookieService {
   public static final String ACCESS_TOKEN_COOKIE_NAME = "access_token";
 
-  private static final Duration ACCESS_TOKEN_TTL = Duration.ofHours(1);
+  private final JwtProperties properties;
+
+  public CookieService(JwtProperties properties) {
+    this.properties = properties;
+  }
 
   public void addAccessTokenCookie(HttpServletResponse response, String accessToken) {
     String cookie =
@@ -16,7 +19,7 @@ public class CookieService {
             + "="
             + accessToken
             + "; Max-Age="
-            + ACCESS_TOKEN_TTL.toSeconds()
+            + properties.getAccessTokenTtl().toSeconds()
             + "; Path=/"
             + "; HttpOnly"
             + "; SameSite=None"

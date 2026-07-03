@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getCurrentUser,
   getDashboardApplicationsToFollowUp,
   getDashboardInterviewsToFollowUp,
   getDashboardSummary,
@@ -13,16 +12,17 @@ import {
   markInterviewFollowedUp,
 } from "@/lib/api";
 import type { DashboardSummary } from "@/lib/api";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
+import { useRedirectToLoginOnProtectedError } from "@/lib/auth/use-redirect-to-login-on-protected-error";
 import {
   getRequestErrorMessage,
-  isAuthError,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
-import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
+import { formStyles, layoutStyles, textStyles } from "@/lib/styles";
 import { invalidateAfterDashboardFollowUp } from "../applications/services/applications-cache-service";
 import { DashboardActionModule } from "./components/dashboard-action-module";
 
@@ -75,7 +75,7 @@ const removeInterviewItem = (
   };
 };
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -85,17 +85,25 @@ export default function DashboardPage() {
   const [upcomingError, setUpcomingError] = useState<string | null>(null);
   const [interviewError, setInterviewError] = useState<string | null>(null);
 
-  const userQuery = useQuery({ queryKey: queryKeys.authMe, queryFn: getCurrentUser, retry: false });
   const summaryQuery = useQuery({
     queryKey: queryKeys.dashboardSummary,
     queryFn: getDashboardSummary,
     retry: false,
-    enabled: Boolean(userQuery.data),
   });
+  const isRedirectingToLogin = useRedirectToLoginOnProtectedError(
+    summaryQuery.error,
+  );
 
-  useEffect(() => {
-    if (userQuery.error) void redirectToLoginIfProtectedRoute(userQuery.error, router);
-  }, [router, userQuery.error]);
+  const handleDashboardError = useCallback(
+    async (error: unknown, setError: (message: string) => void) => {
+      if (await redirectToLoginIfProtectedRoute(error, router, queryClient)) {
+        return;
+      }
+
+      setError(getRequestErrorMessage(error));
+    },
+    [queryClient, router],
+  );
 
   useEffect(() => () => {
     for (const timer of timersRef.current.values()) clearTimeout(timer);
@@ -113,7 +121,9 @@ export default function DashboardPage() {
         kind: "application",
       });
     },
-    onError: (error) => setApplicationError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setApplicationError);
+    },
     onSettled: (_data, _error, variables) => {
       setPendingApplicationIds((current) => {
         const next = new Set(current); next.delete(variables.applicationId); return next;
@@ -133,7 +143,9 @@ export default function DashboardPage() {
         kind: "interview",
       });
     },
-    onError: (error) => setInterviewError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setInterviewError);
+    },
     onSettled: (_data, _error, variables) => {
       setPendingInterviewIds((current) => {
         const next = new Set(current); next.delete(variables.interviewId!); return next;
@@ -147,7 +159,9 @@ export default function DashboardPage() {
       ...current,
       applicationsToFollowUp: { ...page, items: [...current.applicationsToFollowUp.items, ...page.items] },
     })),
-    onError: (error) => setApplicationError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setApplicationError);
+    },
   });
   const upcomingLoadMore = useMutation({
     mutationFn: getDashboardUpcomingInterviews,
@@ -155,7 +169,9 @@ export default function DashboardPage() {
       ...current,
       upcomingInterviews: { ...page, items: [...current.upcomingInterviews.items, ...page.items] },
     })),
-    onError: (error) => setUpcomingError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setUpcomingError);
+    },
   });
   const interviewLoadMore = useMutation({
     mutationFn: getDashboardInterviewsToFollowUp,
@@ -163,7 +179,9 @@ export default function DashboardPage() {
       ...current,
       interviewsToFollowUp: { ...page, items: [...current.interviewsToFollowUp.items, ...page.items] },
     })),
-    onError: (error) => setInterviewError(getRequestErrorMessage(error)),
+    onError: (error) => {
+      void handleDashboardError(error, setInterviewError);
+    },
   });
 
   const markFollowedUp = (applicationId: string, interviewId?: string) => {
@@ -193,13 +211,13 @@ export default function DashboardPage() {
     setPendingInterviewIds((current) => { const next = new Set(current); next.delete(id); return next; });
   };
 
-  if (userQuery.isPending) return <main className={pageStyles.centered}><div className={pageStyles.statusMessage}>Loading dashboard...</div></main>;
-  if (isAuthError(userQuery.error)) return null;
-  if (userQuery.error) return <main className={pageStyles.centered}><Card variant="auth"><h1 className={textStyles.pageTitle}>Dashboard unavailable</h1><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(userQuery.error)}</div><Button className="mt-4" onClick={() => userQuery.refetch()} variant="secondary">Retry</Button></Card></main>;
-  if (!userQuery.data) return null;
-
   const summary = summaryQuery.data;
   const now = new Date();
+
+  if (isRedirectingToLogin) {
+    return null;
+  }
+
   return (
     <ShellLayout activeRoute="/dashboard">
       <div className={layoutStyles.container}>
@@ -258,5 +276,16 @@ export default function DashboardPage() {
         </section>}
       </div>
     </ShellLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute
+      errorTitle="Dashboard unavailable"
+      loadingLabel="Loading dashboard..."
+    >
+      {() => <DashboardPageContent />}
+    </ProtectedRoute>
   );
 }

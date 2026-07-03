@@ -1,4 +1,6 @@
 import { ApiError, NetworkError } from "@/lib/api";
+import { QueryClient } from "@tanstack/react-query";
+import { queryKeys } from "./query-keys";
 import {
   getRequestErrorMessage,
   isAuthError,
@@ -128,9 +130,25 @@ describe("request-errors", () => {
 
   it("redirects to login for protected-route auth errors", async () => {
     const router = { replace: jest.fn() };
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.authMe, { id: "stale-user" });
+    queryClient.setQueryData(queryKeys.dashboardSummary, { stale: true });
+    queryClient.setQueryData(queryKeys.settings, { stale: true });
+    queryClient.setQueryData(queryKeys.applications.list(), { stale: true });
+
+    router.replace.mockImplementation(() => {
+      expect(queryClient.getQueryData(queryKeys.authMe)).toBeUndefined();
+      expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeUndefined();
+      expect(queryClient.getQueryData(queryKeys.settings)).toBeUndefined();
+      expect(queryClient.getQueryData(queryKeys.applications.list())).toBeUndefined();
+    });
 
     await expect(
-      redirectToLoginIfProtectedRoute(new ApiError(401, ""), router),
+      redirectToLoginIfProtectedRoute(
+        new ApiError(401, ""),
+        router,
+        queryClient,
+      ),
     ).resolves.toBe(true);
     expect(router.replace).toHaveBeenCalledWith("/login");
   });

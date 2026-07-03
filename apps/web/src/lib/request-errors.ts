@@ -5,6 +5,8 @@ import {
   getErrorMessage,
   hasApiErrorCode,
 } from "@/lib/api";
+import type { QueryClient } from "@tanstack/react-query";
+import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
 
 type ResolvedRequestError = {
   message: string;
@@ -70,12 +72,14 @@ type RouterLike = {
 export const redirectToLoginIfProtectedRoute = async (
   requestError: unknown,
   router: RouterLike,
+  queryClient: QueryClient,
 ): Promise<boolean> => {
   const shouldRedirect = await shouldRedirectToLoginAfterError(requestError);
   if (!shouldRedirect) {
     return false;
   }
 
+  clearAuthSessionQueries(queryClient);
   router.replace("/login");
   return true;
 };

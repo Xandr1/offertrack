@@ -52,8 +52,8 @@ management:
         include: health,info
 app:
   jwt:
-    secret: "change-me-change-me-change-me-change-me-change-me"
-    expiration-minutes: 60
+    secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:48h}
   mail:
     from: ${MAIL_FROM:no-reply@offertrack.local}
   oauth:

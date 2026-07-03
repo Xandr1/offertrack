@@ -1,6 +1,7 @@
 "use client";
 
 import { ShellLayout } from "@/components/layout/shell-layout";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import {
   layoutStyles,
@@ -18,7 +19,7 @@ import { DeleteApplicationConfirmModal } from "./components/delete-application-c
 import { IconPlus, IconSparkles } from "./components/ui-icons";
 import { useApplicationsPageController } from "./hooks/use-applications-page-controller";
 
-const ApplicationsPage = () => {
+const ApplicationsPageContent = () => {
   const controller = useApplicationsPageController();
   const { modalController } = controller;
   const isModalFormDisabled =
@@ -220,5 +221,14 @@ const ApplicationsPage = () => {
     </ShellLayout>
   );
 };
+
+const ApplicationsPage = () => (
+  <ProtectedRoute
+    errorTitle="Applications unavailable"
+    loadingLabel="Loading applications..."
+  >
+    {() => <ApplicationsPageContent />}
+  </ProtectedRoute>
+);
 
 export default ApplicationsPage;

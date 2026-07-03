@@ -22,8 +22,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class ApplicationDraftServiceTest {
   private static final String REQUEST_URL =
       "https://EXAMPLE.com/jobs/123?utm_source=linkedin&jobId=42";
@@ -130,6 +132,26 @@ class ApplicationDraftServiceTest {
 
     assertThat(service.createDraft(request)).isSameAs(freshDraft);
     verifyNoInteractions(cacheKeyFactory, cacheService);
+  }
+
+  @Test
+  void cacheFailureLogsDoNotLeakUrlsCachedJsonOrApiKeys(CapturedOutput output) {
+    String sensitiveUrl = "https://example.com/jobs/123?token=raw-url-token-marker";
+    ApplicationDraftRequest sensitiveRequest = new ApplicationDraftRequest(sensitiveUrl);
+    when(cacheKeyFactory.create(sensitiveUrl)).thenReturn(CACHE_KEY_VALUE);
+    when(cacheService.get(CACHE_KEY))
+        .thenThrow(
+            new IllegalStateException(
+                "cached-json-marker openai-api-key-marker raw-url-token-marker"));
+    when(aiServiceClient.parseJob(sensitiveRequest)).thenReturn(sampleDraft(sensitiveUrl));
+
+    service.createDraft(sensitiveRequest);
+
+    assertThat(output.getOut())
+        .contains(
+            "ai_draft_cache_read_failed url_host=example.com cache_key_suffix=abc error_type=IllegalStateException")
+        .doesNotContain(
+            sensitiveUrl, "raw-url-token-marker", "cached-json-marker", "openai-api-key-marker");
   }
 
   private static ApplicationDraftResponse sampleDraft(String jobUrl) {

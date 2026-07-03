@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
       return buildResponse(status, INTERNAL_ERROR_CODE, INTERNAL_ERROR_MESSAGE, request);
     }
 
-    logExpected4xx(status, code, message, request);
+    logExpected4xx(status, code, request);
     return buildResponse(status, code, message, request);
   }
 
@@ -53,7 +53,7 @@ public class GlobalExceptionHandler {
     List<ApiErrorResponse.FieldError> fieldErrors =
         exception.getBindingResult().getFieldErrors().stream().map(this::toFieldError).toList();
 
-    logExpected4xx(status, code, message, request);
+    logExpected4xx(status, code, request);
     return ResponseEntity.status(status)
         .body(
             ApiErrorResponse.withFieldErrors(
@@ -67,7 +67,7 @@ public class GlobalExceptionHandler {
     String code = "MALFORMED_REQUEST";
     String message = "Malformed request body.";
 
-    logExpected4xx(status, code, message, request);
+    logExpected4xx(status, code, request);
     return buildResponse(status, code, message, request);
   }
 
@@ -78,7 +78,7 @@ public class GlobalExceptionHandler {
     String code = "INVALID_REQUEST";
     String message = "Invalid request parameter.";
 
-    logExpected4xx(status, code, message, request);
+    logExpected4xx(status, code, request);
     return buildResponse(status, code, message, request);
   }
 
@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
             ? "Request failed."
             : exception.getReason();
 
-    logExpected4xx(status, code, message, request);
+    logExpected4xx(status, code, request);
     return buildResponse(status, code, message, request);
   }
 
@@ -117,7 +117,7 @@ public class GlobalExceptionHandler {
 
       String code = "REQUEST_FAILED";
       String message = "Request failed.";
-      logExpected4xx(status, code, message, request);
+      logExpected4xx(status, code, request);
       return buildResponse(status, code, message, request);
     }
 
@@ -167,15 +167,13 @@ public class GlobalExceptionHandler {
     return new ApiErrorResponse.FieldError(fieldError.getField(), message);
   }
 
-  private static void logExpected4xx(
-      HttpStatus status, String code, String message, HttpServletRequest request) {
+  private static void logExpected4xx(HttpStatus status, String code, HttpServletRequest request) {
     log.warn(
-        "{} {} -> {} {}: {}",
+        "http_request_rejected method={} path={} status={} error_code={}",
         request.getMethod(),
         request.getRequestURI(),
         status.value(),
-        code,
-        message);
+        code);
   }
 
   private static void logUnexpected5xx(Exception exception, HttpServletRequest request) {
@@ -185,11 +183,11 @@ public class GlobalExceptionHandler {
   private static void logUnexpected5xx(
       Exception exception, HttpServletRequest request, HttpStatus status, String code) {
     log.error(
-        "{} {} -> {} {}",
+        "http_request_failed method={} path={} status={} error_code={} error_type={}",
         request.getMethod(),
         request.getRequestURI(),
         status.value(),
         code,
-        exception);
+        exception.getClass().getSimpleName());
   }
 }

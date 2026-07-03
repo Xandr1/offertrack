@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApplicationDraft } from "@/lib/api";
 import type { ApplicationDraftResponse } from "@/lib/api";
 import {
@@ -71,6 +71,7 @@ export const useCreateApplicationWithAiFlow = ({
   prepareCreateApplicationModal,
 }: UseCreateApplicationWithAiFlowParams) => {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isCreateWithAiModalOpen, setIsCreateWithAiModalOpen] = useState(false);
   const [isCreateWithAiGenerating, setIsCreateWithAiGenerating] = useState(false);
   const [createWithAiJobUrl, setCreateWithAiJobUrl] = useState("");
@@ -148,7 +149,7 @@ export const useCreateApplicationWithAiFlow = ({
           return;
         }
 
-        if (await redirectToLoginIfProtectedRoute(error, router)) {
+        if (await redirectToLoginIfProtectedRoute(error, router, queryClient)) {
           return;
         }
 
@@ -163,6 +164,7 @@ export const useCreateApplicationWithAiFlow = ({
       createApplicationDraftMutation,
       createWithAiJobUrl,
       openCreateApplicationModalWithDraft,
+      queryClient,
       router,
     ],
   );

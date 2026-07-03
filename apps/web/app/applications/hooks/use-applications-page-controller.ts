@@ -73,8 +73,12 @@ export const useApplicationsPageController = () => {
       return;
     }
 
-    void redirectToLoginIfProtectedRoute(applicationsQuery.error, router);
-  }, [applicationsQuery.error, router]);
+    void redirectToLoginIfProtectedRoute(
+      applicationsQuery.error,
+      router,
+      queryClient,
+    );
+  }, [applicationsQuery.error, queryClient, router]);
 
   useEffect(() => {
     if (view !== "list" || !applicationsQuery.data) {
@@ -97,8 +101,12 @@ export const useApplicationsPageController = () => {
       return;
     }
 
-    void redirectToLoginIfProtectedRoute(applicationDetailQuery.error, router);
-  }, [applicationDetailQuery.error, router]);
+    void redirectToLoginIfProtectedRoute(
+      applicationDetailQuery.error,
+      router,
+      queryClient,
+    );
+  }, [applicationDetailQuery.error, queryClient, router]);
 
   const {
     applicationDetailStatusKind,
@@ -124,24 +132,24 @@ export const useApplicationsPageController = () => {
 
   const onPageMutationError = useCallback(
     async (error: unknown) => {
-      if (await redirectToLoginIfProtectedRoute(error, router)) {
+      if (await redirectToLoginIfProtectedRoute(error, router, queryClient)) {
         return;
       }
 
       setPageError(getRequestErrorMessage(error));
     },
-    [router],
+    [queryClient, router],
   );
 
   const onSaveMutationError = useCallback(
     async (error: unknown) => {
-      if (await redirectToLoginIfProtectedRoute(error, router)) {
+      if (await redirectToLoginIfProtectedRoute(error, router, queryClient)) {
         return;
       }
 
       modalController.markSaveFailed(getRequestErrorMessage(error));
     },
-    [modalController, router],
+    [modalController, queryClient, router],
   );
 
   const boardController = useApplicationsBoardController({
@@ -158,8 +166,12 @@ export const useApplicationsPageController = () => {
       return;
     }
 
-    void redirectToLoginIfProtectedRoute(boardController.boardQuery.error, router);
-  }, [boardController.boardQuery.error, router]);
+    void redirectToLoginIfProtectedRoute(
+      boardController.boardQuery.error,
+      router,
+      queryClient,
+    );
+  }, [boardController.boardQuery.error, queryClient, router]);
 
   const { deleteApplicationMutation, updateStageMutation } = useApplicationMutations({
     onMutationError: onPageMutationError,
