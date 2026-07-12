@@ -1,5 +1,6 @@
 import hmac
 import logging
+import re
 import time
 from collections.abc import Callable
 from typing import Protocol
@@ -9,6 +10,7 @@ import httpx
 from fastapi import FastAPI, Header
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse
 
 from app.draft_builder import build_draft_response
@@ -32,6 +34,7 @@ from app.openai_extractor import ExtractionError, OpenAiDraftExtractor, OpenAiTi
 from app.settings import Settings
 
 logger = logging.getLogger(__name__)
+REQUEST_ID_PATTERN = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 
 
 class JobPageNotReadableError(ExtractionError):
@@ -63,7 +66,17 @@ def create_app(
         else OpenAiDraftExtractor(resolved_settings)
     )
 
-    app = FastAPI(title="OfferTrack AI Service")
+    docs_enabled = resolved_settings.docs_enabled is True
+    app = FastAPI(
+        title="OfferTrack AI Service",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
+    )
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=list(resolved_settings.trusted_hosts),
+    )
 
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
@@ -249,8 +262,8 @@ def _log_failure(
 
 
 def _request_id(header_value: str | None) -> str:
-    if header_value is not None and header_value.strip():
-        return header_value.strip()[:128]
+    if header_value is not None and REQUEST_ID_PATTERN.fullmatch(header_value) is not None:
+        return header_value
 
     return str(uuid4())
 

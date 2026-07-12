@@ -23,9 +23,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   private static final String BEARER_PREFIX = "Bearer ";
 
   private final JwtService jwtService;
+  private final AuthCookieProperties cookieProperties;
 
-  public JwtAuthenticationFilter(JwtService jwtService) {
+  public JwtAuthenticationFilter(JwtService jwtService, AuthCookieProperties cookieProperties) {
     this.jwtService = jwtService;
+    this.cookieProperties = cookieProperties;
   }
 
   @Override
@@ -77,7 +79,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     return Arrays.stream(cookies)
-        .filter(cookie -> CookieService.ACCESS_TOKEN_COOKIE_NAME.equals(cookie.getName()))
+        .filter(cookie -> cookieProperties.getName().equals(cookie.getName()))
         .map(Cookie::getValue)
         .findFirst();
   }

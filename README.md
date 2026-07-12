@@ -107,11 +107,27 @@ AI service:
 
 ```bash
 cd apps/ai-service
-python -m pip install -e ".[test]"
+sha256sum --check pylock.toml.sha256
+python -m pip install --upgrade "pip==26.1.2"
+python -m pip install --requirement pylock.toml
 python -m ruff check .
 python -m ruff format --check .
 python -m pyright
 python -m pytest
+```
+
+Production build:
+
+```bash
+APP_ENV=test NEXT_PUBLIC_API_URL=http://127.0.0.1:18080 \
+  pnpm.cmd --dir apps/web run build
+```
+
+Full isolated browser smoke test (requires Docker, Java 21, Node, pnpm, and
+Chromium installed by Playwright):
+
+```bash
+pnpm.cmd run e2e
 ```
 
 ## Backend Codegen
@@ -123,3 +139,9 @@ Run codegen after changing Flyway migrations, resetting the database, or when jO
 ```
 
 This script starts Postgres if needed, waits for readiness, runs Flyway migrations, and generates jOOQ classes.
+
+## Production hardening
+
+See [Production configuration](docs/production-configuration.md) for protected
+profile requirements, CSRF behavior, rate-limit defaults, proxy handling, E2E
+configuration, Python lock regeneration, and the complete CI command set.

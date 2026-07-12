@@ -1,9 +1,12 @@
 package com.offertrack.errors;
 
+import com.offertrack.ratelimit.RateLimitExceededException;
+import com.offertrack.ratelimit.RateLimitServiceUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.HandlerMapping;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -21,6 +25,33 @@ public class GlobalExceptionHandler {
   private static final String INTERNAL_ERROR_CODE = "INTERNAL_ERROR";
   private static final String INTERNAL_ERROR_MESSAGE =
       "Something went wrong on the server. Try again.";
+
+  @ExceptionHandler(RateLimitExceededException.class)
+  public ResponseEntity<ApiErrorResponse> handleRateLimitExceeded(
+      RateLimitExceededException exception, HttpServletRequest request) {
+    HttpStatus status = HttpStatus.TOO_MANY_REQUESTS;
+    logExpected4xx(status, "RATE_LIMITED", request);
+
+    return ResponseEntity.status(status)
+        .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))
+        .body(
+            ApiErrorResponse.of(
+                status.value(),
+                "RATE_LIMITED",
+                "Too many requests. Try again later.",
+                request.getRequestURI()));
+  }
+
+  @ExceptionHandler(RateLimitServiceUnavailableException.class)
+  public ResponseEntity<ApiErrorResponse> handleRateLimitUnavailable(
+      RateLimitServiceUnavailableException exception, HttpServletRequest request) {
+    HttpStatus status = HttpStatus.SERVICE_UNAVAILABLE;
+    return buildResponse(
+        status,
+        "RATE_LIMIT_SERVICE_UNAVAILABLE",
+        "Security service is temporarily unavailable.",
+        request);
+  }
 
   @ExceptionHandler(DomainException.class)
   public ResponseEntity<ApiErrorResponse> handleDomainException(
@@ -171,7 +202,7 @@ public class GlobalExceptionHandler {
     log.warn(
         "http_request_rejected method={} path={} status={} error_code={}",
         request.getMethod(),
-        request.getRequestURI(),
+        safeLogPath(request),
         status.value(),
         code);
   }
@@ -185,9 +216,14 @@ public class GlobalExceptionHandler {
     log.error(
         "http_request_failed method={} path={} status={} error_code={} error_type={}",
         request.getMethod(),
-        request.getRequestURI(),
+        safeLogPath(request),
         status.value(),
         code,
         exception.getClass().getSimpleName());
+  }
+
+  private static String safeLogPath(HttpServletRequest request) {
+    Object matchingPattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+    return matchingPattern == null ? "unmatched" : matchingPattern.toString();
   }
 }

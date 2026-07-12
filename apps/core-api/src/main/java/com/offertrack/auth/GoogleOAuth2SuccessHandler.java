@@ -18,6 +18,7 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
   private final AuthService authService;
   private final CookieService cookieService;
+  private final CsrfTokenInvalidationService csrfTokenInvalidationService;
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
   private final String dashboardRedirectUrl;
   private final String failureRedirectUrl;
@@ -25,10 +26,12 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
   public GoogleOAuth2SuccessHandler(
       AuthService authService,
       CookieService cookieService,
+      CsrfTokenInvalidationService csrfTokenInvalidationService,
       CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository,
       String appWebUrl) {
     this.authService = authService;
     this.cookieService = cookieService;
+    this.csrfTokenInvalidationService = csrfTokenInvalidationService;
     this.authorizationRequestRepository = authorizationRequestRepository;
 
     String normalizedWebUrl = appWebUrl.replaceAll("/+$", "");
@@ -57,6 +60,7 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
       return;
     }
 
+    csrfTokenInvalidationService.invalidate(request, response);
     cookieService.addAccessTokenCookie(response, result.accessToken());
     authorizationRequestRepository.clearAuthorizationRequestCookie(response);
     response.sendRedirect(dashboardRedirectUrl);

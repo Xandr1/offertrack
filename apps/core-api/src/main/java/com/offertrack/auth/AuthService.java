@@ -14,6 +14,7 @@ import com.offertrack.users.User;
 import com.offertrack.users.UserRepository;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +54,7 @@ public class AuthService {
 
   @Transactional
   public RegisterResponse register(RegisterRequest request) {
-    String normalizedEmail = request.email().trim().toLowerCase();
+    String normalizedEmail = normalizeEmail(request.email());
     String passwordHash = passwordService.hash(request.password());
 
     try {
@@ -67,7 +68,7 @@ public class AuthService {
   }
 
   public AuthResult login(LoginRequest request) {
-    String normalizedEmail = request.email().trim().toLowerCase();
+    String normalizedEmail = normalizeEmail(request.email());
 
     User user =
         userRepository
@@ -99,7 +100,7 @@ public class AuthService {
       throw new IllegalArgumentException("Google email must be verified");
     }
 
-    String normalizedEmail = email.trim().toLowerCase();
+    String normalizedEmail = normalizeEmail(email);
     String normalizedName = normalizeGoogleDisplayName(name);
     OffsetDateTime verifiedAt = OffsetDateTime.now(clock);
 
@@ -121,7 +122,7 @@ public class AuthService {
 
   @Transactional
   public GenericSuccessResponse resendVerificationEmail(ResendVerificationRequest request) {
-    String normalizedEmail = request.email().trim().toLowerCase();
+    String normalizedEmail = normalizeEmail(request.email());
 
     userRepository
         .findByEmail(normalizedEmail)
@@ -133,7 +134,7 @@ public class AuthService {
 
   @Transactional
   public GenericSuccessResponse forgotPassword(ForgotPasswordRequest request) {
-    String normalizedEmail = request.email().trim().toLowerCase();
+    String normalizedEmail = normalizeEmail(request.email());
 
     userRepository.findByEmail(normalizedEmail).ifPresent(this::sendPasswordResetEmail);
 
@@ -158,6 +159,10 @@ public class AuthService {
         new AuthResponse(new AuthResponse.UserSummary(user.id(), user.email(), user.name()));
 
     return new AuthResult(accessToken, response);
+  }
+
+  private static String normalizeEmail(String email) {
+    return email.trim().toLowerCase(Locale.ROOT);
   }
 
   private User findAndVerifyExistingGoogleUser(String normalizedEmail, OffsetDateTime verifiedAt) {

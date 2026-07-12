@@ -32,13 +32,13 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class GoogleOAuth2SuccessHandlerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   @Mock private AuthService authService;
-
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository =
       new CookieOAuth2AuthorizationRequestRepository("test-oauth-cookie-secret");
   private GoogleOAuth2SuccessHandler handler;
@@ -47,10 +47,15 @@ class GoogleOAuth2SuccessHandlerTest {
   void setUp() {
     JwtProperties jwtProperties = new JwtProperties();
     jwtProperties.setAccessTokenTtl(Duration.ofHours(48));
+    CookieCsrfTokenRepository csrfTokenRepository = new CookieCsrfTokenRepository();
+    csrfTokenRepository.setCookieName("XSRF-TOKEN");
+    csrfTokenRepository.setCookiePath("/");
+    csrfTokenRepository.setCookieCustomizer(cookie -> cookie.httpOnly(true));
     handler =
         new GoogleOAuth2SuccessHandler(
             authService,
-            new CookieService(jwtProperties),
+            new CookieService(jwtProperties, new AuthCookieProperties()),
+            new CsrfTokenInvalidationService(csrfTokenRepository),
             authorizationRequestRepository,
             "http://localhost:3000/");
   }
@@ -73,6 +78,7 @@ class GoogleOAuth2SuccessHandlerTest {
     assertThat(response.getRedirectedUrl()).isEqualTo("http://localhost:3000/dashboard");
     assertThat(hasAccessTokenCookie(response)).isTrue();
     assertThat(hasClearingOAuthCookie(response)).isTrue();
+    assertThat(hasClearingCsrfCookie(response)).isTrue();
     verify(authService).loginWithGoogle("user@example.com", "Google User", true);
   }
 
@@ -200,5 +206,15 @@ class GoogleOAuth2SuccessHandlerTest {
                     && header.contains("HttpOnly")
                     && header.contains("SameSite=Lax")
                     && header.contains("Secure"));
+  }
+
+  private static boolean hasClearingCsrfCookie(MockHttpServletResponse response) {
+    return response.getHeaders(HttpHeaders.SET_COOKIE).stream()
+        .anyMatch(
+            header ->
+                header.contains("XSRF-TOKEN=")
+                    && header.contains("Max-Age=0")
+                    && header.contains("Path=/")
+                    && header.contains("HttpOnly"));
   }
 }

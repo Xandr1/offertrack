@@ -1,0 +1,6 @@
+pyproject.toml text eol=lf
+pylock.toml text eol=lf
+pylock.toml.sha256 text eol=lf
+Dockerfile text eol=lf
+*.py text eol=lf
+scripts/*.sh text eol=lf

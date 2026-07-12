@@ -36,11 +36,12 @@ describe("ResetPasswordForm", () => {
     await user.type(screen.getByLabelText("Confirm password"), "NewPassword1");
     await user.click(screen.getByRole("button", { name: "Reset password" }));
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-    expect(fetchSpy.mock.calls[0][0]).toBe(
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
+    expect(fetchSpy.mock.calls[0][0]).toBe("http://localhost:8080/auth/csrf");
+    expect(fetchSpy.mock.calls[1][0]).toBe(
       "http://localhost:8080/auth/password/reset",
     );
-    expect((fetchSpy.mock.calls[0][1] as RequestInit).body).toBe(
+    expect((fetchSpy.mock.calls[1][1] as RequestInit).body).toBe(
       JSON.stringify({ token: "reset-token", newPassword: "NewPassword1" }),
     );
     expect(screen.getByText("Password reset")).toBeTruthy();
@@ -49,11 +50,19 @@ describe("ResetPasswordForm", () => {
 });
 
 const mockOkFetch = () => {
-  const fetchMock = jest.fn().mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    text: async () => JSON.stringify({ ok: true }),
-  } as Response);
+  const fetchMock = jest
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ token: "masked-token", headerName: "X-XSRF-TOKEN" }),
+    } as Response)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    } as Response);
 
   global.fetch = fetchMock as unknown as typeof fetch;
   return fetchMock;

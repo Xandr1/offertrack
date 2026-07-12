@@ -1,10 +1,14 @@
 node_modules
+package-lock.json
 .pnpm-store/
 .env
 .env.*
 !.env.example
+!.env.e2e.example
 .next
 target
+playwright-report/
+test-results/
 *.log
 __pycache__/
 *.py[cod]

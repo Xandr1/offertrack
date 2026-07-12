@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -120,6 +121,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}/status",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{}"))
@@ -148,6 +150,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}/status",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"status\":\"unknown-status\"}"))
@@ -174,6 +177,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}/status",
                     applicationId,
                     "not-a-uuid")
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"status\":\"passed\"}"))
@@ -200,6 +204,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}/status",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"status\":\"passed\"}"))
@@ -240,6 +245,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}/follow-up",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(interviewId.toString()))
@@ -260,6 +266,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}/follow-up",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("INTERVIEW_NOT_FOUND"));
@@ -273,6 +280,7 @@ class ApplicationInterviewControllerSecurityTest {
     mockMvc
         .perform(
             post("/api/applications/{applicationId}/interviews", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"type\":\"technical\"}"))
@@ -284,6 +292,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"type\":\"technical\",\"status\":\"initial\"}"))
@@ -295,6 +304,7 @@ class ApplicationInterviewControllerSecurityTest {
                     "/api/applications/{applicationId}/interviews/{interviewId}",
                     applicationId,
                     interviewId)
+                .with(csrf())
                 .cookie(accessTokenCookie()))
         .andExpect(status().is4xxClientError());
   }

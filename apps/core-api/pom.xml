@@ -30,7 +30,25 @@
 	<properties>
 		<java.version>21</java.version>
 		<jjwt.version>0.13.0</jjwt.version>
+		<database.url>jdbc:postgresql://localhost:5432/offertrack</database.url>
+		<database.username>offertrack</database.username>
+		<database.password>offertrack</database.password>
 	</properties>
+	<profiles>
+		<profile>
+			<id>database-environment</id>
+			<activation>
+				<property>
+					<name>env.DATABASE_URL</name>
+				</property>
+			</activation>
+			<properties>
+				<database.url>${env.DATABASE_URL}</database.url>
+				<database.username>${env.DB_USER}</database.username>
+				<database.password>${env.DB_PASSWORD}</database.password>
+			</properties>
+		</profile>
+	</profiles>
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -137,9 +155,9 @@
 				<artifactId>flyway-maven-plugin</artifactId>
 				<version>${flyway.version}</version>
 				<configuration>
-					<url>jdbc:postgresql://localhost:5432/offertrack</url>
-					<user>${env.DB_USER}</user>
-					<password>${env.DB_PASSWORD}</password>
+					<url>${database.url}</url>
+					<user>${database.username}</user>
+					<password>${database.password}</password>
 					<locations>
 						<location>filesystem:src/main/resources/db/migration</location>
 					</locations>
@@ -169,9 +187,9 @@
 				<configuration>
 					<jdbc>
 						<driver>org.postgresql.Driver</driver>
-						<url>jdbc:postgresql://localhost:5432/offertrack</url>
-						<user>offertrack</user>
-						<password>offertrack</password>
+						<url>${database.url}</url>
+						<user>${database.username}</user>
+						<password>${database.password}</password>
 					</jdbc>
 					<generator>
 						<database>

@@ -1,5 +1,6 @@
 package com.offertrack.auth;
 
+import com.offertrack.config.WebProperties;
 import com.offertrack.users.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -15,10 +16,10 @@ public class AuthEmailService {
   public AuthEmailService(
       JavaMailSender mailSender,
       @Value("${app.mail.from}") String mailFrom,
-      @Value("${app.web-url}") String appWebUrl) {
+      WebProperties webProperties) {
     this.mailSender = mailSender;
     this.mailFrom = mailFrom;
-    this.appWebUrl = appWebUrl;
+    this.appWebUrl = webProperties.getUrl();
   }
 
   public void sendVerificationEmail(User user, String token) {

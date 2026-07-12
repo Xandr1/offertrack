@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -77,6 +78,7 @@ class SettingsControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/settings")
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(
@@ -102,6 +104,7 @@ class SettingsControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/settings")
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(
@@ -127,6 +130,7 @@ class SettingsControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/settings")
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(

@@ -1,14 +1,17 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-COPY pyproject.toml ./
+COPY pyproject.toml pylock.toml pylock.toml.sha256 ./
 COPY app ./app
 
-RUN pip install --no-cache-dir .
+RUN sha256sum --check pylock.toml.sha256 \
+    && python -m pip install --no-cache-dir --upgrade "pip==26.1.2" \
+    && python -m pip install --no-cache-dir --requirement pylock.toml
 
 EXPOSE 8000
 
