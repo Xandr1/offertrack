@@ -1,0 +1,70 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://127.0.0.1:55432/offertrack_e2e}
+    username: ${DB_USER:offertrack_e2e}
+    password: ${DB_PASSWORD:offertrack_e2e_password}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:56379}
+  mail:
+    host: ${SMTP_HOST:127.0.0.1}
+    port: ${SMTP_PORT:51025}
+
+server:
+  port: ${SERVER_PORT:18080}
+  forward-headers-strategy: none
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db,redis
+
+app:
+  jwt:
+    secret: e2e-jwt-signing-secret-with-at-least-thirty-two-bytes
+  auth:
+    cookie:
+      name: access_token
+      path: /
+      domain:
+      secure: false
+      same-site: Lax
+  cors:
+    allowed-origins: http://127.0.0.1:13000
+  oauth:
+    authorization-request-cookie-signing-secret: e2e-oauth-cookie-secret-with-at-least-thirty-two-bytes
+  web:
+    url: http://127.0.0.1:13000
+  ai-service:
+    base-url: http://127.0.0.1:8000
+    internal-api-key: e2e-ai-service-key-with-at-least-thirty-two-bytes
+  rate-limit:
+    key-secret: e2e-rate-limit-key-secret-with-at-least-thirty-two-bytes
+    fail-open: false
+    login-email:
+      max-attempts: 10000
+    login-ip:
+      max-attempts: 10000
+    registration-email:
+      max-attempts: 10000
+    registration-ip:
+      max-attempts: 10000
+    verification-resend-email:
+      max-attempts: 10000
+    verification-resend-ip:
+      max-attempts: 10000
+    forgot-password-email:
+      max-attempts: 10000
+    forgot-password-ip:
+      max-attempts: 10000
+    reset-password-token:
+      max-attempts: 10000
+    reset-password-ip:
+      max-attempts: 10000
+    ai-user-minute:
+      max-attempts: 10000
+    ai-user-day:
+      max-attempts: 10000

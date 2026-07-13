@@ -153,12 +153,12 @@ class AuthServiceTest {
         .isInstanceOf(IllegalStateException.class);
 
     assertThat(output.getOut())
-        .contains(
-            "email_verification_send_failed user_id="
-                + USER_ID
-                + " error_type=IllegalStateException")
+        .contains("email_verification_send_failed error_type=IllegalStateException")
         .doesNotContain(
-            "provider-message-marker", "smtp-password-marker", "email-verification-token-marker");
+            USER_ID.toString(),
+            "provider-message-marker",
+            "smtp-password-marker",
+            "email-verification-token-marker");
   }
 
   @Test
@@ -180,10 +180,12 @@ class AuthServiceTest {
         .doesNotThrowAnyException();
 
     assertThat(output.getOut())
-        .contains(
-            "password_reset_send_failed user_id=" + USER_ID + " error_type=IllegalStateException")
+        .contains("password_reset_send_failed error_type=IllegalStateException")
         .doesNotContain(
-            "provider-message-marker", "smtp-password-marker", "password-reset-token-marker");
+            USER_ID.toString(),
+            "provider-message-marker",
+            "smtp-password-marker",
+            "password-reset-token-marker");
   }
 
   private void assertGoogleDisplayNameNormalized(String inputName, String expectedName) {

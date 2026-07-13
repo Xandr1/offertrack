@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -65,6 +66,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             patch("/api/applications/{id}/stage", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"stage\":\"applied\"}"))
@@ -83,6 +85,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             patch("/api/applications/{id}/stage", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{}"))
@@ -100,6 +103,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             patch("/api/applications/{id}/stage", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"stage\":\"unknown-stage\"}"))
@@ -114,6 +118,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             patch("/api/applications/{id}/stage", "not-a-uuid")
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"stage\":\"applied\"}"))
@@ -133,6 +138,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             patch("/api/applications/{id}/stage", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"stage\":\"applied\"}"))
@@ -168,7 +174,9 @@ class ApplicationControllerSecurityTest {
 
     mockMvc
         .perform(
-            patch("/api/applications/{id}/follow-up", applicationId).cookie(accessTokenCookie()))
+            patch("/api/applications/{id}/follow-up", applicationId)
+                .with(csrf())
+                .cookie(accessTokenCookie()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(applicationId.toString()))
         .andExpect(jsonPath("$.followedUpAt").value("2026-05-01T10:15:00Z"));
@@ -184,7 +192,9 @@ class ApplicationControllerSecurityTest {
 
     mockMvc
         .perform(
-            patch("/api/applications/{id}/follow-up", applicationId).cookie(accessTokenCookie()))
+            patch("/api/applications/{id}/follow-up", applicationId)
+                .with(csrf())
+                .cookie(accessTokenCookie()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"));
   }
@@ -197,7 +207,10 @@ class ApplicationControllerSecurityTest {
         .delete(eq(AUTHENTICATED_USER_ID), eq(applicationId));
 
     mockMvc
-        .perform(delete("/api/applications/{id}", applicationId).cookie(accessTokenCookie()))
+        .perform(
+            delete("/api/applications/{id}", applicationId)
+                .with(csrf())
+                .cookie(accessTokenCookie()))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.status").value(404))
         .andExpect(jsonPath("$.code").value("APPLICATION_NOT_FOUND"))
@@ -213,6 +226,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/applications/{id}", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(
@@ -236,6 +250,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/applications/{id}", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(
@@ -279,6 +294,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/applications/{id}", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(
@@ -305,6 +321,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/applications/{id}", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(
@@ -566,6 +583,7 @@ class ApplicationControllerSecurityTest {
     mockMvc
         .perform(
             put("/api/applications/{id}", applicationId)
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content(

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { API_URL, request } from "./client";
+import { API_URL, clearCsrfToken, request } from "./client";
 import {
   authResponseSchema,
   genericSuccessResponseSchema,
@@ -28,21 +28,30 @@ export const register = (payload: RegisterRequest): Promise<RegisterResponse> =>
   });
 };
 
-export const login = (payload: LoginRequest): Promise<AuthResponse> => {
-  return request<AuthResponse>("/auth/login", authResponseSchema, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+export const login = async (payload: LoginRequest): Promise<AuthResponse> => {
+  const response = await request<AuthResponse>(
+    "/auth/login",
+    authResponseSchema,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+
+  clearCsrfToken();
+  return response;
 };
 
 export const getGoogleLoginUrl = (): string => {
   return `${API_URL}/auth/oauth2/google/start`;
 };
 
-export const logout = (): Promise<void> => {
-  return request<void>("/auth/logout", z.undefined(), {
+export const logout = async (): Promise<void> => {
+  await request<void>("/auth/logout", z.undefined(), {
     method: "POST",
   });
+
+  clearCsrfToken();
 };
 
 export const verifyEmail = (

@@ -2,9 +2,7 @@ package com.offertrack.auth;
 
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
-@Component
 @ConfigurationProperties(prefix = "app.jwt")
 public class JwtProperties {
   private String secret;

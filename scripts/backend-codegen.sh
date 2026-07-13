@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BACKEND_CODEGEN_ENV_FILE="${BACKEND_CODEGEN_ENV_FILE:-$ROOT_DIR/.env}"
 
-if [ -f "$ROOT_DIR/.env" ]; then
+if [ -f "$BACKEND_CODEGEN_ENV_FILE" ]; then
   set -a
-  . "$ROOT_DIR/.env"
+  . "$BACKEND_CODEGEN_ENV_FILE"
   set +a
 fi
 
@@ -11,6 +12,17 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+
+BACKEND_CODEGEN_COMPOSE_FILE="${BACKEND_CODEGEN_COMPOSE_FILE:-$REPO_ROOT/docker-compose.yml}"
+BACKEND_CODEGEN_COMPOSE_PROJECT_NAME="${BACKEND_CODEGEN_COMPOSE_PROJECT_NAME:-}"
+BACKEND_CODEGEN_POSTGRES_SERVICE="${BACKEND_CODEGEN_POSTGRES_SERVICE:-postgres}"
+POSTGRES_READY_USER="${POSTGRES_USER:-offertrack}"
+POSTGRES_READY_DATABASE="${POSTGRES_DB:-offertrack}"
+
+COMPOSE_COMMAND=(docker compose --file "$BACKEND_CODEGEN_COMPOSE_FILE")
+if [ -n "$BACKEND_CODEGEN_COMPOSE_PROJECT_NAME" ]; then
+  COMPOSE_COMMAND+=(--project-name "$BACKEND_CODEGEN_COMPOSE_PROJECT_NAME")
+fi
 
 POSTGRES_WAIT_TIMEOUT_SECONDS="${POSTGRES_WAIT_TIMEOUT_SECONDS:-60}"
 POSTGRES_WAIT_INTERVAL_SECONDS=2
@@ -25,14 +37,15 @@ case "$(uname -s)" in
 esac
 
 echo "Starting postgres container..."
-docker compose up -d postgres
+"${COMPOSE_COMMAND[@]}" up -d "$BACKEND_CODEGEN_POSTGRES_SERVICE"
 
 echo "Waiting for postgres readiness..."
-until docker compose exec -T postgres pg_isready -U offertrack -d offertrack >/dev/null 2>&1; do
+until "${COMPOSE_COMMAND[@]}" exec -T "$BACKEND_CODEGEN_POSTGRES_SERVICE" \
+  pg_isready -U "$POSTGRES_READY_USER" -d "$POSTGRES_READY_DATABASE" >/dev/null 2>&1; do
   if [ "$POSTGRES_ELAPSED_SECONDS" -ge "$POSTGRES_WAIT_TIMEOUT_SECONDS" ]; then
     echo "Postgres was not ready within ${POSTGRES_WAIT_TIMEOUT_SECONDS}s."
     echo "Recent postgres logs:"
-    docker compose logs postgres --tail=100 || true
+    "${COMPOSE_COMMAND[@]}" logs "$BACKEND_CODEGEN_POSTGRES_SERVICE" --tail=100 || true
     exit 1
   fi
 

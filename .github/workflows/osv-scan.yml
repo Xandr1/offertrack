@@ -1,0 +1,168 @@
+name: OSV dependency scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+  pull_request:
+    paths:
+      - package.json
+      - apps/web/package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - osv-scanner.toml
+      - apps/core-api/pom.xml
+      - apps/ai-service/pyproject.toml
+      - apps/ai-service/pylock.toml
+      - apps/ai-service/pylock.toml.sha256
+      - apps/ai-service/pylock.test.toml
+      - apps/ai-service/pylock.test.toml.sha256
+      - .github/dependabot.yml
+      - .github/workflows/**
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  scan:
+    name: Blocking dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Resolve Maven dependency inventory
+        working-directory: apps/core-api
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp dependency:tree \
+            -DoutputType=json \
+            -DoutputFile=target/osv-dependency-tree.json
+
+      - name: Create Maven OSV custom lock
+        shell: bash
+        run: |
+          jq '
+            def dependencies:
+              ., (.children[]? | dependencies);
+
+            [
+              .
+              | dependencies
+              | select(.groupId != null and .artifactId != null and .version != null)
+              | select((.groupId + ":" + .artifactId) != "com.offertrack:core-api")
+              | {
+                  package: {
+                    name: (.groupId + ":" + .artifactId),
+                    version: .version,
+                    ecosystem: "Maven"
+                  }
+                }
+            ]
+            | unique_by([.package.name, .package.version])
+            | {results: [{packages: .}]}
+          ' apps/core-api/target/osv-dependency-tree.json > osv-maven-dependencies.json
+
+          jq -e '.results[0].packages | length > 0' osv-maven-dependencies.json >/dev/null
+
+      - name: Scan committed dependency sources
+        id: osv
+        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        with:
+          scan-args: |-
+            --format=json
+            --output-file=osv-results.json
+            --config=osv-scanner.toml
+            --lockfile=pnpm-lock.yaml
+            --lockfile=osv-scanner:osv-maven-dependencies.json
+            --lockfile=apps/ai-service/pylock.toml
+            --lockfile=pylock.toml:apps/ai-service/pylock.test.toml
+
+      - name: Validate and summarize dependency results
+        if: always()
+        shell: bash
+        run: |
+          if [[ ! -s osv-results.json ]]; then
+            echo "OSV-Scanner did not produce a result file." >&2
+            exit 1
+          fi
+
+          jq -e '(.results | type) == "array"' osv-results.json >/dev/null
+          unaccepted_ids="$(
+            jq -r '.results[]?.packages[]?.vulnerabilities[]?.id // empty' osv-results.json \
+              | sort -u
+          )"
+          if [[ -n "$unaccepted_ids" ]]; then
+            unaccepted_count="$(wc -l <<<"$unaccepted_ids" | tr -d ' ')"
+          else
+            unaccepted_count=0
+          fi
+          accepted_count="$(
+            python -c \
+              'import tomllib; print(len(tomllib.load(open("osv-scanner.toml", "rb")).get("IgnoredVulns", [])))'
+          )"
+          accepted_ids="$(
+            python -c \
+              'import tomllib; print("\n".join(risk["id"] for risk in tomllib.load(open("osv-scanner.toml", "rb")).get("IgnoredVulns", [])))'
+          )"
+
+          echo "OSV-Scanner reported ${unaccepted_count} unaccepted finding(s)."
+          if [[ -n "$unaccepted_ids" ]]; then
+            printf '%s\n' "$unaccepted_ids"
+          else
+            echo "No unaccepted advisory IDs reported."
+          fi
+          echo "Documented accepted risks: ${accepted_count}."
+          if [[ -n "$accepted_ids" ]]; then
+            echo "Documented accepted advisory IDs:"
+            printf '%s\n' "$accepted_ids"
+          fi
+
+          {
+            echo "## OSV dependency scan"
+            echo
+            echo "**Unaccepted findings:** ${unaccepted_count}"
+            echo
+            echo "**Documented accepted risks:** ${accepted_count}"
+            echo
+            if [[ -n "$unaccepted_ids" ]]; then
+              echo "**Unaccepted advisory IDs:**"
+              while IFS= read -r advisory_id; do
+                echo "- \`${advisory_id}\`"
+              done <<<"$unaccepted_ids"
+            else
+              echo "No unaccepted vulnerabilities were reported."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          python <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import tomllib
+
+          with open("osv-scanner.toml", "rb") as config_file:
+              accepted_risks = tomllib.load(config_file).get("IgnoredVulns", [])
+
+          if accepted_risks:
+              print()
+              print("**Accepted risk IDs and expiries:**")
+              for risk in accepted_risks:
+                  print(f"- `{risk['id']}` — expires `{risk['ignoreUntil']}`")
+          PY
+
+      - name: Upload OSV results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: osv-results
+          path: osv-results.json
+          if-no-files-found: warn
+          retention-days: 3

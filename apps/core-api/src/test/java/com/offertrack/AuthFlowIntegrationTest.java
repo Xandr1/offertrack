@@ -11,6 +11,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
@@ -24,6 +25,8 @@ import com.offertrack.auth.AuthTokenPurpose;
 import com.offertrack.auth.AuthTokenService;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.PasswordService;
+import com.offertrack.ratelimit.RateLimitExceededException;
+import com.offertrack.ratelimit.RateLimitGuard;
 import com.offertrack.users.User;
 import com.offertrack.users.UserRepository;
 import java.time.OffsetDateTime;
@@ -69,10 +72,11 @@ class AuthFlowIntegrationTest {
   @Autowired private DSLContext dsl;
 
   @MockitoBean private JavaMailSender mailSender;
+  @MockitoBean private RateLimitGuard rateLimitGuard;
 
   @BeforeEach
   void cleanDatabase() {
-    reset(mailSender);
+    reset(mailSender, rateLimitGuard);
     dsl.execute("delete from user_auth_tokens");
     dsl.execute("delete from user_settings");
     dsl.execute("delete from application_interviews");
@@ -107,6 +111,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/register")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerJson(email)))
         .andExpect(status().isOk())
@@ -133,6 +138,58 @@ class AuthFlowIntegrationTest {
     SimpleMailMessage message = captureOnlyMessage();
     assertThat(message.getTo()).containsExactly(email);
     assertThat(message.getText()).contains("/verify-email?token=");
+  }
+
+  @Test
+  void validationRunsBeforeRegistrationQuotaAndValidBodiesConsumeQuota() throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registerJson("not-an-email")))
+        .andExpect(status().isBadRequest());
+
+    verifyNoInteractions(rateLimitGuard);
+
+    mockMvc
+        .perform(
+            post("/auth/register")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registerJson("quota@example.com")))
+        .andExpect(status().isOk());
+
+    verify(rateLimitGuard).checkRegistration("quota@example.com", "127.0.0.1");
+  }
+
+  @Test
+  void malformedJsonDoesNotConsumeEndpointQuota() throws Exception {
+    mockMvc
+        .perform(
+            post("/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{"))
+        .andExpect(status().isBadRequest());
+
+    verifyNoInteractions(rateLimitGuard);
+  }
+
+  @Test
+  void deniedLoginReturnsStableRateLimitContractBeforeAuthentication() throws Exception {
+    createVerifiedUser("limited@example.com");
+    doThrow(new RateLimitExceededException(37))
+        .when(rateLimitGuard)
+        .checkLogin("limited@example.com", "127.0.0.1");
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginJson("limited@example.com")))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(header().string(HttpHeaders.RETRY_AFTER, "37"))
+        .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+        .andExpect(cookie().doesNotExist(CookieService.ACCESS_TOKEN_COOKIE_NAME));
   }
 
   @Test
@@ -247,12 +304,14 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/register")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerJson(baseEmail)))
         .andExpect(status().isOk());
     mockMvc
         .perform(
             post("/auth/register")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerJson(aliasEmail)))
         .andExpect(status().isOk());
@@ -271,6 +330,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verify")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"" + aliasVerificationToken + "\"}"))
         .andExpect(status().isOk())
@@ -283,6 +343,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/password/forgot")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(forgotPasswordJson(baseEmail)))
         .andExpect(status().isOk())
@@ -308,6 +369,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("blocked@example.com")))
         .andExpect(status().isForbidden())
@@ -323,6 +385,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("oauth-only@example.com")))
         .andExpect(status().isUnauthorized())
@@ -338,6 +401,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verify")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"" + registration.token() + "\"}"))
         .andExpect(status().isOk())
@@ -370,6 +434,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verify")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"" + consumed.token() + "\"}"))
         .andExpect(status().isOk());
@@ -381,6 +446,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verification/resend")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"unknown@example.com\"}"))
         .andExpect(status().isOk())
@@ -396,6 +462,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verification/resend")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"resend@example.com\"}"))
         .andExpect(status().isOk())
@@ -404,6 +471,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verification/resend")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"resend@example.com\"}"))
         .andExpect(status().isOk())
@@ -419,6 +487,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/password/forgot")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(forgotPasswordJson("unknown@example.com")))
         .andExpect(status().isOk())
@@ -440,6 +509,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/password/forgot")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(forgotPasswordJson("forgot@example.com")))
         .andExpect(status().isOk())
@@ -470,6 +540,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/password/forgot")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(forgotPasswordJson("forgot-send-failure@example.com")))
         .andExpect(status().isOk())
@@ -519,6 +590,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("reset-success@example.com", PASSWORD)))
         .andExpect(status().isUnauthorized());
@@ -526,6 +598,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("reset-success@example.com", NEW_PASSWORD)))
         .andExpect(status().isOk())
@@ -549,6 +622,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("reset-null-hash@example.com", NEW_PASSWORD)))
         .andExpect(status().isOk())
@@ -570,6 +644,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("reset-unverified@example.com", NEW_PASSWORD)))
         .andExpect(status().isForbidden())
@@ -584,6 +659,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(loginJson("verified@example.com")))
         .andExpect(status().isOk())
@@ -595,6 +671,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/email/verify")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"" + token + "\"}"))
         .andExpect(status().isBadRequest())
@@ -605,6 +682,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/password/reset")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(passwordResetJson(token, NEW_PASSWORD)))
         .andExpect(status().isBadRequest())
@@ -615,6 +693,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/password/reset")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(passwordResetJson(token, newPassword)))
         .andExpect(status().isOk())
@@ -625,6 +704,7 @@ class AuthFlowIntegrationTest {
     mockMvc
         .perform(
             post("/auth/register")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerJson(email)))
         .andExpect(status().isOk());

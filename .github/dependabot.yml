@@ -1,0 +1,54 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm-low-risk:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: maven
+    directory: /apps/core-api
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      maven-low-risk:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: pip
+    directory: /apps/ai-service
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      python-low-risk:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions-low-risk:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

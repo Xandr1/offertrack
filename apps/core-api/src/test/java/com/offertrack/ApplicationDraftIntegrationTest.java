@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -15,6 +16,7 @@ import com.offertrack.applications.ApplicationStage;
 import com.offertrack.applications.dto.ApplicationDraftResponse;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtService;
+import com.offertrack.ratelimit.RateLimitGuard;
 import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
@@ -42,6 +44,7 @@ class ApplicationDraftIntegrationTest {
   @Autowired private DSLContext dsl;
 
   @MockitoBean private AiServiceClient aiServiceClient;
+  @MockitoBean private RateLimitGuard rateLimitGuard;
 
   @BeforeEach
   void cleanDatabase() {
@@ -68,6 +71,7 @@ class ApplicationDraftIntegrationTest {
     mockMvc
         .perform(
             post("/api/applications/draft")
+                .with(csrf())
                 .cookie(accessTokenCookie())
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"jobUrl\":\"example.com/jobs/123\"}"))

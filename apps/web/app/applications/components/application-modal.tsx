@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { modalStyles, textStyles } from "@/lib/styles";
@@ -27,6 +27,9 @@ export const ApplicationModal = ({
   title,
   onClose,
 }: ApplicationModalProps) => {
+  const titleId = useId();
+  const descriptionId = useId();
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -54,15 +57,29 @@ export const ApplicationModal = ({
       }}
     >
       <div
+        aria-describedby={description ? descriptionId : undefined}
+        aria-labelledby={titleId}
+        aria-modal="true"
         className={isCompact ? modalStyles.compactPanel : modalStyles.softPanel}
+        role="dialog"
         onClick={(event) => {
           event.stopPropagation();
         }}
       >
-        <div className={isCompact ? modalStyles.compactHeader : modalStyles.softHeader}>
+        <div
+          className={
+            isCompact ? modalStyles.compactHeader : modalStyles.softHeader
+          }
+        >
           <div>
-            <h2 className={textStyles.sectionTitle}>{title}</h2>
-            {description && <p className={textStyles.subtitle}>{description}</p>}
+            <h2 className={textStyles.sectionTitle} id={titleId}>
+              {title}
+            </h2>
+            {description && (
+              <p className={textStyles.subtitle} id={descriptionId}>
+                {description}
+              </p>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center gap-4">
@@ -79,7 +96,9 @@ export const ApplicationModal = ({
           </div>
         </div>
 
-        <div className={isCompact ? modalStyles.compactBody : modalStyles.softBody}>
+        <div
+          className={isCompact ? modalStyles.compactBody : modalStyles.softBody}
+        >
           {children}
         </div>
       </div>

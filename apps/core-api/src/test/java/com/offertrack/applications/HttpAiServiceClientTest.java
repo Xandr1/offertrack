@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.applications.dto.ApplicationDraftRequest;
+import com.offertrack.config.RequestIdFilter;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -17,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -31,6 +33,7 @@ class HttpAiServiceClientTest {
 
   @AfterEach
   void stopServer() {
+    MDC.clear();
     if (server != null) {
       server.stop(0);
     }
@@ -188,11 +191,12 @@ class HttpAiServiceClientTest {
           sendJson(exchange, 200, successBody());
         });
 
+    MDC.put(RequestIdFilter.MDC_KEY, "incoming-correlation-id");
     var response = client().parseJob(request());
 
     assertThat(response.companyName()).isEqualTo("Acme");
     assertThat(internalApiKeyHeader).hasValue(INTERNAL_API_KEY);
-    assertThat(requestIdHeader.get()).isNotBlank();
+    assertThat(requestIdHeader).hasValue("incoming-correlation-id");
   }
 
   private HttpAiServiceClient client() {

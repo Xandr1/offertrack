@@ -37,7 +37,7 @@ class JwtServiceTest {
     Duration configuredTtl = Duration.ofMinutes(90);
     JwtProperties properties = properties(configuredTtl);
     JwtService jwtService = new JwtService(properties);
-    CookieService cookieService = new CookieService(properties);
+    CookieService cookieService = new CookieService(properties, new AuthCookieProperties());
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     Claims claims = claims(jwtService.generateAccessToken(UUID.randomUUID(), "user@example.com"));

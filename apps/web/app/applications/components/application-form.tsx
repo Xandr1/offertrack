@@ -24,8 +24,11 @@ export const ApplicationForm = ({
     <div className="space-y-3">
       <div className="grid gap-4 md:grid-cols-3">
         <div>
-          <label className={textStyles.label}>Company</label>
+          <label className={textStyles.label} htmlFor="application-company">
+            Company
+          </label>
           <Input
+            id="application-company"
             className="mt-1.5"
             disabled={disabled}
             required
@@ -35,8 +38,11 @@ export const ApplicationForm = ({
         </div>
 
         <div>
-          <label className={textStyles.label}>Position</label>
+          <label className={textStyles.label} htmlFor="application-position">
+            Position
+          </label>
           <Input
+            id="application-position"
             className="mt-1.5"
             disabled={disabled}
             required
@@ -48,8 +54,11 @@ export const ApplicationForm = ({
         </div>
 
         <div>
-          <label className={textStyles.label}>Job URL</label>
+          <label className={textStyles.label} htmlFor="application-job-url">
+            Job URL
+          </label>
           <Input
+            id="application-job-url"
             className="mt-1.5"
             disabled={disabled}
             inputMode="url"
@@ -64,8 +73,11 @@ export const ApplicationForm = ({
 
       <div className="grid gap-4 md:grid-cols-3">
         <div>
-          <label className={textStyles.label}>Location</label>
+          <label className={textStyles.label} htmlFor="application-location">
+            Location
+          </label>
           <Input
+            id="application-location"
             className="mt-1.5"
             disabled={disabled}
             value={form.location}
@@ -74,8 +86,11 @@ export const ApplicationForm = ({
         </div>
 
         <div>
-          <label className={textStyles.label}>Work mode</label>
+          <label className={textStyles.label} htmlFor="application-work-mode">
+            Work mode
+          </label>
           <Select
+            id="application-work-mode"
             className="mt-1.5"
             disabled={disabled}
             value={form.workMode}
@@ -92,8 +107,11 @@ export const ApplicationForm = ({
         </div>
 
         <div>
-          <label className={textStyles.label}>Applied date</label>
+          <label className={textStyles.label} htmlFor="application-applied-date">
+            Applied date
+          </label>
           <Input
+            id="application-applied-date"
             className="mt-1.5"
             disabled={disabled}
             type="date"
@@ -104,8 +122,11 @@ export const ApplicationForm = ({
       </div>
 
       <div>
-        <label className={textStyles.label}>Notes</label>
+        <label className={textStyles.label} htmlFor="application-notes">
+          Notes
+        </label>
         <Textarea
+          id="application-notes"
           className="mt-1.5"
           disabled={disabled}
           rows={3}

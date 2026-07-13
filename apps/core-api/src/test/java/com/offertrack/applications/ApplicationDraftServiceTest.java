@@ -154,6 +154,18 @@ class ApplicationDraftServiceTest {
             sensitiveUrl, "raw-url-token-marker", "cached-json-marker", "openai-api-key-marker");
   }
 
+  @Test
+  void cacheLogsDoNotExposeIpLiteralHosts(CapturedOutput output) {
+    AiDraftCacheKey ipKey =
+        new AiDraftCacheKey(CACHE_KEY, "https://192.0.2.10/jobs/123", "192.0.2.10", "abc");
+    when(cacheKeyFactory.create(REQUEST_URL)).thenReturn(ipKey);
+    when(cacheService.get(CACHE_KEY)).thenReturn(Optional.of(sampleDraft(NORMALIZED_URL)));
+
+    service.createDraft(request);
+
+    assertThat(output.getOut()).contains("url_host=ip-literal").doesNotContain("192.0.2.10");
+  }
+
   private static ApplicationDraftResponse sampleDraft(String jobUrl) {
     return new ApplicationDraftResponse(
         "Acme",

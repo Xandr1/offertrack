@@ -3,13 +3,12 @@ package com.offertrack.applications;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.applications.dto.ApplicationDraftRequest;
 import com.offertrack.applications.dto.ApplicationDraftResponse;
+import com.offertrack.config.RequestIdFilter;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -33,11 +32,8 @@ public class HttpAiServiceClient implements AiServiceClient {
   private final String internalApiKey;
 
   @Autowired
-  public HttpAiServiceClient(
-      @Value("${app.ai-service.base-url}") String baseUrl,
-      @Value("${app.ai-service.internal-api-key}") String internalApiKey,
-      ObjectMapper objectMapper) {
-    this(createRestClient(baseUrl), objectMapper, internalApiKey);
+  public HttpAiServiceClient(AiServiceProperties properties, ObjectMapper objectMapper) {
+    this(createRestClient(properties.getBaseUrl()), objectMapper, properties.getInternalApiKey());
   }
 
   HttpAiServiceClient(RestClient restClient, ObjectMapper objectMapper, String internalApiKey) {
@@ -48,7 +44,7 @@ public class HttpAiServiceClient implements AiServiceClient {
 
   @Override
   public ApplicationDraftResponse parseJob(ApplicationDraftRequest request) {
-    String requestId = UUID.randomUUID().toString();
+    String requestId = RequestIdFilter.currentRequestId();
 
     if (internalApiKey.isBlank()) {
       log.warn(
@@ -119,10 +115,7 @@ public class HttpAiServiceClient implements AiServiceClient {
     requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
     requestFactory.setReadTimeout(READ_TIMEOUT);
 
-    return RestClient.builder()
-        .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://localhost:8000" : baseUrl.trim())
-        .requestFactory(requestFactory)
-        .build();
+    return RestClient.builder().baseUrl(baseUrl.trim()).requestFactory(requestFactory).build();
   }
 
   private RuntimeException mapResponseException(RestClientResponseException exception) {

@@ -132,8 +132,12 @@ export const LoginClient = () => {
 
         <form onSubmit={handleSubmit} className={pageStyles.authForm}>
           <div>
-            <label className={textStyles.label}>Email</label>
+            <label className={textStyles.label} htmlFor="login-email">
+              Email
+            </label>
             <Input
+              id="login-email"
+              autoComplete="email"
               value={email}
               onChange={(event) => handleEmailChange(event.target.value)}
               type="email"
@@ -144,12 +148,16 @@ export const LoginClient = () => {
 
           <div>
             <div className="flex items-center justify-between gap-3">
-              <label className={textStyles.label}>Password</label>
+              <label className={textStyles.label} htmlFor="login-password">
+                Password
+              </label>
               <a className={buttonStyles.link} href="/forgot-password">
                 Forgot password?
               </a>
             </div>
             <Input
+              id="login-password"
+              autoComplete="current-password"
               value={password}
               onChange={(event) => handlePasswordChange(event.target.value)}
               type="password"

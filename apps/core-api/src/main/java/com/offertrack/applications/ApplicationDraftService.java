@@ -52,7 +52,7 @@ public class ApplicationDraftService {
     } catch (RuntimeException exception) {
       log.warn(
           "ai_draft_cache_read_failed url_host={} cache_key_suffix={} error_type={}",
-          cacheKey.host(),
+          safeLogHost(cacheKey.host()),
           cacheKey.hashSuffix(),
           exception.getClass().getSimpleName());
       cachedDraft = Optional.empty();
@@ -61,14 +61,14 @@ public class ApplicationDraftService {
     if (cachedDraft.isPresent()) {
       log.info(
           "ai_draft_cache_hit url_host={} cache_key_suffix={}",
-          cacheKey.host(),
+          safeLogHost(cacheKey.host()),
           cacheKey.hashSuffix());
       return withJobUrl(cachedDraft.orElseThrow(), request.jobUrl());
     }
 
     log.info(
         "ai_draft_cache_miss url_host={} cache_key_suffix={}",
-        cacheKey.host(),
+        safeLogHost(cacheKey.host()),
         cacheKey.hashSuffix());
     ApplicationDraftResponse draft = aiServiceClient.parseJob(request);
 
@@ -77,12 +77,19 @@ public class ApplicationDraftService {
     } catch (RuntimeException exception) {
       log.warn(
           "ai_draft_cache_write_failed url_host={} cache_key_suffix={} error_type={}",
-          cacheKey.host(),
+          safeLogHost(cacheKey.host()),
           cacheKey.hashSuffix(),
           exception.getClass().getSimpleName());
     }
 
     return draft;
+  }
+
+  private static String safeLogHost(String host) {
+    if (host == null || host.isBlank()) {
+      return "unknown";
+    }
+    return host.contains(":") || host.matches("[0-9.]+") ? "ip-literal" : host;
   }
 
   private static ApplicationDraftResponse withJobUrl(
