@@ -50,9 +50,19 @@ unavailable, authenticated requests fail closed with a generic service-unavailab
 
 ### Refresh tokens and cookies
 
-Refresh tokens are opaque 256-bit cryptographically random values. The browser receives them only
-in a cookie with `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/auth`, the configured production
-domain, and a 30-day maximum age. JavaScript never receives the token.
+Refresh tokens are opaque 256-bit cryptographically random values. The browser
+receives them only in a cookie with Secure, HttpOnly, Path=/auth, the configured
+production domain, and a 30-day maximum age.
+
+The SameSite attribute is explicitly configured according to the deployment
+topology:
+
+- SameSite=Lax is preferred when the frontend and API are same-site.
+- SameSite=None is allowed only for genuinely cross-site deployments and always
+  requires Secure=true and explicit CSRF protection.
+
+The refresh cookie must use a topology consistent with the access-token and CSRF
+repository cookies. JavaScript never receives or reads the refresh token.
 
 Only `SHA-256(refresh_token)` is stored. The random token has sufficient entropy to make offline
 guessing infeasible without storing salts or recoverable token material. Refresh tokens rotate on
