@@ -35,7 +35,9 @@ echo "Running frontend unit tests..."
 echo "Running AI service lint and tests..."
 (
   cd apps/ai-service
-  python -m pip install -e ".[test]"
+  sha256sum --check pylock.test.toml.sha256
+  python -m pip install --upgrade "pip==26.1.2"
+  python -m pip install --requirement pylock.test.toml
   python -m ruff check .
   python -m ruff format --check .
   python -m pyright

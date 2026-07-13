@@ -4,13 +4,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 @Component
-class RedisRateLimiter {
+class RedisRateLimiter implements RateLimiter {
   private static final String KEY_PREFIX = "offertrack:rate-limit:v1";
 
   private final StringRedisTemplate redisTemplate;
@@ -28,7 +28,8 @@ class RedisRateLimiter {
     this.script.setResultType(Long.class);
   }
 
-  RateLimitDecision consume(RateLimitAttempt attempt) {
+  @Override
+  public RateLimitDecision consume(RateLimitAttempt attempt) {
     long windowSeconds = windowSeconds(attempt.configuration().getWindow());
     long epochSeconds = clock.instant().getEpochSecond();
     long bucket = Math.floorDiv(epochSeconds, windowSeconds);
@@ -36,9 +37,15 @@ class RedisRateLimiter {
         Math.max(1, windowSeconds - Math.floorMod(epochSeconds, windowSeconds));
     String key = buildKey(attempt, bucket);
 
-    Long count = redisTemplate.execute(script, List.of(key), Long.toString(retryAfterSeconds));
+    Long count;
+    try {
+      count = redisTemplate.execute(script, List.of(key), Long.toString(retryAfterSeconds));
+    } catch (DataAccessException exception) {
+      throw new RateLimitStoreUnavailableException();
+    }
+
     if (count == null) {
-      throw new DataAccessResourceFailureException("Rate-limit counter returned no result");
+      throw new RateLimitStoreUnavailableException();
     }
 
     return new RateLimitDecision(

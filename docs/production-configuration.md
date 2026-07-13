@@ -86,9 +86,12 @@ closed when Redis is unavailable.
 ## E2E and CI
 
 `.env.e2e.example` contains only fixed test values. `pnpm run e2e` removes the
-isolated Compose volumes, migrates a fresh database, seeds one verified fake
-user, starts the API and built web app, runs the five Chromium smoke tests, and
-always cleans up. It does not call Google or OpenAI.
+isolated Compose volumes, migrates a fresh database, seeds six dedicated verified
+fake users, starts the API and built web app, runs all seven Chromium smoke
+scenarios with one worker, and always cleans up. Each state-mutating scenario
+uses its own account. It does not call Google or OpenAI. On failure, the harness
+prints sanitized service-log tails and preserves sanitized service logs plus the
+Playwright failure artifacts for short-retention CI upload.
 
 The CI-equivalent checks are:
 
@@ -104,9 +107,9 @@ cd apps/core-api
 ./mvnw test
 
 cd apps/ai-service
-sha256sum --check pylock.toml.sha256
+sha256sum --check pylock.test.toml.sha256
 python -m pip install --upgrade "pip==26.1.2"
-python -m pip install --requirement pylock.toml
+python -m pip install --requirement pylock.test.toml
 python -m ruff check .
 python -m ruff format --check .
 python -m pyright

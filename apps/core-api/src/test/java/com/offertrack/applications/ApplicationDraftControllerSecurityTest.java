@@ -1,5 +1,6 @@
 package com.offertrack.applications;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
@@ -17,26 +18,36 @@ import com.offertrack.auth.AuthService;
 import com.offertrack.auth.CookieService;
 import com.offertrack.auth.JwtAuthenticationFilter;
 import com.offertrack.auth.JwtService;
+import com.offertrack.config.RequestIdFilter;
 import com.offertrack.config.SecurityConfig;
 import com.offertrack.interviews.InterviewStatus;
 import com.offertrack.interviews.InterviewType;
 import com.offertrack.ratelimit.RateLimitExceededException;
 import com.offertrack.ratelimit.RateLimitGuard;
+import com.offertrack.ratelimit.RateLimitPolicy;
+import com.offertrack.ratelimit.RateLimitSubjectType;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.util.StringUtils;
 
-@WebMvcTest(controllers = ApplicationDraftController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@WebMvcTest(
+    controllers = ApplicationDraftController.class,
+    properties = {"debug=false", "logging.level.org.springframework.web=INFO"})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, RequestIdFilter.class})
+@ExtendWith(OutputCaptureExtension.class)
 class ApplicationDraftControllerSecurityTest {
   private static final String TEST_TOKEN = "test-token";
   private static final UUID AUTHENTICATED_USER_ID =
@@ -166,8 +177,13 @@ class ApplicationDraftControllerSecurityTest {
   }
 
   @Test
-  void postDraftReturnsRateLimitResponseBeforeCallingAiService() throws Exception {
-    org.mockito.Mockito.doThrow(new RateLimitExceededException(42))
+  void postDraftReturnsOneSafelyCorrelatedRateLimitResponseBeforeCallingAiService(
+      CapturedOutput output) throws Exception {
+    org.mockito.Mockito.doThrow(
+            new RateLimitExceededException(
+                List.of(RateLimitPolicy.AI_USER_MINUTE, RateLimitPolicy.AI_USER_DAY),
+                List.of(RateLimitSubjectType.USER),
+                42))
         .when(rateLimitGuard)
         .checkAiDraft(AUTHENTICATED_USER_ID);
 
@@ -176,13 +192,29 @@ class ApplicationDraftControllerSecurityTest {
             post("/api/applications/draft")
                 .with(csrf())
                 .cookie(accessTokenCookie())
+                .header("X-Request-Id", "draft-correlation-id")
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"jobUrl\":\"https://example.com/jobs/123\"}"))
         .andExpect(status().isTooManyRequests())
         .andExpect(header().string("Retry-After", "42"))
+        .andExpect(header().string("X-Request-Id", "draft-correlation-id"))
         .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
 
     verifyNoInteractions(applicationDraftService);
+    assertThat(output.getOut())
+        .contains(
+            "rate_limit_denied method=POST route=/api/applications/draft status=429",
+            "error_code=RATE_LIMITED",
+            "denied_policies=[ai-user-minute, ai-user-day]",
+            "subject_types=[user]",
+            "retry_after=42",
+            "request_id=draft-correlation-id")
+        .doesNotContain(
+            AUTHENTICATED_USER_ID.toString(),
+            AUTHENTICATED_USER_EMAIL,
+            TEST_TOKEN,
+            "https://example.com/jobs/123");
+    assertThat(StringUtils.countOccurrencesOf(output.getOut(), "rate_limit_denied")).isEqualTo(1);
   }
 
   private static Cookie accessTokenCookie() {

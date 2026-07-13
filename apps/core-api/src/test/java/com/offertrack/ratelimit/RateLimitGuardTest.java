@@ -8,7 +8,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,12 +21,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.util.StringUtils;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class RateLimitGuardTest {
-  @Mock private RedisRateLimiter rateLimiter;
+  @Mock private RateLimiter rateLimiter;
 
   private RateLimitProperties properties;
   private RateLimitGuard guard;
@@ -48,9 +49,13 @@ class RateLimitGuardTest {
     assertThatThrownBy(() -> guard.checkLogin(" User@Example.COM ", "203.0.113.10"))
         .isInstanceOfSatisfying(
             RateLimitExceededException.class,
-            exception ->
-                org.assertj.core.api.Assertions.assertThat(exception.retryAfterSeconds())
-                    .isEqualTo(45));
+            exception -> {
+              assertThat(exception.retryAfterSeconds()).isEqualTo(45);
+              assertThat(exception.deniedPolicies())
+                  .containsExactly(RateLimitPolicy.LOGIN_EMAIL, RateLimitPolicy.LOGIN_IP);
+              assertThat(exception.subjectTypes())
+                  .containsExactly(RateLimitSubjectType.EMAIL, RateLimitSubjectType.IP);
+            });
     verify(rateLimiter, times(2)).consume(any());
   }
 
@@ -88,7 +93,7 @@ class RateLimitGuardTest {
   void failClosedStillConsumesRemainingPoliciesBeforeReturningUnavailable() {
     properties.setFailOpen(false);
     when(rateLimiter.consume(any()))
-        .thenThrow(new DataAccessResourceFailureException("unavailable"))
+        .thenThrow(new RateLimitStoreUnavailableException())
         .thenReturn(new RateLimitDecision(true, 30));
 
     assertThatThrownBy(() -> guard.checkLogin("user@example.com", "203.0.113.10"))
@@ -100,7 +105,7 @@ class RateLimitGuardTest {
   void failOpenIgnoresUnavailableChecksButHonorsKnownDenials() {
     properties.setFailOpen(true);
     when(rateLimiter.consume(any()))
-        .thenThrow(new DataAccessResourceFailureException("unavailable"))
+        .thenThrow(new RateLimitStoreUnavailableException())
         .thenReturn(new RateLimitDecision(false, 30));
 
     assertThatThrownBy(() -> guard.checkLogin("user@example.com", "203.0.113.10"))
@@ -109,25 +114,27 @@ class RateLimitGuardTest {
   }
 
   @Test
-  void denialLogsOnlySafePolicyMetadata(CapturedOutput output) {
+  void denialIsReportedWithoutLoggingSubjectsOrPolicyFragments(CapturedOutput output) {
     when(rateLimiter.consume(any()))
         .thenReturn(new RateLimitDecision(false, 30))
         .thenReturn(new RateLimitDecision(true, 30));
 
     assertThatThrownBy(() -> guard.checkLogin("raw-email-marker@example.com", "raw-ip-marker"))
-        .isInstanceOf(RateLimitExceededException.class);
+        .isInstanceOfSatisfying(
+            RateLimitExceededException.class,
+            exception -> {
+              assertThat(exception.deniedPolicies()).containsExactly(RateLimitPolicy.LOGIN_EMAIL);
+              assertThat(exception.subjectTypes()).containsExactly(RateLimitSubjectType.EMAIL);
+            });
 
     assertThat(output.getOut())
-        .contains(
-            "rate_limit_exceeded", "policy=login-email", "subject_type=email", "retry_after=30")
-        .doesNotContain("raw-email-marker", "raw-ip-marker");
+        .doesNotContain("rate_limit_exceeded", "raw-email-marker", "raw-ip-marker");
   }
 
   @Test
   void unavailableWarningsAreSuppressedAndNeverIncludeRedisMessages(CapturedOutput output) {
     properties.setFailOpen(true);
-    when(rateLimiter.consume(any()))
-        .thenThrow(new DataAccessResourceFailureException("redis-password-marker"));
+    when(rateLimiter.consume(any())).thenThrow(new RateLimitStoreUnavailableException());
 
     guard.checkLogin("raw-email-marker@example.com", "raw-ip-marker");
     guard.checkLogin("raw-email-marker@example.com", "raw-ip-marker");
@@ -137,6 +144,48 @@ class RateLimitGuardTest {
             StringUtils.countOccurrencesOf(logs, "rate_limiter_unavailable"))
         .isEqualTo(1);
     org.assertj.core.api.Assertions.assertThat(logs)
-        .doesNotContain("redis-password-marker", "raw-email-marker", "raw-ip-marker");
+        .doesNotContain("raw-email-marker", "raw-ip-marker");
+  }
+
+  @Test
+  void unavailableWarningIsEmittedAgainAfterTheSuppressionInterval(CapturedOutput output) {
+    MutableClock mutableClock = new MutableClock(Instant.parse("2026-07-12T12:00:00Z"));
+    properties.setFailOpen(true);
+    guard = new RateLimitGuard(rateLimiter, properties, mutableClock);
+    when(rateLimiter.consume(any())).thenThrow(new RateLimitStoreUnavailableException());
+
+    guard.checkLogin("user@example.com", "203.0.113.10");
+    mutableClock.advance(Duration.ofMinutes(1));
+    guard.checkLogin("user@example.com", "203.0.113.10");
+
+    assertThat(StringUtils.countOccurrencesOf(output.getOut(), "rate_limiter_unavailable"))
+        .isEqualTo(2);
+  }
+
+  private static final class MutableClock extends Clock {
+    private Instant instant;
+
+    private MutableClock(Instant instant) {
+      this.instant = instant;
+    }
+
+    void advance(Duration duration) {
+      instant = instant.plus(duration);
+    }
+
+    @Override
+    public ZoneId getZone() {
+      return ZoneOffset.UTC;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zone) {
+      return this;
+    }
+
+    @Override
+    public Instant instant() {
+      return instant;
+    }
   }
 }

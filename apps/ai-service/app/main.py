@@ -1,4 +1,5 @@
 import hmac
+import ipaddress
 import logging
 import re
 import time
@@ -243,7 +244,7 @@ def _log_failure(
     reason = _safe_log_value(getattr(exception, "reason", None))
     status_code = _safe_status_code(getattr(exception, "status_code", None))
     content_type = _safe_log_value(getattr(exception, "content_type", None))
-    redirect_target_host = _safe_log_value(getattr(exception, "redirect_target_host", None))
+    redirect_target_host = _safe_log_host(getattr(exception, "redirect_target_host", None))
 
     logger.warning(
         "ai_service_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
@@ -270,7 +271,7 @@ def _request_id(header_value: str | None) -> str:
 
 def _url_host(job_url: str) -> str:
     try:
-        return httpx.URL(job_url).host or "unknown"
+        return _safe_log_host(httpx.URL(job_url).host or "unknown")
     except httpx.InvalidURL:
         return "invalid"
 
@@ -285,6 +286,19 @@ def _safe_log_value(value: object) -> str:
 
     text = " ".join(str(value).split())
     return text[:120] if text else "-"
+
+
+def _safe_log_host(value: object) -> str:
+    host = _safe_log_value(value)
+    address_candidate = host.removeprefix("[").removesuffix("]").split("%", maxsplit=1)[0]
+
+    try:
+        ipaddress.ip_address(address_candidate)
+    except ValueError:
+        if re.fullmatch(r"[0-9.]+", address_candidate) is None and ":" not in address_candidate:
+            return host
+
+    return "ip-literal"
 
 
 def _safe_status_code(value: object) -> str:

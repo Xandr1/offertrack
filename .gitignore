@@ -9,6 +9,8 @@ package-lock.json
 target
 playwright-report/
 test-results/
+osv-maven-dependencies.json
+osv-results*.json
 *.log
 __pycache__/
 *.py[cod]

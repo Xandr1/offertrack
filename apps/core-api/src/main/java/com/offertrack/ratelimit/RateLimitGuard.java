@@ -9,7 +9,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -17,12 +16,12 @@ public class RateLimitGuard {
   private static final Logger log = LoggerFactory.getLogger(RateLimitGuard.class);
   private static final Duration UNAVAILABLE_LOG_INTERVAL = Duration.ofMinutes(1);
 
-  private final RedisRateLimiter rateLimiter;
+  private final RateLimiter rateLimiter;
   private final RateLimitProperties properties;
   private final Clock clock;
   private final AtomicLong nextUnavailableWarningAt = new AtomicLong(Long.MIN_VALUE);
 
-  RateLimitGuard(RedisRateLimiter rateLimiter, RateLimitProperties properties, Clock clock) {
+  RateLimitGuard(RateLimiter rateLimiter, RateLimitProperties properties, Clock clock) {
     this.rateLimiter = rateLimiter;
     this.properties = properties;
     this.clock = clock;
@@ -128,7 +127,7 @@ public class RateLimitGuard {
         if (!decision.allowed()) {
           deniedAttempts.add(new DeniedAttempt(attempt, decision.retryAfterSeconds()));
         }
-      } catch (DataAccessException exception) {
+      } catch (RateLimitStoreUnavailableException exception) {
         unavailable = true;
         logUnavailableIfDue();
       }
@@ -142,17 +141,12 @@ public class RateLimitGuard {
       return;
     }
 
-    for (DeniedAttempt denied : deniedAttempts) {
-      log.warn(
-          "rate_limit_exceeded policy={} subject_type={} retry_after={}",
-          denied.attempt().policy().key(),
-          denied.attempt().subjectType().key(),
-          denied.retryAfterSeconds());
-    }
-
     long retryAfterSeconds =
         deniedAttempts.stream().mapToLong(DeniedAttempt::retryAfterSeconds).max().orElse(1);
-    throw new RateLimitExceededException(retryAfterSeconds);
+    throw new RateLimitExceededException(
+        deniedAttempts.stream().map(denied -> denied.attempt().policy()).toList(),
+        deniedAttempts.stream().map(denied -> denied.attempt().subjectType()).toList(),
+        retryAfterSeconds);
   }
 
   private void logUnavailableIfDue() {

@@ -1,7 +1,7 @@
+import argparse
 import tomllib
 from pathlib import Path
 
-LOCK_PATH = Path(__file__).resolve().parent.parent / "pylock.toml"
 LOCAL_PROJECT_NAME = "offertrack-ai-service"
 LOCAL_PROJECT_STANZA = f'''[[packages]]
 name = "{LOCAL_PROJECT_NAME}"
@@ -12,8 +12,17 @@ path = "."
 '''
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Remove pip's local project entry from a generated dependency lock."
+    )
+    parser.add_argument("lock_path", type=Path)
+    return parser.parse_args()
+
+
 def main() -> None:
-    lock_text = LOCK_PATH.read_text(encoding="utf-8")
+    lock_path = parse_args().lock_path
+    lock_text = lock_path.read_text(encoding="utf-8")
     lock = tomllib.loads(lock_text)
     local_projects = [
         package for package in lock.get("packages", []) if package.get("name") == LOCAL_PROJECT_NAME
@@ -32,7 +41,7 @@ def main() -> None:
     ):
         raise SystemExit("Failed to remove the local offertrack-ai-service directory stanza.")
 
-    LOCK_PATH.write_text(dependency_lock, encoding="utf-8", newline="\n")
+    lock_path.write_text(dependency_lock, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,11 @@ type ShellLayoutProps = {
 };
 
 export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => (
-  <main className={pageStyles.appMain}>
+  <main
+    className={pageStyles.appMain}
+    data-protected-route={activeRoute}
+    data-testid="protected-page-shell"
+  >
     <div className={shellStyles.grid}>
       <aside className={shellStyles.sidebar}>
         <div className={shellStyles.brand}>

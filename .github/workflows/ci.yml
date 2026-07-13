@@ -120,16 +120,21 @@ jobs:
           cache-dependency-path: |
             apps/ai-service/pyproject.toml
             apps/ai-service/pylock.toml
+            apps/ai-service/pylock.test.toml
 
       - name: Verify dependency lock freshness
         working-directory: apps/ai-service
-        run: sha256sum --check pylock.toml.sha256
+        run: |
+          bash scripts/lock-dependencies.sh
+          git diff --exit-code -- \
+            pylock.toml pylock.toml.sha256 \
+            pylock.test.toml pylock.test.toml.sha256
 
       - name: Install locked dependencies
         working-directory: apps/ai-service
         run: |
-          python -m pip install --upgrade "pip==26.1.2"
-          python -m pip install --requirement pylock.toml
+          sha256sum --check pylock.test.toml.sha256
+          python -m pip install --requirement pylock.test.toml
 
       - name: Ruff
         working-directory: apps/ai-service
@@ -144,6 +149,10 @@ jobs:
       - name: Pytest
         working-directory: apps/ai-service
         run: python -m pytest
+
+      - name: Verify production image
+        working-directory: apps/ai-service
+        run: bash scripts/verify-runtime-image.sh
 
   e2e:
     name: Playwright E2E
@@ -186,8 +195,13 @@ jobs:
       - name: Prepare scripts
         run: chmod +x scripts/backend-codegen.sh scripts/e2e/run-e2e.sh apps/core-api/mvnw
 
-      - name: Run smoke tests
-        run: ./scripts/e2e/run-e2e.sh
+      - name: Verify service-log sanitization
+        run: bash scripts/e2e/test-sanitize-service-log.sh
+
+      - name: Run smoke tests twice from clean state
+        run: |
+          ./scripts/e2e/run-e2e.sh
+          ./scripts/e2e/run-e2e.sh
 
       - name: Upload failed Playwright artifacts
         if: failure()
@@ -197,7 +211,7 @@ jobs:
           path: |
             apps/web/playwright-report
             apps/web/test-results
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 3
 
       - name: Clean up isolated E2E services

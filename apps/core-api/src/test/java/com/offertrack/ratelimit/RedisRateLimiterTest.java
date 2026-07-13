@@ -1,6 +1,7 @@
 package com.offertrack.ratelimit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -71,5 +73,34 @@ class RedisRateLimiterTest {
     assertThat(keys.getValue()).singleElement().asString().doesNotContain(rawSubject);
     assertThat(keys.getValue().getFirst())
         .startsWith("offertrack:rate-limit:v1:login-email:email:");
+  }
+
+  @Test
+  void translatesSpringStorageFailuresWithoutLeakingTheirMessageOrCause() {
+    when(redisTemplate.execute(any(RedisScript.class), anyList(), eq("1")))
+        .thenThrow(new DataAccessResourceFailureException("redis-password-marker"));
+
+    assertThatThrownBy(() -> rateLimiter.consume(attempt()))
+        .isInstanceOf(RateLimitStoreUnavailableException.class)
+        .hasMessage("Rate-limit store is unavailable.")
+        .hasNoCause()
+        .hasMessageNotContaining("redis-password-marker");
+  }
+
+  @Test
+  void translatesMissingRedisResultsToTheDomainFailure() {
+    when(redisTemplate.execute(any(RedisScript.class), anyList(), eq("1"))).thenReturn(null);
+
+    assertThatThrownBy(() -> rateLimiter.consume(attempt()))
+        .isInstanceOf(RateLimitStoreUnavailableException.class)
+        .hasNoCause();
+  }
+
+  private static RateLimitAttempt attempt() {
+    return new RateLimitAttempt(
+        RateLimitPolicy.AI_USER_MINUTE,
+        RateLimitSubjectType.USER,
+        "11111111-1111-1111-1111-111111111111",
+        new RateLimitProperties.Policy(5, Duration.ofMinutes(1)));
   }
 }

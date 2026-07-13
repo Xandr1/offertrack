@@ -204,9 +204,7 @@ public class AuthService {
       authEmailService.sendVerificationEmail(user, token);
     } catch (RuntimeException exception) {
       log.warn(
-          "email_verification_send_failed user_id={} error_type={}",
-          user.id(),
-          exception.getClass().getSimpleName());
+          "email_verification_send_failed error_type={}", exception.getClass().getSimpleName());
       throw exception;
     }
   }
@@ -217,10 +215,7 @@ public class AuthService {
     try {
       authEmailService.sendPasswordResetEmail(user, token);
     } catch (RuntimeException exception) {
-      log.warn(
-          "password_reset_send_failed user_id={} error_type={}",
-          user.id(),
-          exception.getClass().getSimpleName());
+      log.warn("password_reset_send_failed error_type={}", exception.getClass().getSimpleName());
     }
   }
 

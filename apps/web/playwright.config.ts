@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI
     ? [["line"], ["html", { open: "never", outputFolder: "playwright-report" }]]
@@ -15,7 +15,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     trace: {
-      mode: "on-first-retry",
+      mode: "retain-on-failure",
       snapshots: false,
       sources: false,
       attachments: false,

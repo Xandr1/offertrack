@@ -3,9 +3,9 @@ package com.offertrack.applications;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.applications.dto.ApplicationDraftRequest;
 import com.offertrack.applications.dto.ApplicationDraftResponse;
+import com.offertrack.config.RequestIdFilter;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +44,7 @@ public class HttpAiServiceClient implements AiServiceClient {
 
   @Override
   public ApplicationDraftResponse parseJob(ApplicationDraftRequest request) {
-    String requestId = UUID.randomUUID().toString();
+    String requestId = RequestIdFilter.currentRequestId();
 
     if (internalApiKey.isBlank()) {
       log.warn(

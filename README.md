@@ -107,9 +107,9 @@ AI service:
 
 ```bash
 cd apps/ai-service
-sha256sum --check pylock.toml.sha256
+sha256sum --check pylock.test.toml.sha256
 python -m pip install --upgrade "pip==26.1.2"
-python -m pip install --requirement pylock.toml
+python -m pip install --requirement pylock.test.toml
 python -m ruff check .
 python -m ruff format --check .
 python -m pyright

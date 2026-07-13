@@ -1,5 +1,6 @@
 package com.offertrack.errors;
 
+import com.offertrack.config.RequestIdFilter;
 import com.offertrack.ratelimit.RateLimitExceededException;
 import com.offertrack.ratelimit.RateLimitServiceUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,7 +31,16 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiErrorResponse> handleRateLimitExceeded(
       RateLimitExceededException exception, HttpServletRequest request) {
     HttpStatus status = HttpStatus.TOO_MANY_REQUESTS;
-    logExpected4xx(status, "RATE_LIMITED", request);
+    log.warn(
+        "rate_limit_denied method={} route={} status={} error_code={} denied_policies={} subject_types={} retry_after={} request_id={}",
+        request.getMethod(),
+        safeLogPath(request),
+        status.value(),
+        "RATE_LIMITED",
+        exception.deniedPolicies().stream().map(policy -> policy.key()).toList(),
+        exception.subjectTypes().stream().map(subjectType -> subjectType.key()).toList(),
+        exception.retryAfterSeconds(),
+        RequestIdFilter.requestId(request));
 
     return ResponseEntity.status(status)
         .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))

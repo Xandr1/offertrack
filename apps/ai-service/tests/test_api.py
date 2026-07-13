@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi.testclient import TestClient
 
 from app.fetcher import FetchResult, JobFetchError, JobFetchTimeoutError
-from app.main import _request_id, create_app
+from app.main import _request_id, _safe_log_host, create_app
 from app.models import ExtractedDraft, ExtractedInterview
 from app.openai_extractor import OpenAiTimeoutError
 from app.settings import Settings
@@ -360,6 +360,37 @@ def test_logs_fetch_failure_diagnostics(caplog) -> None:
     assert "status_code=403" in caplog.text
     assert "content_type=text/html; charset=utf-8" in caplog.text
     assert "redirect_target_host=jobs.example.com" in caplog.text
+
+
+def test_replaces_ip_literal_hosts_in_logs(caplog) -> None:
+    initial_host = "198.51.100.23"
+    redirect_host = "2001:db8::23"
+    client = _client_with_fetcher(
+        FailingFetcher(
+            JobFetchError(
+                "failed",
+                reason="unsafe_redirect_target",
+                redirect_target_host=redirect_host,
+            )
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="app.main")
+
+    response = _post_parse(client, job_url=f"https://{initial_host}/jobs/1")
+
+    assert response.status_code == 502
+    assert "url_host=ip-literal" in caplog.text
+    assert "redirect_target_host=ip-literal" in caplog.text
+    assert initial_host not in caplog.text
+    assert redirect_host not in caplog.text
+
+
+def test_replaces_ambiguous_numeric_and_colon_hosts_for_logging() -> None:
+    assert _safe_log_host("2130706433") == "ip-literal"
+    assert _safe_log_host("127.1") == "ip-literal"
+    assert _safe_log_host("[::ffff:127.0.0.1]") == "ip-literal"
+    assert _safe_log_host("jobs.example.com:443") == "ip-literal"
+    assert _safe_log_host("jobs.example.com") == "jobs.example.com"
 
 
 def test_returns_page_not_readable_error_for_empty_page() -> None:
