@@ -1,0 +1,13 @@
+**
+
+!Dockerfile
+!Dockerfile.dockerignore
+!docker-entrypoint.sh
+!pyproject.toml
+!pylock.toml
+!pylock.toml.sha256
+!app/
+!app/**
+
+app/**/__pycache__/
+app/**/*.py[cod]

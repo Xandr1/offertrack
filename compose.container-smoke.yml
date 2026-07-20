@@ -1,0 +1,163 @@
+services:
+  postgres:
+    image: postgres:16.14-bookworm@sha256:c95fd5346040eba2de3c435e14874af18f5d681fb5848d4f081dbead0878af28
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB: offertrack_container_smoke
+      POSTGRES_USER: offertrack_container_smoke
+      POSTGRES_PASSWORD: container-smoke-postgres-password-not-for-production
+    ports:
+      - "127.0.0.1:55433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7.4.9-alpine@sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:56380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  ai-service:
+    image: offertrack/ai-service:${OFFERTRACK_IMAGE_TAG:?OFFERTRACK_IMAGE_TAG is required}
+    platform: linux/amd64
+    pull_policy: never
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 15s
+    environment:
+      APP_ENV: test
+      HOST: 0.0.0.0
+      PORT: "18001"
+      OPENAI_API_KEY: ""
+      OPENAI_MODEL: gpt-5.4-mini
+      OPENAI_TIMEOUT_SECONDS: "30"
+      AI_SERVICE_FETCH_TIMEOUT_SECONDS: "10"
+      AI_SERVICE_MAX_RESPONSE_BYTES: "10000000"
+      AI_SERVICE_MAX_JOB_TEXT_CHARS: "18000"
+      AI_SERVICE_MAX_REDIRECTS: "5"
+      AI_SERVICE_ALLOWED_HOSTS: ai-service,localhost,127.0.0.1
+      AI_SERVICE_DOCS_ENABLED: "false"
+      AI_SERVICE_INTERNAL_API_KEY: container-smoke-ai-internal-key-not-for-production-0123456789
+    ports:
+      - "127.0.0.1:18001:18001"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777,uid=10001,gid=10001
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import json, urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:18001/health', timeout=2)) == {'status': 'ok'}",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  core-api:
+    image: offertrack/core-api:${OFFERTRACK_IMAGE_TAG:?OFFERTRACK_IMAGE_TAG is required}
+    platform: linux/amd64
+    pull_policy: never
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 15s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: container-smoke
+      PORT: "18081"
+      DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke
+      DB_USER: offertrack_container_smoke
+      DB_PASSWORD: container-smoke-postgres-password-not-for-production
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_CONNECT_TIMEOUT: 2s
+      REDIS_TIMEOUT: 2s
+      JWT_SECRET: container-smoke-jwt-secret-not-for-production-0123456789abcdef
+      JWT_ACCESS_TOKEN_TTL: 1h
+      OAUTH_COOKIE_SECRET: container-smoke-oauth-secret-not-for-production-fedcba9876543210
+      GOOGLE_CLIENT_ID: container-smoke-google-client-id
+      GOOGLE_CLIENT_SECRET: container-smoke-google-client-secret-not-for-production
+      APP_WEB_URL: http://127.0.0.1:13001
+      CORS_ALLOWED_ORIGINS: http://127.0.0.1:13001
+      AUTH_COOKIE_NAME: access_token
+      AUTH_COOKIE_PATH: /
+      AUTH_COOKIE_DOMAIN: ""
+      AUTH_COOKIE_SECURE: "false"
+      AUTH_COOKIE_SAME_SITE: Lax
+      AI_SERVICE_BASE_URL: http://ai-service:18001
+      AI_SERVICE_INTERNAL_API_KEY: container-smoke-ai-internal-key-not-for-production-0123456789
+      AI_DRAFT_CACHE_ENABLED: "false"
+      SMTP_HOST: mail.invalid
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      MAIL_FROM: container-smoke@offertrack.invalid
+      RATE_LIMIT_KEY_SECRET: container-smoke-rate-limit-key-not-for-production-0123456789abcdef
+      RATE_LIMIT_FAIL_OPEN: "false"
+      SERVER_FORWARD_HEADERS_STRATEGY: none
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 10s
+    ports:
+      - "127.0.0.1:18081:18081"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777,uid=10001,gid=10001
+
+  web:
+    image: offertrack/web:${OFFERTRACK_IMAGE_TAG:?OFFERTRACK_IMAGE_TAG is required}
+    platform: linux/amd64
+    pull_policy: never
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 15s
+    depends_on:
+      core-api:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      HOSTNAME: 0.0.0.0
+      PORT: "13001"
+    ports:
+      - "127.0.0.1:13001:13001"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=1777,uid=1000,gid=1000
+      - /app/apps/web/.next/cache:rw,nosuid,nodev,size=128m,mode=0750,uid=1000,gid=1000
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:' + process.env.PORT + '/login').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -38,6 +38,15 @@ printf '%s\n' \
   'unlabelled eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkaXNwb3NhYmxlIn0.disposable-signature' \
   'GOOGLE_CLIENT_ID=disposable-oauth-client' \
   'session_id=opaque-session applicationId=opaque-application subject-id=opaque-subject' \
+  'DATABASE_URL=jdbc:postgresql://db-user:jdbc-password@192.0.2.20:5432/private-db?sslmode=require' \
+  'postgres_uri=postgresql://pg-user:postgres-password@database.example.test:5432/private-db' \
+  'redis_uri=rediss://cache-user:redis-password@cache.example.test:6380/0' \
+  'upstream=https://uri-user:uri-password@example.test/private' \
+  'callback=https://example.test/callback?password=query-password&client_secret=query-secret&email=query@example.test' \
+  'X-Internal-API-Key: disposable-internal-header-key' \
+  'AI_SERVICE_INTERNAL_API_KEY=disposable-ai-service-key' \
+  '{"Authorization":"Bearer disposable-json-auth","Cookie":"access_token=disposable-json-cookie"}' \
+  '{"Set-Cookie":"access_token=disposable-json-set-cookie; HttpOnly"}' \
   >"$INPUT"
 
 "$PYTHON_BIN" "$SANITIZER" "$INPUT" "$OUTPUT"
@@ -57,7 +66,24 @@ for sensitive_value in \
   'disposable-oauth-client' \
   'opaque-session' \
   'opaque-application' \
-  'opaque-subject'; do
+  'opaque-subject' \
+  'db-user' \
+  'jdbc-password' \
+  'private-db' \
+  'pg-user' \
+  'postgres-password' \
+  'cache-user' \
+  'redis-password' \
+  'uri-user' \
+  'uri-password' \
+  'query-password' \
+  'query-secret' \
+  'query@example.test' \
+  'disposable-internal-header-key' \
+  'disposable-ai-service-key' \
+  'disposable-json-auth' \
+  'disposable-json-cookie' \
+  'disposable-json-set-cookie'; do
   if grep -Fq "$sensitive_value" "$OUTPUT"; then
     echo "Sensitive service-log fixture value was not redacted."
     exit 1
@@ -66,6 +92,11 @@ done
 
 if ! grep -Fq 'request_id=123e4567-e89b-42d3-a456-426614174000' "$OUTPUT"; then
   echo "Generated request correlation ID was unexpectedly redacted."
+  exit 1
+fi
+
+if [[ "$(grep -Fc '[REDACTED_CONNECTION_URL]' "$OUTPUT")" -ne 3 ]]; then
+  echo "Expected JDBC, PostgreSQL, and Redis URLs to be redacted."
   exit 1
 fi
 

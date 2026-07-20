@@ -1,5 +1,10 @@
 # Dependency security baseline
 
+This document covers the source dependency OSV policy. The independent
+production-image Trivy policy, including the non-blocking accepted residual
+risk for HIGH/CRITICAL findings without an upstream fix, is documented in
+[Production container images](container-images.md#container-vulnerability-policy).
+
 OfferTrack runs the pinned OSV-Scanner 2.3.8 on pull requests that change
 dependency inputs, weekly, and on demand. The workflow is blocking: malformed or
 missing scanner output fails the job, as does any vulnerability not listed in

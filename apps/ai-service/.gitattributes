@@ -4,5 +4,7 @@ pylock.toml.sha256 text eol=lf
 pylock.test.toml text eol=lf
 pylock.test.toml.sha256 text eol=lf
 Dockerfile text eol=lf
+Dockerfile.dockerignore text eol=lf
+docker-entrypoint.sh text eol=lf
 *.py text eol=lf
 scripts/*.sh text eol=lf
