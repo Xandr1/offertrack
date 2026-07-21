@@ -228,16 +228,20 @@ def before_restart(base_url: str, cookie_path: Path, id_path: Path) -> None:
     assert error.get("message") == "Job URL is invalid or unsafe."
     assert error.get("path") == "/api/applications/draft"
 
+    create_header, create_token = issue_csrf(opener, base_url, jar)
     status, _, payload = request(
         opener,
         base_url,
         "/api/applications",
         method="POST",
-        headers=mutation_headers,
+        headers={create_header: create_token, "Origin": ALLOWED_ORIGIN},
         body=APPLICATION,
     )
-    assert status == 201
     created = json_body(payload)
+    assert status == 201, (
+        f"application creation returned {status} "
+        f"with code {created.get('code', '<none>')}"
+    )
     assert created.get("interviews") == []
     application = created.get("application")
     assert isinstance(application, dict)

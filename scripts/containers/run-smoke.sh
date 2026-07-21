@@ -398,7 +398,17 @@ assert_pid_command() {
   done
 }
 
-assert_pid_command web node server.js
+assert_pid_command web node
+WEB_IMAGE_COMMAND="$(
+  docker image inspect --format '{{json .Config.Cmd}}' "offertrack/web:$IMAGE_TAG"
+)"
+WEB_CONTAINER_COMMAND="$(
+  docker inspect --format '{{json .Config.Cmd}}' "$(container_id web)"
+)"
+[[ "$WEB_IMAGE_COMMAND" == '["node","server.js"]' ]] \
+  || fail "Web image command is '$WEB_IMAGE_COMMAND', expected node server.js"
+[[ "$WEB_CONTAINER_COMMAND" == '["node","server.js"]' ]] \
+  || fail "Web container command is '$WEB_CONTAINER_COMMAND', expected node server.js"
 assert_pid_command core-api java -jar /app/app.jar
 
 if docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "offertrack/web:$IMAGE_TAG" \

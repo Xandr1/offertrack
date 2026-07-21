@@ -156,6 +156,7 @@ class CsrfRotationSmokeTest(unittest.TestCase):
         *,
         initial_token: str = "pre-login-masked-token",
         fresh_token: str = "post-login-masked-token",
+        create_token: str = "create-masked-token",
         stale_error_code: str = "CSRF_INVALID",
     ) -> tuple[SmokeRequestFlow, list[int]]:
         flow = SmokeRequestFlow(stale_error_code)
@@ -164,6 +165,7 @@ class CsrfRotationSmokeTest(unittest.TestCase):
             [
                 ("X-XSRF-TOKEN", initial_token),
                 ("X-XSRF-TOKEN", fresh_token),
+                ("X-XSRF-TOKEN", create_token),
             ]
         )
 
@@ -191,7 +193,7 @@ class CsrfRotationSmokeTest(unittest.TestCase):
     def test_stale_token_is_rejected_before_fresh_token_mutations(self) -> None:
         flow, csrf_call_positions = self.run_flow()
 
-        self.assertEqual([1, 3], csrf_call_positions)
+        self.assertEqual([1, 3, 4], csrf_call_positions)
         stale_probe = flow.calls[2]
         self.assertEqual("/api/applications", stale_probe["path"])
         self.assertEqual({}, stale_probe["body"])
@@ -201,19 +203,23 @@ class CsrfRotationSmokeTest(unittest.TestCase):
         )
         self.assertIs(flow.calls[1]["opener"], stale_probe["opener"])
 
-        for fresh_mutation in flow.calls[3:5]:
-            self.assertEqual(
-                "post-login-masked-token",
-                fresh_mutation["headers"]["X-XSRF-TOKEN"],
-            )
+        self.assertEqual(
+            "post-login-masked-token",
+            flow.calls[3]["headers"]["X-XSRF-TOKEN"],
+        )
+        self.assertEqual(
+            "create-masked-token",
+            flow.calls[4]["headers"]["X-XSRF-TOKEN"],
+        )
 
     def test_masked_token_strings_are_not_used_as_rotation_proof(self) -> None:
         flow, csrf_call_positions = self.run_flow(
             initial_token="same-masked-value",
             fresh_token="same-masked-value",
+            create_token="same-masked-value",
         )
 
-        self.assertEqual([1, 3], csrf_call_positions)
+        self.assertEqual([1, 3, 4], csrf_call_positions)
         self.assertEqual(6, len(flow.calls))
 
     def test_stale_probe_requires_exact_csrf_error_code(self) -> None:

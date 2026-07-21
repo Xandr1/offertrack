@@ -523,6 +523,8 @@ class SmokeAndE2EContractTest(unittest.TestCase):
         self.assertIn("stop_and_start web", script)
         self.assertIn("wait_for_health web", script)
         self.assertIn("http://127.0.0.1:13001/login", script)
+        self.assertIn("{{json .Config.Cmd}}", script)
+        self.assertIn("'[\"node\",\"server.js\"]'", script)
         self.assertIn("local deadline=$((SECONDS + 120))", script)
         self.assertIn('--max-time "$request_timeout"', script)
         self.assertNotIn("find /", script)
