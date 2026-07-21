@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Redact sensitive values from textual E2E service logs.
+"""Redact sensitive values from bounded E2E and container-smoke service logs.
 
-This tool deliberately operates only on plain-text Core API, Next.js, and
-restricted Compose status output. Playwright reports and binary artifacts are
-outside its scope.
+This tool deliberately operates only on plain-text Core API, Next.js, AI, and
+restricted Compose status output. Trivy JSON, Playwright reports, and binary
+artifacts are outside its scope.
 """
 
 from __future__ import annotations
@@ -21,16 +21,25 @@ REQUEST_ID_UUID = re.compile(
     rf"\s*[:=]\s*[\"']?)(?P<value>{UUID})",
     re.IGNORECASE,
 )
+CONNECTION_URL = re.compile(
+    r"\b(?:jdbc:postgresql|postgres(?:ql)?|redis(?:s)?)://[^\s\"'<>]+",
+    re.IGNORECASE,
+)
+URL_USERINFO = re.compile(
+    r"(?P<scheme>\b[a-z][a-z0-9+.-]{1,31}://)[^/@\s\"'<>]+@",
+    re.IGNORECASE,
+)
 SENSITIVE_HEADER = re.compile(
-    r"(?P<prefix>\b(?:authorization|proxy-authorization|cookie|set-cookie|"
-    r"x-csrf-token|x-xsrf-token)\b\s*[:=]\s*)"
-    r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\r\n,}]*)",
+    r"(?P<prefix>(?<![A-Za-z0-9_-])[\"']?(?:authorization|proxy-authorization|cookie|set-cookie|"
+    r"x-csrf-token|x-xsrf-token|x-api-key|x-internal-api-key|"
+    r"x-ai-service-key|x-ai-service-internal-key)\b[\"']?\s*[:=]\s*)"
+    r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\r\n}]*)",
     re.IGNORECASE,
 )
 SENSITIVE_KEY_VALUE = re.compile(
     r"(?P<prefix>[\"']?(?:"
     r"[a-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|apikey|csrf|"
-    r"client[_-]?id)"
+    r"client[_-]?id|credential|private[_-]?key)"
     r"[a-z0-9_.-]*|(?:user|session|application|subject)[_-]?id"
     r")[\"']?\s*[:=]\s*)"
     r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;}\]]+)",
@@ -38,7 +47,8 @@ SENSITIVE_KEY_VALUE = re.compile(
 )
 SENSITIVE_QUERY_VALUE = re.compile(
     r"(?P<prefix>[?&](?:access_token|refresh_token|reset_token|token|code|"
-    r"api[_-]?key|key|csrf)\s*=)[^&#\s]+",
+    r"api[_-]?key|key|csrf|password|passwd|secret|client[_-]?id|"
+    r"client[_-]?secret|username|user|email)\s*=)[^&#\s]+",
     re.IGNORECASE,
 )
 EMAIL = re.compile(
@@ -89,6 +99,8 @@ def sanitize(text: str) -> str:
         return match.group("prefix") + REQUEST_ID_PLACEHOLDER.format(index)
 
     text = REQUEST_ID_UUID.sub(preserve_request_id, text)
+    text = CONNECTION_URL.sub("[REDACTED_CONNECTION_URL]", text)
+    text = URL_USERINFO.sub(r"\g<scheme>[REDACTED_CREDENTIALS]@", text)
     text = SENSITIVE_HEADER.sub(r"\g<prefix>[REDACTED]", text)
     text = SENSITIVE_QUERY_VALUE.sub(r"\g<prefix>[REDACTED]", text)
     text = SENSITIVE_KEY_VALUE.sub(r"\g<prefix>[REDACTED]", text)
