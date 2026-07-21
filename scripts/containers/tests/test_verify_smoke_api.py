@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.cookiejar
 import importlib.util
 import json
 import tempfile
@@ -26,6 +27,28 @@ def response_headers(*cookies: str) -> Message:
 
 def encoded(payload: dict[str, object]) -> bytes:
     return json.dumps(payload).encode("utf-8")
+
+
+def csrf_cookie(*, http_only: bool = True) -> http.cookiejar.Cookie:
+    return http.cookiejar.Cookie(
+        version=0,
+        name="XSRF-TOKEN",
+        value="synthetic-repository-token",
+        port=None,
+        port_specified=False,
+        domain="127.0.0.1",
+        domain_specified=False,
+        domain_initial_dot=False,
+        path="/",
+        path_specified=True,
+        secure=False,
+        expires=None,
+        discard=True,
+        comment=None,
+        comment_url=None,
+        rest={"HttpOnly": None} if http_only else {},
+        rfc2109=False,
+    )
 
 
 class SmokeRequestFlow:
@@ -144,7 +167,7 @@ class CsrfRotationSmokeTest(unittest.TestCase):
             ]
         )
 
-        def issue_csrf(_opener, _base_url):
+        def issue_csrf(_opener, _base_url, _jar):
             csrf_call_positions.append(len(flow.calls))
             return next(csrf_values)
 
@@ -196,6 +219,62 @@ class CsrfRotationSmokeTest(unittest.TestCase):
     def test_stale_probe_requires_exact_csrf_error_code(self) -> None:
         with self.assertRaises(AssertionError):
             self.run_flow(stale_error_code="UNEXPECTED_ERROR")
+
+    def test_csrf_endpoint_accepts_existing_httponly_cookie_from_error_response(
+        self,
+    ) -> None:
+        jar = http.cookiejar.CookieJar()
+        jar.set_cookie(csrf_cookie())
+        headers = response_headers()
+        headers["Cache-Control"] = "no-store"
+        headers["Access-Control-Allow-Origin"] = VERIFY_SMOKE_API.ALLOWED_ORIGIN
+        headers["Access-Control-Allow-Credentials"] = "true"
+
+        with mock.patch.object(
+            VERIFY_SMOKE_API,
+            "request",
+            return_value=(
+                200,
+                headers,
+                encoded(
+                    {
+                        "headerName": "X-XSRF-TOKEN",
+                        "token": "synthetic-masked-token",
+                    }
+                ),
+            ),
+        ):
+            self.assertEqual(
+                ("X-XSRF-TOKEN", "synthetic-masked-token"),
+                VERIFY_SMOKE_API.issue_csrf(object(), "http://127.0.0.1", jar),
+            )
+
+    def test_csrf_endpoint_rejects_cookie_without_httponly(self) -> None:
+        jar = http.cookiejar.CookieJar()
+        jar.set_cookie(csrf_cookie(http_only=False))
+        headers = response_headers()
+        headers["Cache-Control"] = "no-store"
+        headers["Access-Control-Allow-Origin"] = VERIFY_SMOKE_API.ALLOWED_ORIGIN
+        headers["Access-Control-Allow-Credentials"] = "true"
+
+        with (
+            mock.patch.object(
+                VERIFY_SMOKE_API,
+                "request",
+                return_value=(
+                    200,
+                    headers,
+                    encoded(
+                        {
+                            "headerName": "X-XSRF-TOKEN",
+                            "token": "synthetic-masked-token",
+                        }
+                    ),
+                ),
+            ),
+            self.assertRaises(AssertionError),
+        ):
+            VERIFY_SMOKE_API.issue_csrf(object(), "http://127.0.0.1", jar)
 
 
 if __name__ == "__main__":

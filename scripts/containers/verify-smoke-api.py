@@ -109,7 +109,7 @@ def assert_cors(opener, base_url: str) -> None:
     assert headers.get("Access-Control-Allow-Credentials") is None
 
 
-def issue_csrf(opener, base_url: str):
+def issue_csrf(opener, base_url: str, jar: http.cookiejar.CookieJar):
     status, headers, payload = request(
         opener,
         base_url,
@@ -123,12 +123,13 @@ def issue_csrf(opener, base_url: str):
     body = json_body(payload)
     assert body.get("headerName") == "X-XSRF-TOKEN"
     assert isinstance(body.get("token"), str) and body["token"]
-    csrf_headers = headers.get_all("Set-Cookie", [])
     csrf_cookie = next(
-        (value for value in csrf_headers if value.lower().startswith("xsrf-token=")),
-        "",
+        (cookie for cookie in jar if cookie.name == "XSRF-TOKEN"),
+        None,
     )
-    assert csrf_cookie and "httponly" in csrf_cookie.lower()
+    assert csrf_cookie is not None
+    assert csrf_cookie.path == "/"
+    assert csrf_cookie.has_nonstandard_attr("HttpOnly")
     return body["headerName"], body["token"]
 
 
@@ -165,7 +166,7 @@ def before_restart(base_url: str, cookie_path: Path, id_path: Path) -> None:
     assert error.get("message") == "CSRF token is missing or invalid."
     assert error.get("path") == "/auth/login"
 
-    initial_header, initial_token = issue_csrf(opener, base_url)
+    initial_header, initial_token = issue_csrf(opener, base_url, jar)
     status, headers, payload = request(
         opener,
         base_url,
@@ -206,7 +207,7 @@ def before_restart(base_url: str, cookie_path: Path, id_path: Path) -> None:
     assert error.get("message") == "CSRF token is missing or invalid."
     assert error.get("path") == "/api/applications"
 
-    csrf_header, csrf_token = issue_csrf(opener, base_url)
+    csrf_header, csrf_token = issue_csrf(opener, base_url, jar)
     mutation_headers = {
         csrf_header: csrf_token,
         "Origin": ALLOWED_ORIGIN,
