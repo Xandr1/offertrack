@@ -12,7 +12,7 @@ spring:
     port: ${SMTP_PORT:51025}
 
 server:
-  port: ${SERVER_PORT:18080}
+  port: ${PORT:${SERVER_PORT:18080}}
   forward-headers-strategy: none
 
 management:

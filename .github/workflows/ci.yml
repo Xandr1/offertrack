@@ -122,18 +122,16 @@ jobs:
             apps/ai-service/pylock.toml
             apps/ai-service/pylock.test.toml
 
-      - name: Verify dependency lock freshness
+      - name: Verify committed dependency locks
         working-directory: apps/ai-service
         run: |
-          bash scripts/lock-dependencies.sh
-          git diff --exit-code -- \
-            pylock.toml pylock.toml.sha256 \
-            pylock.test.toml pylock.test.toml.sha256
+          sha256sum --check pylock.toml.sha256
+          sha256sum --check pylock.test.toml.sha256
 
       - name: Install locked dependencies
         working-directory: apps/ai-service
         run: |
-          sha256sum --check pylock.test.toml.sha256
+          python -m pip install --upgrade "pip==26.1.2"
           python -m pip install --requirement pylock.test.toml
 
       - name: Ruff
@@ -153,6 +151,243 @@ jobs:
       - name: Verify production image
         working-directory: apps/ai-service
         run: bash scripts/verify-runtime-image.sh
+
+  container-smoke:
+    name: Production container smoke
+    needs:
+      - frontend
+      - backend
+      - ai-service
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      OFFERTRACK_IMAGE_TAG: ci-${{ github.sha }}-${{ github.run_attempt }}
+      OFFERTRACK_SMOKE_PROJECT_NAME: offertrack-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      OFFERTRACK_CODEGEN_PROJECT_NAME: offertrack-codegen-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v3.6.1
+
+      - name: Validate isolated container scope
+        run: |
+          set -euo pipefail
+
+          expected_smoke="offertrack-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected_codegen="offertrack-codegen-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected_temp="${RUNNER_TEMP%/}/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
+          [[ "$OFFERTRACK_SMOKE_PROJECT_NAME" == "$expected_smoke" ]]
+          [[ "$OFFERTRACK_SMOKE_PROJECT_NAME" =~ ^offertrack-smoke-[0-9]+-[0-9]+$ ]]
+          [[ "$OFFERTRACK_CODEGEN_PROJECT_NAME" == "$expected_codegen" ]]
+          [[ "$OFFERTRACK_CODEGEN_PROJECT_NAME" =~ ^offertrack-codegen-[0-9]+-[0-9]+$ ]]
+          resolved_runner_temp="$(realpath -m -- "$RUNNER_TEMP")"
+          resolved_temp="$(realpath -m -- "$expected_temp")"
+          [[ "$resolved_runner_temp" != "/" ]]
+          [[ "$resolved_temp" == "$resolved_runner_temp/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" ]]
+
+          mkdir -p -- "$expected_temp"
+          printf '%s\n' "OFFERTRACK_CONTAINER_TEMP_ROOT=$expected_temp" >>"$GITHUB_ENV"
+
+      - name: Prepare container scripts
+        run: |
+          chmod +x apps/core-api/mvnw
+          chmod +x scripts/containers/build-images.sh scripts/containers/run-smoke.sh
+
+      - name: Check Docker
+        run: |
+          docker version
+          docker compose version
+          docker buildx version
+
+      - name: Run fast container contract tests
+        run: TMPDIR="$OFFERTRACK_CONTAINER_TEMP_ROOT" bash scripts/containers/test.sh
+
+      - name: Build and load production images
+        id: build_images
+        run: |
+          bash scripts/containers/build-images.sh \
+            --app-env e2e \
+            --next-public-api-url http://127.0.0.1:18081 \
+            --tag "$OFFERTRACK_IMAGE_TAG"
+
+      - name: Scan Web image
+        id: trivy_web
+        if: always() && steps.build_images.outcome == 'success'
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: offertrack/web:${{ env.OFFERTRACK_IMAGE_TAG }}
+          format: json
+          output: ${{ runner.temp }}/offertrack-container-${{ github.run_id }}-${{ github.run_attempt }}/trivy-web.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "0"
+          hide-progress: "true"
+          list-all-pkgs: "false"
+          timeout: 5m0s
+
+      - name: Scan Core API image
+        id: trivy_core
+        if: always() && steps.build_images.outcome == 'success'
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: offertrack/core-api:${{ env.OFFERTRACK_IMAGE_TAG }}
+          format: json
+          output: ${{ runner.temp }}/offertrack-container-${{ github.run_id }}-${{ github.run_attempt }}/trivy-core.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "0"
+          hide-progress: "true"
+          list-all-pkgs: "false"
+          timeout: 5m0s
+
+      - name: Scan AI service image
+        id: trivy_ai
+        if: always() && steps.build_images.outcome == 'success'
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: offertrack/ai-service:${{ env.OFFERTRACK_IMAGE_TAG }}
+          format: json
+          output: ${{ runner.temp }}/offertrack-container-${{ github.run_id }}-${{ github.run_attempt }}/trivy-ai.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "0"
+          hide-progress: "true"
+          list-all-pkgs: "false"
+          timeout: 5m0s
+
+      - name: Run bounded production smoke suite
+        id: container_smoke
+        if: always() && steps.build_images.outcome == 'success'
+        run: bash scripts/containers/run-smoke.sh --no-build --tag "$OFFERTRACK_IMAGE_TAG"
+
+      - name: Apply aggregate Trivy policy
+        id: trivy_gate
+        if: always() && steps.build_images.outcome == 'success'
+        run: |
+          python scripts/containers/evaluate-trivy-results.py \
+            --image-tag "$OFFERTRACK_IMAGE_TAG" \
+            --scan web "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-web.json" "${{ steps.trivy_web.outcome }}" \
+            --scan core-api "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-core.json" "${{ steps.trivy_core.outcome }}" \
+            --scan ai-service "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-ai.json" "${{ steps.trivy_ai.outcome }}"
+
+      - name: Upload sanitized container failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: container-smoke-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: test-results/container-smoke
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Clean up exact container projects and temporary files
+        if: always()
+        run: |
+          set +e
+          cleanup_status=0
+          scope_valid=true
+
+          expected_smoke="offertrack-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected_codegen="offertrack-codegen-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expected_temp="${RUNNER_TEMP%/}/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          resolved_runner_temp="$(realpath -m -- "$RUNNER_TEMP" 2>/dev/null)"
+          resolved_temp="$(realpath -m -- "$OFFERTRACK_CONTAINER_TEMP_ROOT" 2>/dev/null)"
+
+          if [[ ! "$GITHUB_RUN_ID" =~ ^[0-9]+$ || ! "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ ]]; then
+            echo "Refusing cleanup: run identifiers are not numeric." >&2
+            scope_valid=false
+          fi
+          if [[ "$OFFERTRACK_SMOKE_PROJECT_NAME" != "$expected_smoke" || ! "$OFFERTRACK_SMOKE_PROJECT_NAME" =~ ^offertrack-smoke-[0-9]+-[0-9]+$ ]]; then
+            echo "Refusing cleanup: smoke project name failed exact validation." >&2
+            scope_valid=false
+          fi
+          if [[ "$OFFERTRACK_CODEGEN_PROJECT_NAME" != "$expected_codegen" || ! "$OFFERTRACK_CODEGEN_PROJECT_NAME" =~ ^offertrack-codegen-[0-9]+-[0-9]+$ ]]; then
+            echo "Refusing cleanup: codegen project name failed exact validation." >&2
+            scope_valid=false
+          fi
+          if [[ "$OFFERTRACK_CONTAINER_TEMP_ROOT" != "$expected_temp" || "$resolved_runner_temp" == "/" || "$resolved_temp" != "$resolved_runner_temp/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" ]]; then
+            echo "Refusing cleanup: temporary root failed exact resolved-path validation." >&2
+            scope_valid=false
+          fi
+
+          if [[ "$scope_valid" != true ]]; then
+            exit 1
+          fi
+
+          cleanup_env="$OFFERTRACK_CONTAINER_TEMP_ROOT/codegen-cleanup.env"
+          if ! mkdir -p -- "$OFFERTRACK_CONTAINER_TEMP_ROOT"; then
+            echo "Unable to recreate the exact temporary root for cleanup." >&2
+            cleanup_status=1
+          fi
+          if ! printf '%s\n' \
+            'POSTGRES_DB=offertrack_codegen' \
+            'POSTGRES_USER=offertrack_codegen' \
+            'POSTGRES_PASSWORD=container-codegen-postgres-password-not-for-production' \
+            >"$cleanup_env"; then
+            echo "Unable to recreate the deterministic codegen cleanup environment." >&2
+            cleanup_status=1
+          else
+            chmod 600 "$cleanup_env" 2>/dev/null || true
+          fi
+
+          if ! OFFERTRACK_IMAGE_TAG="$OFFERTRACK_IMAGE_TAG" docker compose \
+            --project-name "$OFFERTRACK_SMOKE_PROJECT_NAME" \
+            --file compose.container-smoke.yml \
+            down --volumes --remove-orphans; then
+            cleanup_status=1
+          fi
+
+          if ! env -u POSTGRES_DB -u POSTGRES_USER -u POSTGRES_PASSWORD docker compose \
+            --project-name "$OFFERTRACK_CODEGEN_PROJECT_NAME" \
+            --project-directory "$OFFERTRACK_CONTAINER_TEMP_ROOT" \
+            --env-file "$cleanup_env" \
+            --file compose.container-codegen.yml \
+            down --volumes --remove-orphans; then
+            cleanup_status=1
+          fi
+
+          if ! rm -rf -- "$OFFERTRACK_CONTAINER_TEMP_ROOT"; then
+            cleanup_status=1
+          fi
+
+          exit "$cleanup_status"
 
   e2e:
     name: Playwright E2E

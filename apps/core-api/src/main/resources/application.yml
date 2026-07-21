@@ -2,6 +2,9 @@ spring:
   application:
     name: core-api
 
+  lifecycle:
+    timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:10s}
+
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/offertrack}
     username: ${DB_USER:offertrack}
@@ -40,7 +43,8 @@ spring:
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${PORT:${SERVER_PORT:8080}}
+  shutdown: graceful
   forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:none}
 
 management:
