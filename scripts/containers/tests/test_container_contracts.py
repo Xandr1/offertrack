@@ -67,6 +67,14 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("HOSTNAME=0.0.0.0", runtime)
         self.assertIn("PORT=3000", runtime)
         self.assertIn('CMD ["node", "server.js"]', runtime)
+        for build_only_path in (
+            "/usr/local/lib/node_modules/npm",
+            "/usr/local/lib/node_modules/corepack",
+            "/opt/yarn-v1.22.22",
+            "/usr/local/bin/npm",
+            "/usr/local/bin/corepack",
+        ):
+            self.assertIn(build_only_path, runtime)
         self.assertNotIn("ARG APP_ENV", runtime)
         self.assertNotIn("ARG NEXT_PUBLIC_API_URL", runtime)
         self.assertNotRegex(runtime, r"(?m)^\s*ENV\s+.*(?:APP_ENV|NEXT_PUBLIC_API_URL)")
@@ -118,6 +126,12 @@ class ImageContractTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn("ENV SERVER_PORT=8080", dockerfile)
+        for fixed_package in (
+            "libexpat=2.8.2-r0",
+            "p11-kit=0.26.2-r0",
+            "p11-kit-trust=0.26.2-r0",
+        ):
+            self.assertIn(fixed_package, dockerfile)
         self.assertIn("USER 10001:10001", dockerfile)
         self.assertIn('ENTRYPOINT ["java", "-jar", "/app/app.jar"]', dockerfile)
         self.assertNotIn("mvn", dockerfile.lower())
@@ -165,6 +179,8 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("USER 10001:10001", runtime)
         self.assertIn("EXPOSE 8000", runtime)
         self.assertIn("CMD []", runtime)
+        self.assertEqual(2, dockerfile.count("pip uninstall --yes setuptools wheel"))
+        self.assertEqual(2, dockerfile.count("pip uninstall --yes pip"))
         entrypoint = read("apps/ai-service/docker-entrypoint.sh")
         self.assertIn(
             'exec /opt/venv/bin/python -m uvicorn app.main:app --host "$HOST" --port "$PORT"',
@@ -211,6 +227,8 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn('application_root = Path("/app/app")', smoke)
         self.assertIn('for path in application_root.rglob("*")', verifier)
         self.assertIn('for path in application_root.rglob("*")', smoke)
+        for package in ("pip", "setuptools", "wheel", "jaraco.context"):
+            self.assertIn(f'"{package}"', verifier)
 
 
 class BuildScriptContractTest(unittest.TestCase):
@@ -387,6 +405,7 @@ class ComposeContractTest(unittest.TestCase):
         for expected in (
             "SPRING_PROFILES_ACTIVE: container-smoke",
             'PORT: "18081"',
+            'SERVER_PORT: "18081"',
             "DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke",
             "REDIS_HOST: redis",
             "REDIS_CONNECT_TIMEOUT: 2s",

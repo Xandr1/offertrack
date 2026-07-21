@@ -227,8 +227,39 @@ else:
 assert_module_absent ruff
 assert_module_absent pyright
 
-if docker exec "$CONTAINER_ID" sh -c 'command -v pytest || command -v ruff || command -v pyright'; then
-  echo "A development or test command is present in the AI service runtime image." >&2
+assert_packaging_tools_absent() {
+  local python_path="$1"
+  MSYS_NO_PATHCONV=1 docker exec "$CONTAINER_ID" "$python_path" -c '
+import importlib
+from importlib import metadata
+
+for module_name in ("pip", "setuptools", "wheel"):
+    try:
+        importlib.import_module(module_name)
+    except ModuleNotFoundError as exception:
+        if exception.name != module_name:
+            raise
+    else:
+        raise SystemExit(f"build-only packaging module is installed: {module_name}")
+
+for distribution in ("pip", "setuptools", "wheel", "jaraco.context"):
+    try:
+        version = metadata.version(distribution)
+    except metadata.PackageNotFoundError:
+        continue
+    raise SystemExit(
+        f"build-only packaging distribution is installed: {distribution} {version}"
+    )
+'
+}
+
+assert_packaging_tools_absent /opt/venv/bin/python
+assert_packaging_tools_absent /usr/local/bin/python
+
+if docker exec "$CONTAINER_ID" sh -c \
+  'command -v pytest || command -v ruff || command -v pyright \
+    || command -v pip || command -v pip3 || command -v pip3.11 || command -v wheel'; then
+  echo "A development, test, or packaging command is present in the AI service runtime image." >&2
   exit 1
 fi
 

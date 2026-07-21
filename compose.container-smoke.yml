@@ -88,6 +88,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: container-smoke
       PORT: "18081"
+      SERVER_PORT: "18081"
       DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke
       DB_USER: offertrack_container_smoke
       DB_PASSWORD: container-smoke-postgres-password-not-for-production

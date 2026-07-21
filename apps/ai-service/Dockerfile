@@ -15,7 +15,9 @@ COPY pyproject.toml pylock.toml pylock.toml.sha256 ./
 
 RUN sha256sum --check pylock.toml.sha256 \
     && /opt/venv/bin/python -m pip install --upgrade "pip==26.1.2" \
-    && /opt/venv/bin/python -m pip install --requirement pylock.toml
+    && /opt/venv/bin/python -m pip install --requirement pylock.toml \
+    && /opt/venv/bin/python -m pip uninstall --yes setuptools wheel \
+    && /opt/venv/bin/python -m pip uninstall --yes pip
 
 FROM python:3.11.15-slim-trixie@sha256:00af38ae2ed311628970782e8a2d7f014d8909dbc63cb97bc0a158187f4db045 AS runtime
 
@@ -26,7 +28,9 @@ ENV HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/opt/venv
 
-RUN groupadd --system --gid 10001 offertrack \
+RUN python -m pip uninstall --yes setuptools wheel \
+    && python -m pip uninstall --yes pip \
+    && groupadd --system --gid 10001 offertrack \
     && useradd --system --uid 10001 --gid offertrack --no-create-home \
         --home-dir /nonexistent --shell /usr/sbin/nologin offertrack
 

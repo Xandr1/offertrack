@@ -43,6 +43,19 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /opt/yarn-v1.22.22 \
+    && rm -f \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/pnpm \
+      /usr/local/bin/pnpx \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg
+
 COPY --from=builder --chown=1000:1000 /workspace/apps/web/.next/standalone/ /app/
 COPY --from=builder --chown=1000:1000 /workspace/apps/web/public/ /app/apps/web/public/
 COPY --from=builder --chown=1000:1000 /workspace/apps/web/.next/static/ /app/apps/web/.next/static/

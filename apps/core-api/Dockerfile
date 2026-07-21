@@ -2,7 +2,11 @@
 
 FROM eclipse-temurin:21.0.11_10-jre-alpine-3.23@sha256:426401268a42785be73823f6115ee0e721bdb59c12c779947b83fcead1a66645
 
-RUN addgroup -S -g 10001 offertrack \
+RUN apk add --no-cache \
+        libexpat=2.8.2-r0 \
+        p11-kit=0.26.2-r0 \
+        p11-kit-trust=0.26.2-r0 \
+    && addgroup -S -g 10001 offertrack \
     && adduser -S -D -H -u 10001 -G offertrack offertrack
 
 WORKDIR /app
