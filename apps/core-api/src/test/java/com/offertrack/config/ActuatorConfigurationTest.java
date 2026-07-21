@@ -27,12 +27,22 @@ class ActuatorConfigurationTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"prod", "production", "stage", "staging", "e2e"})
+  @ValueSource(strings = {"prod", "production", "stage", "staging", "e2e", "container-smoke"})
   void deploymentReadinessIncludesDatabaseAndRedis(String profile) {
     ConfigurableEnvironment environment = loadConfig(profile);
 
     assertThat(environment.getProperty("management.endpoint.health.group.readiness.include"))
         .isEqualTo("readinessState,db,redis");
+  }
+
+  @Test
+  void containerSmokeShowsReadinessComponentsWithoutDetails() {
+    ConfigurableEnvironment environment = loadConfig("container-smoke");
+
+    assertThat(environment.getProperty("management.endpoint.health.show-components"))
+        .isEqualTo("always");
+    assertThat(environment.getProperty("management.endpoint.health.show-details"))
+        .isEqualTo("never");
   }
 
   private static ConfigurableEnvironment loadConfig(String... profiles) {

@@ -80,14 +80,14 @@ sha256 = "7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"
 
 [[packages]]
 name = "fastapi"
-version = "0.139.0"
+version = "0.139.2"
 
 [[packages.wheels]]
-name = "fastapi-0.139.0-py3-none-any.whl"
-url = "https://files.pythonhosted.org/packages/9e/7c/8e3c6ad324ea5cb36604fc3f968554887891c316d9dfde57761611d907ad/fastapi-0.139.0-py3-none-any.whl"
+name = "fastapi-0.139.2-py3-none-any.whl"
+url = "https://files.pythonhosted.org/packages/5f/c7/cb03251d9dfb177246a9809a76f189d21df32dbd4a845951881d11323b7f/fastapi-0.139.2-py3-none-any.whl"
 
 [packages.wheels.hashes]
-sha256 = "cf15e1e9e667ddb0ad63811e60bd11390d1aac838ca4a7a23f421807b2308189"
+sha256 = "b9ad015a835173d59865e2f5d8296fbc2b317bf56a2ba1a5bfbdd03de2fd4b1c"
 
 [[packages]]
 name = "h11"
@@ -179,14 +179,14 @@ sha256 = "5bb13e3eed2923615535339b3c620e76779af4cb4c6a90deccc9e36b274d3827"
 
 [[packages]]
 name = "openai"
-version = "2.45.0"
+version = "2.46.0"
 
 [[packages.wheels]]
-name = "openai-2.45.0-py3-none-any.whl"
-url = "https://files.pythonhosted.org/packages/f1/b0/2291689e3ec4723fbf5bbf3b54afcd7b160f9ddc98ca7aedfd0132af5677/openai-2.45.0-py3-none-any.whl"
+name = "openai-2.46.0-py3-none-any.whl"
+url = "https://files.pythonhosted.org/packages/ea/7b/206238ebcb50b235942b1c66dba4974776f2057402a8d91c399be587d66a/openai-2.46.0-py3-none-any.whl"
 
 [packages.wheels.hashes]
-sha256 = "5df105f5f8c9b711fcb9d06d2d3888cebc82506db216484c14a4e53cdf651777"
+sha256 = "672381db55efb3a1e2610f29304c130cccdd0b319bace4d492b2443cb64c1e7c"
 
 [[packages]]
 name = "packaging"
@@ -289,14 +289,14 @@ sha256 = "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d"
 
 [[packages]]
 name = "ruff"
-version = "0.15.21"
+version = "0.15.22"
 
 [[packages.wheels]]
-name = "ruff-0.15.21-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
-url = "https://files.pythonhosted.org/packages/b2/97/f63084cf55444fc110e8cb985ebfcc592af47f597d44453d778cb81bc156/ruff-0.15.21-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+name = "ruff-0.15.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/f6/f9/a0d4871d12fae702eb1f41b686caf05f1f8b124dc6db6f784f53d74918fa/ruff-0.15.22-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "bab0905d2f29e0d9fbc3c373ed23db0095edaa3f71f1f4f519ec15134d9e85c8"
+sha256 = "365523eb91d9224e1bcb03b022fbf0facb8f9e23792a2c53d9d4b3924bdbdebb"
 
 [[packages]]
 name = "sniffio"
@@ -311,14 +311,14 @@ sha256 = "2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2"
 
 [[packages]]
 name = "soupsieve"
-version = "2.8.4"
+version = "2.9"
 
 [[packages.wheels]]
-name = "soupsieve-2.8.4-py3-none-any.whl"
-url = "https://files.pythonhosted.org/packages/5e/f5/0c41cb68dcae6b7de4fac4188a3a9589e21fb31df21ea3a2e888db95e6c9/soupsieve-2.8.4-py3-none-any.whl"
+name = "soupsieve-2.9-py3-none-any.whl"
+url = "https://files.pythonhosted.org/packages/7b/d6/3185ab5ad1280319b31986898f3206dd7227cd75e293d4dba2a5e6bf27a0/soupsieve-2.9-py3-none-any.whl"
 
 [packages.wheels.hashes]
-sha256 = "e7e6b0769c8f51ed59acab6e994b00621096cfb1c640a7509295987388fbaf65"
+sha256 = "a2b2c76d67df2382d245409fd71e321a571717e58463efa32ace87dcadac2c12"
 
 [[packages]]
 name = "starlette"
@@ -333,14 +333,14 @@ sha256 = "c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6"
 
 [[packages]]
 name = "tqdm"
-version = "4.68.4"
+version = "4.69.0"
 
 [[packages.wheels]]
-name = "tqdm-4.68.4-py3-none-any.whl"
-url = "https://files.pythonhosted.org/packages/22/2a/5e5e750890ada51017d18d0d4c30da696e5b5bd3180947729927628fc3cb/tqdm-4.68.4-py3-none-any.whl"
+name = "tqdm-4.69.0-py3-none-any.whl"
+url = "https://files.pythonhosted.org/packages/fe/21/99a0cdaf54eb35e77623c41b5a2c9472ee4404bba687052791fe2aba6773/tqdm-4.69.0-py3-none-any.whl"
 
 [packages.wheels.hashes]
-sha256 = "5168118b2368f48c561afda8020fd79195b1bdb0bdf8086b88442c267a315dc2"
+sha256 = "9979978912be667a6ef21fd5d8abf54e324e63d82f7f43c360792ebc2bc4e622"
 
 [[packages]]
 name = "typing-extensions"
@@ -399,11 +399,11 @@ sha256 = "a711b51aec4370d0dcda5b6c09463206f133a5759341d7744b953a7b62e1100e"
 
 [[packages]]
 name = "websockets"
-version = "16.1"
+version = "16.1.1"
 
 [[packages.wheels]]
-name = "websockets-16.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
-url = "https://files.pythonhosted.org/packages/cc/3f/381550b344a02f0d2f84cda25e79b54575291bc7022128a41163fe8ba5b0/websockets-16.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
+name = "websockets-16.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/33/d9/162321f63c7eed558e9e1798ed7a1e34a4f6dab51f35419e4ed7a4907979/websockets-16.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "e2fb33ccb16ee40a95cc676d7b0ff451a9a2632f11a0dbc2e666326892b2e1de"
+sha256 = "da4ca1a9d72f9030b3146b8d7022719a9f3d478f61efe6f7dd51d243f61c51b2"
