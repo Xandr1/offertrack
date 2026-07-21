@@ -170,7 +170,7 @@ compose exec -T postgres \
   psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   --set ON_ERROR_STOP=1 < "$REPO_ROOT/scripts/e2e/seed.sql"
 
-java -jar "$REPO_ROOT/apps/core-api/target/core-api-0.0.1-SNAPSHOT.jar" \
+env -u PORT java -jar "$REPO_ROOT/apps/core-api/target/core-api-0.0.1-SNAPSHOT.jar" \
   >"$RUNTIME_DIR/core-api.log" 2>&1 &
 API_PID=$!
 
@@ -179,10 +179,29 @@ wait_for_url "Core API readiness" \
 
 cd "$REPO_ROOT"
 pnpm --dir "$WEB_ROOT" run build
+
+STANDALONE_WEB_ROOT="$WEB_ROOT/.next/standalone/apps/web"
+if [[ "$STANDALONE_WEB_ROOT" != "$REPO_ROOT/apps/web/.next/standalone/apps/web" ]]; then
+  echo "Refusing to replace standalone assets outside the expected web output."
+  exit 1
+fi
+if [[ ! -f "$STANDALONE_WEB_ROOT/server.js" ]]; then
+  echo "Next.js standalone server was not generated at the expected path."
+  exit 1
+fi
+
+rm -rf -- \
+  "$STANDALONE_WEB_ROOT/public" \
+  "$STANDALONE_WEB_ROOT/.next/static"
+mkdir -p \
+  "$STANDALONE_WEB_ROOT/public" \
+  "$STANDALONE_WEB_ROOT/.next/static"
+cp -R "$WEB_ROOT/public/." "$STANDALONE_WEB_ROOT/public/"
+cp -R "$WEB_ROOT/.next/static/." "$STANDALONE_WEB_ROOT/.next/static/"
+
 (
-  cd "$WEB_ROOT"
-  exec node "$WEB_ROOT/node_modules/next/dist/bin/next" \
-    start --hostname 127.0.0.1 --port 13000
+  cd "$STANDALONE_WEB_ROOT"
+  exec env PORT=13000 HOSTNAME=127.0.0.1 node server.js
 ) >"$RUNTIME_DIR/web.log" 2>&1 &
 WEB_PID=$!
 
