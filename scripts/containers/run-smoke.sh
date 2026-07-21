@@ -458,9 +458,36 @@ for path in (
     "/app/.env.local",
 ):
     assert not Path(path).exists(), path
+
+application_root = Path("/app/app")
+assert application_root.is_dir(), application_root
+forbidden_directories = {
+    "test", "tests", "__pycache__", ".pytest_cache", ".ruff_cache",
+    ".mypy_cache", ".pyright", "htmlcov",
+}
+for path in application_root.rglob("*"):
+    relative = path.relative_to(application_root)
+    name = path.name.lower()
+    credential_file = path.is_file() and (
+        path.suffix.lower() in {".key", ".p12", ".pem", ".pfx"}
+        or name.startswith(("id_rsa", "id_ed25519"))
+        or (name.endswith(".json") and any(
+            marker in name
+            for marker in ("credentials", "service-account", "service_account")
+        ))
+    )
+    test_or_cache = forbidden_directories.intersection(
+        part.lower() for part in relative.parts
+    ) or (path.is_file() and (
+        name in {"test.py", "conftest.py"}
+        or name.startswith(("test_", ".coverage"))
+        or name.endswith("_test.py")
+        or path.suffix.lower() in {".pyc", ".pyo"}
+    ))
+    assert not (name.startswith(".env") or credential_file or test_or_cache), relative
 for module in ("pytest", "ruff", "pyright"):
     assert importlib.util.find_spec(module) is None, module
-' || fail "AI runtime contains repository tests or test-only packages"
+' || fail "AI runtime contains repository secrets, tests, caches, or test-only packages"
 
 AI_COMMAND="$(docker exec "$(container_id ai-service)" sh -c "tr '\\000' ' ' < /proc/1/cmdline")"
 for expected in uvicorn app.main:app --host 0.0.0.0 --port 18001; do

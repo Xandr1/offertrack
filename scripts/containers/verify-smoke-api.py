@@ -191,8 +191,22 @@ def before_restart(base_url: str, cookie_path: Path, id_path: Path) -> None:
     assert "samesite=lax" in cookie_attributes
     assert "secure" not in cookie_attributes
 
+    status, _, payload = request(
+        opener,
+        base_url,
+        "/api/applications",
+        method="POST",
+        headers={initial_header: initial_token, "Origin": ALLOWED_ORIGIN},
+        body={},
+    )
+    assert status == 403
+    error = json_body(payload)
+    assert error.get("status") == 403
+    assert error.get("code") == "CSRF_INVALID"
+    assert error.get("message") == "CSRF token is missing or invalid."
+    assert error.get("path") == "/api/applications"
+
     csrf_header, csrf_token = issue_csrf(opener, base_url)
-    assert csrf_token != initial_token, "CSRF token did not rotate across login"
     mutation_headers = {
         csrf_header: csrf_token,
         "Origin": ALLOWED_ORIGIN,

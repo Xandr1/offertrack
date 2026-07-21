@@ -123,6 +123,19 @@ class ImageContractTest(unittest.TestCase):
         self.assertNotIn("mvn", dockerfile.lower())
         self.assertNotIn("jdk", dockerfile.lower())
 
+    def test_maven_wrapper_distribution_has_official_sha256(self) -> None:
+        wrapper = read("apps/core-api/.mvn/wrapper/maven-wrapper.properties")
+        match = re.search(
+            r"(?m)^distributionSha256Sum=([0-9a-f]{64})$",
+            wrapper,
+        )
+
+        self.assertIsNotNone(match)
+        self.assertEqual(
+            "b0d9292f06c5faded31ddcb6cb69099f316d6fea40a7778624b259bad9fed18a",
+            match.group(1) if match is not None else None,
+        )
+
     def test_core_runtime_port_and_shutdown_fallbacks_are_explicit(self) -> None:
         application = read("apps/core-api/src/main/resources/application.yml")
         e2e = read("apps/core-api/src/main/resources/application-e2e.yml")
@@ -157,6 +170,47 @@ class ImageContractTest(unittest.TestCase):
             'exec /opt/venv/bin/python -m uvicorn app.main:app --host "$HOST" --port "$PORT"',
             entrypoint,
         )
+
+    def test_ai_context_final_denies_follow_app_allow_rule(self) -> None:
+        dockerignore = read("apps/ai-service/Dockerfile.dockerignore")
+        patterns = [
+            line.strip()
+            for line in dockerignore.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        app_allow_index = patterns.index("!app/**")
+
+        for expected in (
+            "app/**/.env*",
+            "app/**/*.pem",
+            "app/**/*.key",
+            "app/**/*.p12",
+            "app/**/*.pfx",
+            "app/**/*credentials*.json",
+            "app/**/*service-account*.json",
+            "app/**/*service_account*.json",
+            "app/**/test/",
+            "app/**/tests/",
+            "app/**/.pytest_cache/",
+            "app/**/.ruff_cache/",
+            "app/**/.mypy_cache/",
+            "app/**/.pyright/",
+            "app/**/__pycache__/",
+            "app/**/test.py",
+            "app/**/test_*.py",
+            "app/**/*_test.py",
+            "app/**/conftest.py",
+        ):
+            self.assertIn(expected, patterns)
+            self.assertGreater(patterns.index(expected), app_allow_index)
+
+        verifier = read("apps/ai-service/scripts/verify-runtime-image.sh")
+        smoke = read("scripts/containers/run-smoke.sh")
+        self.assertIn(".env.synthetic-canary", verifier)
+        self.assertIn('application_root = Path("/app/app")', verifier)
+        self.assertIn('application_root = Path("/app/app")', smoke)
+        self.assertIn('for path in application_root.rglob("*")', verifier)
+        self.assertIn('for path in application_root.rglob("*")', smoke)
 
 
 class BuildScriptContractTest(unittest.TestCase):

@@ -6,15 +6,57 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 IMAGE_NAME="${1:-offertrack-ai-service:runtime-verification}"
 CONTAINER_ID=""
+BUILD_CONTEXT=""
 
 cleanup() {
   if [[ -n "$CONTAINER_ID" ]]; then
     docker rm --force "$CONTAINER_ID" >/dev/null 2>&1 || true
   fi
+  if [[ -n "$BUILD_CONTEXT" && -d "$BUILD_CONTEXT" ]]; then
+    case "$(basename "$BUILD_CONTEXT")" in
+      offertrack-ai-runtime-context.*) rm -rf -- "$BUILD_CONTEXT" ;;
+      *)
+        echo "Refusing to remove an unexpected AI runtime verification path." >&2
+        return 1
+        ;;
+    esac
+  fi
 }
 trap cleanup EXIT
 
-docker buildx build --platform linux/amd64 --load --tag "$IMAGE_NAME" .
+BUILD_CONTEXT="$(mktemp -d "${TMPDIR:-/tmp}/offertrack-ai-runtime-context.XXXXXX")"
+cp -- \
+  Dockerfile \
+  Dockerfile.dockerignore \
+  docker-entrypoint.sh \
+  pyproject.toml \
+  pylock.toml \
+  pylock.toml.sha256 \
+  "$BUILD_CONTEXT/"
+mkdir -p "$BUILD_CONTEXT/app"
+tracked_app_file_count=0
+while IFS= read -r -d '' source_path; do
+  mkdir -p "$BUILD_CONTEXT/$(dirname "$source_path")"
+  cp -- "$source_path" "$BUILD_CONTEXT/$source_path"
+  tracked_app_file_count=$((tracked_app_file_count + 1))
+done < <(git ls-files -z -- app)
+if ((tracked_app_file_count == 0)); then
+  echo "No tracked AI application source files were found." >&2
+  exit 1
+fi
+
+# This is a marker, not a secret. Building from this context proves that a
+# nested local .env file remains denied after the app allow rule.
+CANARY_RELATIVE_PATH="app/runtime-boundary-canary/nested/.env.synthetic-canary"
+mkdir -p "$(dirname "$BUILD_CONTEXT/$CANARY_RELATIVE_PATH")"
+printf '%s\n' 'SYNTHETIC_CONTAINER_BOUNDARY_CANARY=not-a-secret' \
+  >"$BUILD_CONTEXT/$CANARY_RELATIVE_PATH"
+
+docker buildx build \
+  --platform linux/amd64 \
+  --load \
+  --tag "$IMAGE_NAME" \
+  "$BUILD_CONTEXT"
 
 image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE_NAME")"
 if [[ "$image_platform" != "linux/amd64" ]]; then
@@ -121,6 +163,40 @@ for forbidden_path in /app/tests /app/pyproject.toml /app/pylock.toml /app/pyloc
     exit 1
   fi
 done
+
+docker exec "$CONTAINER_ID" python -c '
+from pathlib import Path
+
+application_root = Path("/app/app")
+if not application_root.is_dir():
+    raise SystemExit("AI application tree is missing")
+
+forbidden_directories = {
+    "test", "tests", "__pycache__", ".pytest_cache", ".ruff_cache",
+    ".mypy_cache", ".pyright", "htmlcov",
+}
+for path in application_root.rglob("*"):
+    relative = path.relative_to(application_root)
+    name = path.name.lower()
+    credential_file = path.is_file() and (
+        path.suffix.lower() in {".key", ".p12", ".pem", ".pfx"}
+        or name.startswith(("id_rsa", "id_ed25519"))
+        or (name.endswith(".json") and any(
+            marker in name
+            for marker in ("credentials", "service-account", "service_account")
+        ))
+    )
+    test_or_cache = forbidden_directories.intersection(
+        part.lower() for part in relative.parts
+    ) or (path.is_file() and (
+        name in {"test.py", "conftest.py"}
+        or name.startswith(("test_", ".coverage"))
+        or name.endswith("_test.py")
+        or path.suffix.lower() in {".pyc", ".pyo"}
+    ))
+    if name.startswith(".env") or credential_file or test_or_cache:
+        raise SystemExit(f"forbidden artifact is present in AI application tree: {relative}")
+'
 
 assert_module_absent() {
   local module_name="$1"
