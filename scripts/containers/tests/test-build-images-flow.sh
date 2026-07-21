@@ -160,7 +160,8 @@ run_flow_case() {
   rm -f -- "$FLOW_DOCKER_LOG" "$FLOW_MAVEN_LOG"
   local actual_status
   set +e
-  PATH="$FAKE_BIN:$PATH" \
+  env -u GITHUB_ACTIONS -u GITHUB_RUN_ID -u GITHUB_RUN_ATTEMPT \
+    PATH="$FAKE_BIN:$PATH" \
     TMPDIR="$FLOW_RUNTIME_ROOT" \
     POSTGRES_DB=hostile-caller-database \
     POSTGRES_USER=hostile-caller-user \
