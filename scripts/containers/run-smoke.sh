@@ -2,14 +2,15 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 COMPOSE_FILE="$REPO_ROOT/compose.container-smoke.yml"
 BUILD_SCRIPT="$REPO_ROOT/scripts/containers/build-images.sh"
 SEED_FILE="$REPO_ROOT/scripts/containers/seed-smoke.sql"
 WEB_VERIFIER="$REPO_ROOT/scripts/containers/verify-web-output.py"
 API_VERIFIER="$REPO_ROOT/scripts/containers/verify-smoke-api.py"
 SANITIZER="$REPO_ROOT/scripts/e2e/sanitize-service-log.py"
-SANITIZED_DIR="$REPO_ROOT/test-results/container-smoke"
+DIAGNOSTICS_PARENT="$REPO_ROOT/test-results"
+SANITIZED_DIR="$DIAGNOSTICS_PARENT/container-smoke"
 
 NO_BUILD=false
 IMAGE_TAG="local"
@@ -33,6 +34,60 @@ EOF
 fail() {
   echo "run-smoke.sh: $*" >&2
   exit 1
+}
+
+diagnostics_error() {
+  echo "run-smoke.sh: $*" >&2
+  return 1
+}
+
+validate_diagnostics_boundary() {
+  local physical_parent
+
+  if [[ -L "$DIAGNOSTICS_PARENT" ]]; then
+    diagnostics_error "test-results must not be a symlink"
+    return 1
+  fi
+  if [[ ! -e "$DIAGNOSTICS_PARENT" ]]; then
+    if ! mkdir -- "$DIAGNOSTICS_PARENT"; then
+      diagnostics_error "unable to create the repository-local test-results directory"
+      return 1
+    fi
+  fi
+  if [[ -L "$DIAGNOSTICS_PARENT" || ! -d "$DIAGNOSTICS_PARENT" ]]; then
+    diagnostics_error "test-results must be a real directory"
+    return 1
+  fi
+  if ! physical_parent="$(cd -- "$DIAGNOSTICS_PARENT" && pwd -P)"; then
+    diagnostics_error "unable to resolve the test-results directory"
+    return 1
+  fi
+  if [[ "$physical_parent" != "$DIAGNOSTICS_PARENT" ]]; then
+    diagnostics_error "test-results resolved outside the physical repository root"
+    return 1
+  fi
+  if [[ -L "$SANITIZED_DIR" ]]; then
+    diagnostics_error "container-smoke diagnostics must not be a symlink"
+    return 1
+  fi
+  if [[ -e "$SANITIZED_DIR" && ! -d "$SANITIZED_DIR" ]]; then
+    diagnostics_error "container-smoke diagnostics must be a real directory when present"
+    return 1
+  fi
+}
+
+reset_sanitized_diagnostics() {
+  validate_diagnostics_boundary || return 1
+  (
+    cd -- "$DIAGNOSTICS_PARENT" || exit 1
+    [[ "$(pwd -P)" == "$DIAGNOSTICS_PARENT" ]] \
+      || { diagnostics_error "test-results changed during diagnostics cleanup"; exit 1; }
+    [[ ! -L container-smoke ]] \
+      || { diagnostics_error "container-smoke diagnostics became a symlink"; exit 1; }
+    [[ ! -e container-smoke || -d container-smoke ]] \
+      || { diagnostics_error "container-smoke diagnostics changed type"; exit 1; }
+    rm -rf -- container-smoke
+  )
 }
 
 while [[ $# -gt 0 ]]; do
@@ -60,6 +115,8 @@ done
 if [[ ${#IMAGE_TAG} -gt 128 || ! "$IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]]; then
   fail "--tag must be a valid Docker tag"
 fi
+
+validate_diagnostics_boundary || exit 1
 
 if command -v python3 >/dev/null 2>&1 && python3 -c 'raise SystemExit(0)' >/dev/null 2>&1; then
   PYTHON_BIN=python3
@@ -124,11 +181,6 @@ else
   RUNTIME_DIR="$(mktemp -d "$TEMP_PARENT/offertrack-smoke.XXXXXX")"
 fi
 
-case "$SANITIZED_DIR" in
-  "$REPO_ROOT"/test-results/container-smoke) ;;
-  *) fail "sanitized diagnostics path escaped the repository contract" ;;
-esac
-
 compose() {
   OFFERTRACK_IMAGE_TAG="$IMAGE_TAG" docker compose \
     --project-name "$SMOKE_PROJECT" \
@@ -147,27 +199,42 @@ sanitize_file() {
 }
 
 collect_failure_diagnostics() {
-  mkdir -p -- "$SANITIZED_DIR"
-  local service raw sanitized
-  for service in postgres redis ai-service core-api web; do
-    raw="$RUNTIME_DIR/${service}.raw.log"
-    sanitized="$SANITIZED_DIR/${service}.log"
-    if ! compose logs --no-color --tail 250 "$service" >"$raw" 2>/dev/null; then
-      printf '%s\n' "Raw logs were unavailable for $service." >"$raw"
-    fi
-    sanitize_file "$raw" "$sanitized" "Sanitization failed; raw logs were not preserved."
-  done
+  validate_diagnostics_boundary || return 1
+  (
+    set -e
+    cd -- "$DIAGNOSTICS_PARENT"
+    [[ "$(pwd -P)" == "$DIAGNOSTICS_PARENT" ]] \
+      || { diagnostics_error "test-results changed before diagnostics collection"; exit 1; }
+    [[ ! -L container-smoke ]] \
+      || { diagnostics_error "container-smoke diagnostics became a symlink"; exit 1; }
+    mkdir -p -- container-smoke
+    [[ ! -L container-smoke && -d container-smoke ]] \
+      || { diagnostics_error "container-smoke diagnostics is not a real directory"; exit 1; }
+    cd -- container-smoke
+    [[ "$(pwd -P)" == "$SANITIZED_DIR" ]] \
+      || { diagnostics_error "container-smoke diagnostics escaped the repository"; exit 1; }
 
-  local raw_status="$RUNTIME_DIR/compose-status.raw.txt"
-  if ! compose ps --all \
-    --format 'table {{.Service}}\t{{.State}}\t{{.Status}}' \
-    >"$raw_status" 2>/dev/null; then
-    printf '%s\n' 'Compose status was unavailable.' >"$raw_status"
-  fi
-  sanitize_file \
-    "$raw_status" \
-    "$SANITIZED_DIR/compose-status.txt" \
-    'Sanitization failed; raw Compose status was not preserved.'
+    local service raw sanitized
+    for service in postgres redis ai-service core-api web; do
+      raw="$RUNTIME_DIR/${service}.raw.log"
+      sanitized="${service}.log"
+      if ! compose logs --no-color --tail 250 "$service" >"$raw" 2>/dev/null; then
+        printf '%s\n' "Raw logs were unavailable for $service." >"$raw"
+      fi
+      sanitize_file "$raw" "$sanitized" "Sanitization failed; raw logs were not preserved."
+    done
+
+    local raw_status="$RUNTIME_DIR/compose-status.raw.txt"
+    if ! compose ps --all \
+      --format 'table {{.Service}}\t{{.State}}\t{{.Status}}' \
+      >"$raw_status" 2>/dev/null; then
+      printf '%s\n' 'Compose status was unavailable.' >"$raw_status"
+    fi
+    sanitize_file \
+      "$raw_status" \
+      compose-status.txt \
+      'Sanitization failed; raw Compose status was not preserved.'
+  )
 }
 
 cleanup() {
@@ -176,7 +243,10 @@ cleanup() {
   set +e
 
   if [[ "$exit_code" -ne 0 ]]; then
-    collect_failure_diagnostics
+    if ! collect_failure_diagnostics; then
+      echo "Unable to collect repository-local sanitized diagnostics." >&2
+      exit_code=1
+    fi
   fi
   if [[ "$SMOKE_TOUCHED" == true ]]; then
     if ! compose down --volumes --remove-orphans >/dev/null 2>&1; then
@@ -204,7 +274,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-rm -rf -- "$SANITIZED_DIR"
+reset_sanitized_diagnostics || fail "refusing unsafe sanitized diagnostics cleanup"
 
 verify_image() {
   local image_ref="$1"

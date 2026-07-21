@@ -21,6 +21,7 @@ for script in \
   "$REPO_ROOT/scripts/containers/run-smoke.sh" \
   "$REPO_ROOT/scripts/containers/tests/test-build-images-args.sh" \
   "$REPO_ROOT/scripts/containers/tests/test-build-images-flow.sh" \
+  "$REPO_ROOT/scripts/containers/tests/test-run-smoke-diagnostics.sh" \
   "$REPO_ROOT/apps/ai-service/docker-entrypoint.sh" \
   "$REPO_ROOT/apps/ai-service/scripts/verify-runtime-image.sh" \
   "$REPO_ROOT/scripts/e2e/run-e2e.sh" \
@@ -30,6 +31,7 @@ done
 
 bash "$REPO_ROOT/scripts/containers/tests/test-build-images-args.sh"
 bash "$REPO_ROOT/scripts/containers/tests/test-build-images-flow.sh"
+bash "$REPO_ROOT/scripts/containers/tests/test-run-smoke-diagnostics.sh"
 "$PYTHON_BIN" -m unittest discover \
   --start-directory "$TEST_DIR" \
   --pattern 'test_*.py' \

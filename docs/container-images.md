@@ -1,6 +1,6 @@
 # Production container images
 
-Checkpoint 1 provides three reproducible production images and a bounded,
+Checkpoint 1 provides three repeatable production images and a bounded,
 production-like container smoke suite. It does not define a production
 deployment topology or production secrets.
 
@@ -223,10 +223,14 @@ upstream fix exists. They become blocking when Trivy reports a fixed version.
 This policy is independent of the repository's blocking OSV dependency scan.
 
 The same evaluator is the local and CI policy entrypoint. After producing the
-three Trivy JSON reports with the options above, run:
+three Trivy JSON reports with the options above, run the exact `web`,
+`core-api`, and `ai-service` scan set. The evaluator derives
+`offertrack/<image>:<image-tag>` for each name and requires the report's
+`ArtifactName` to match:
 
 ```bash
 python scripts/containers/evaluate-trivy-results.py \
+  --image-tag local \
   --scan web /validated/temp/trivy-web.json success \
   --scan core-api /validated/temp/trivy-core.json success \
   --scan ai-service /validated/temp/trivy-ai.json success

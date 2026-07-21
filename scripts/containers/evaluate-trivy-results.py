@@ -5,6 +5,8 @@ Every expected scan must be supplied as a repeated ``--scan`` triple:
 
     --scan NAME JSON_PATH SCANNER_OUTCOME
 
+The required ``--image-tag`` is combined with the fixed OfferTrack image
+repository for each scan name and must match the report's ``ArtifactName``.
 The evaluator always inspects every triple before returning. Fixable HIGH or
 CRITICAL vulnerabilities block, while vulnerabilities without an available
 fix are reported as an explicit, non-blocking residual risk. A failed scanner
@@ -14,6 +16,7 @@ or an unusable report blocks because the policy cannot be evaluated safely.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import html
 import json
 import os
@@ -31,6 +34,12 @@ MAX_REPORTED_FINDINGS_PER_CLASS = 100
 MAX_REPORTED_ERRORS = 100
 MAX_DISPLAY_VALUE_LENGTH = 160
 SCAN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
+DOCKER_TAG = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}\Z")
+EXPECTED_SCAN_REPOSITORIES = {
+    "web": "offertrack/web",
+    "core-api": "offertrack/core-api",
+    "ai-service": "offertrack/ai-service",
+}
 MARKDOWN_UNSAFE_CHARACTERS = frozenset(r"\`*_{}[]()!|@:")
 
 
@@ -190,20 +199,32 @@ def _findings(scan_name: str, report: dict[str, Any]) -> tuple[list[Finding], li
     return fixable, unfixed
 
 
-def evaluate(scans: Sequence[tuple[str, Path, str]]) -> Evaluation:
+def evaluate(scans: Sequence[tuple[str, Path, str]], image_tag: str) -> Evaluation:
     evaluation = Evaluation()
-    seen_names: set[str] = set()
+    name_counts = Counter(scan_name for scan_name, _, _ in scans)
+    tag_is_valid = DOCKER_TAG.fullmatch(image_tag) is not None
+
+    if not tag_is_valid:
+        evaluation.errors.append(
+            f"invalid image tag {_safe_display(image_tag)!r}; use a valid Docker tag of at most "
+            "128 characters"
+        )
+
+    for scan_name in sorted(EXPECTED_SCAN_REPOSITORIES.keys() - name_counts.keys()):
+        evaluation.errors.append(f"missing expected scan name: {scan_name}")
+    for scan_name in sorted(name_counts.keys() - EXPECTED_SCAN_REPOSITORIES.keys()):
+        evaluation.errors.append(f"unexpected scan name: {_safe_display(scan_name)}")
+    for scan_name, count in sorted(name_counts.items()):
+        if count > 1:
+            evaluation.errors.append(
+                f"duplicate scan name: {_safe_display(scan_name)} ({count} entries)"
+            )
 
     for scan_name, result_path, scanner_outcome in scans:
         if not SCAN_NAME.fullmatch(scan_name):
             evaluation.errors.append(
                 f"invalid scan name {_safe_display(scan_name)!r}; use 1-64 letters, digits, '.', '_' or '-'"
             )
-            continue
-        if scan_name in seen_names:
-            evaluation.errors.append(f"duplicate scan name: {scan_name}")
-            continue
-        seen_names.add(scan_name)
 
         if scanner_outcome != "success":
             evaluation.errors.append(
@@ -212,6 +233,14 @@ def evaluate(scans: Sequence[tuple[str, Path, str]]) -> Evaluation:
 
         try:
             report = _load_report(result_path)
+            expected_repository = EXPECTED_SCAN_REPOSITORIES.get(scan_name)
+            if expected_repository is not None and tag_is_valid:
+                expected_artifact = f"{expected_repository}:{image_tag}"
+                if report["ArtifactName"] != expected_artifact:
+                    evaluation.errors.append(
+                        f"{scan_name}: ArtifactName is {_safe_display(report['ArtifactName'])!r}, "
+                        f"expected {expected_artifact!r}"
+                    )
             fixable, unfixed = _findings(scan_name, report)
         except ReportError as error:
             evaluation.errors.append(f"{scan_name}: {error}")
@@ -309,6 +338,11 @@ def _append_github_summary(summary: str) -> None:
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--image-tag",
+        required=True,
+        help="exact Docker tag shared by the three expected OfferTrack images",
+    )
+    parser.add_argument(
         "--scan",
         action="append",
         nargs=3,
@@ -322,7 +356,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     scans = [(name, Path(path), outcome) for name, path, outcome in args.scan]
-    evaluation = evaluate(scans)
+    evaluation = evaluate(scans, args.image_tag)
     summary = render(evaluation)
     print(summary, end="")
     _append_github_summary(summary)

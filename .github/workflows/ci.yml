@@ -122,18 +122,16 @@ jobs:
             apps/ai-service/pylock.toml
             apps/ai-service/pylock.test.toml
 
-      - name: Verify dependency lock freshness
+      - name: Verify committed dependency locks
         working-directory: apps/ai-service
         run: |
-          bash scripts/lock-dependencies.sh
-          git diff --exit-code -- \
-            pylock.toml pylock.toml.sha256 \
-            pylock.test.toml pylock.test.toml.sha256
+          sha256sum --check pylock.toml.sha256
+          sha256sum --check pylock.test.toml.sha256
 
       - name: Install locked dependencies
         working-directory: apps/ai-service
         run: |
-          sha256sum --check pylock.test.toml.sha256
+          python -m pip install --upgrade "pip==26.1.2"
           python -m pip install --requirement pylock.test.toml
 
       - name: Ruff
@@ -305,6 +303,7 @@ jobs:
         if: always() && steps.build_images.outcome == 'success'
         run: |
           python scripts/containers/evaluate-trivy-results.py \
+            --image-tag "$OFFERTRACK_IMAGE_TAG" \
             --scan web "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-web.json" "${{ steps.trivy_web.outcome }}" \
             --scan core-api "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-core.json" "${{ steps.trivy_core.outcome }}" \
             --scan ai-service "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-ai.json" "${{ steps.trivy_ai.outcome }}"

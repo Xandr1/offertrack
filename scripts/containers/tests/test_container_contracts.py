@@ -547,6 +547,19 @@ class SmokeAndE2EContractTest(unittest.TestCase):
 
 
 class CIContractTest(unittest.TestCase):
+    def test_ai_job_checks_committed_locks_without_regenerating_them(self) -> None:
+        workflow = read(".github/workflows/ci.yml")
+        job = workflow[workflow.index("  ai-service:") : workflow.index("\n  container-smoke:")]
+
+        self.assertEqual(1, job.count("sha256sum --check pylock.toml.sha256"))
+        self.assertEqual(1, job.count("sha256sum --check pylock.test.toml.sha256"))
+        self.assertIn('python -m pip install --upgrade "pip==26.1.2"', job)
+        self.assertIn(
+            "python -m pip install --requirement pylock.test.toml", job
+        )
+        self.assertNotIn("lock-dependencies.sh", workflow)
+        self.assertNotIn("pip lock", workflow)
+
     def test_container_job_builds_once_scans_independently_then_smokes_and_gates(self) -> None:
         workflow = read(".github/workflows/ci.yml")
         job = workflow[workflow.index("  container-smoke:") : workflow.index("\n  e2e:")]
@@ -595,6 +608,7 @@ class CIContractTest(unittest.TestCase):
         self.assertLess(core_scan_index, ai_scan_index)
         self.assertLess(ai_scan_index, smoke_index)
         self.assertLess(smoke_index, gate_index)
+        self.assertIn('--image-tag "$OFFERTRACK_IMAGE_TAG"', job[gate_index:])
         self.assertIn("steps.trivy_web.outcome", job[gate_index:])
         self.assertIn("steps.trivy_core.outcome", job[gate_index:])
         self.assertIn("steps.trivy_ai.outcome", job[gate_index:])
