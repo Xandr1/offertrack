@@ -145,3 +145,7 @@ This script starts Postgres if needed, waits for readiness, runs Flyway migratio
 See [Production configuration](docs/production-configuration.md) for protected
 profile requirements, CSRF behavior, rate-limit defaults, proxy handling, E2E
 configuration, Python lock regeneration, and the complete CI command set.
+
+See [Production container images](docs/container-images.md) for the exact
+`linux/amd64` image build and smoke commands, runtime contracts, standalone Web
+layout, cleanup behavior, and aggregate Trivy policy.

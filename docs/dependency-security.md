@@ -1,5 +1,10 @@
 # Dependency security baseline
 
+This document covers the source dependency OSV policy. The independent
+production-image Trivy policy, including the non-blocking accepted residual
+risk for HIGH/CRITICAL findings without an upstream fix, is documented in
+[Production container images](container-images.md#container-vulnerability-policy).
+
 OfferTrack runs the pinned OSV-Scanner 2.3.8 on pull requests that change
 dependency inputs, weekly, and on demand. The workflow is blocking: malformed or
 missing scanner output fails the job, as does any vulnerability not listed in
@@ -94,11 +99,19 @@ cd apps/ai-service
 bash scripts/lock-dependencies.sh
 ```
 
-The script regenerates both locks, removes only the local-project entry, and
-updates separate SHA-256 manifests covering `pyproject.toml` and the
-corresponding lock. CI regenerates all four generated files and requires a clean
-diff before installing third-party test dependencies from `pylock.test.toml`.
-The production image verifies and installs only `pylock.toml`.
+The script is the explicit developer dependency-maintenance command. It
+regenerates both locks, removes only the local-project entry, and updates
+separate SHA-256 manifests covering `pyproject.toml` and the corresponding
+lock. A lock-regeneration change must commit both locks and both manifests.
+
+Ordinary pull-request CI does not regenerate locks or resolve a new graph
+against live PyPI. It verifies both committed manifests with `sha256sum
+--check`, installs pinned `pip==26.1.2`, and installs third-party test
+dependencies from the committed `pylock.test.toml`. Because each manifest also
+covers `pyproject.toml`, changing the project dependency inputs without
+regenerating the corresponding locks fails these checks. The production image
+independently verifies and installs the committed production lock,
+`pylock.toml`.
 
 The test dependency range now requires pytest 9.0.3 or later within major
 version 9, resolving `GHSA-6w46-j5rx-g56g`; the generated test lock currently

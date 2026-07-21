@@ -11,6 +11,8 @@ const webRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(webRoot, "../..");
 
 const createNextConfig = (isProtected: boolean): NextConfig => ({
+  output: "standalone",
+  outputFileTracingRoot: repoRoot,
   turbopack: {
     // Use the monorepo root so pnpm workspace dependencies are resolvable.
     root: repoRoot,

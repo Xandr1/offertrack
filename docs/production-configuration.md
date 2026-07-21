@@ -85,6 +85,10 @@ closed when Redis is unavailable.
 
 ## E2E and CI
 
+Production image construction, the bounded production-like container smoke
+suite, standalone Web asset staging, and the container Trivy gate are documented
+in [Production container images](container-images.md).
+
 `.env.e2e.example` contains only fixed test values. `pnpm run e2e` removes the
 isolated Compose volumes, migrates a fresh database, seeds six dedicated verified
 fake users, starts the API and built web app, runs all seven Chromium smoke
