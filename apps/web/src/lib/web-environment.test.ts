@@ -46,6 +46,7 @@ describe("validateWebEnvironment", () => {
     "https://[0:0:0:0:0:0:0:1]:8443",
     "https://[::ffff:127.0.0.1]:8443",
     "https://[::ffff:7f00:1]:8443",
+    "https://[::ffff:192.0.2.1]:8443",
     "https://localhost.:8443",
   ])("rejects protected loopback form %s", (apiUrl) => {
     expect(() =>
@@ -54,6 +55,33 @@ describe("validateWebEnvironment", () => {
         NEXT_PUBLIC_API_URL: apiUrl,
       }),
     ).toThrow("must not use localhost or a loopback address");
+  });
+
+  it.each([
+    "https://@api.example.com",
+    "https://user@api.example.com",
+    "https://user:password@api.example.com",
+  ])("rejects URL credentials in %s", (apiUrl) => {
+    expect(() =>
+      validateWebBuildEnvironment({
+        APP_ENV: "e2e",
+        NEXT_PUBLIC_API_URL: apiUrl,
+      }),
+    ).toThrow("must not include credentials");
+  });
+
+  it.each([
+    "https://api.example.com?",
+    "https://api.example.com?debug=true",
+    "https://api.example.com#",
+    "https://api.example.com#fragment",
+  ])("rejects URL query or fragment syntax in %s", (apiUrl) => {
+    expect(() =>
+      validateWebBuildEnvironment({
+        APP_ENV: "e2e",
+        NEXT_PUBLIC_API_URL: apiUrl,
+      }),
+    ).toThrow("must not include a query or fragment");
   });
 
   it("accepts loopback HTTP for test and E2E builds", () => {
