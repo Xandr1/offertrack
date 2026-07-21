@@ -512,6 +512,7 @@ class SmokeAndE2EContractTest(unittest.TestCase):
         self.assertIn("--expected-api-url http://127.0.0.1:18081", script)
         self.assertIn("/offertrack-logo.png", web_verifier)
         self.assertIn("/_next/image", web_verifier)
+        self.assertIn("Checking session...", web_verifier)
         self.assertIn("script", web_verifier)
         self.assertIn("MAX_SCRIPTS", web_verifier)
         self.assertIn("http://127.0.0.1/", api_verifier)

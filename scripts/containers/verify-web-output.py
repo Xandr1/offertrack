@@ -49,7 +49,9 @@ def main() -> int:
     status, _, login_body = fetch(urljoin(base_url, "login"))
     assert status == 200, f"/login returned {status}"
     login_text = login_body.decode("utf-8", errors="replace")
-    assert "Sign in" in login_text, "/login did not contain the expected content"
+    assert (
+        "Checking session..." in login_text
+    ), "/login did not contain its expected session-check fallback"
 
     script_parser = ScriptParser()
     script_parser.feed(login_text)
