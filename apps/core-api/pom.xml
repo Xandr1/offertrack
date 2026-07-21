@@ -35,7 +35,7 @@
 		<logback.version>1.5.35</logback.version>
 		<netty.version>4.1.135.Final</netty.version>
 		<commons-lang3.version>3.18.0</commons-lang3.version>
-		<postgresql.version>42.7.11</postgresql.version>
+		<postgresql.version>42.7.13</postgresql.version>
 		<spring-security.version>6.5.11</spring-security.version>
 		<tomcat.version>10.1.55</tomcat.version>
 		<!-- Testcontainers 1.21.4 still resolves the vulnerable 1.24.0 release. -->
