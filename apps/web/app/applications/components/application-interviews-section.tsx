@@ -12,7 +12,6 @@ export type PendingUndoRow = {
 
 export type ApplicationInterviewsSectionProps = {
   disabled: boolean;
-  hasInvalidRow: boolean;
   interviewsErrorMessage: string | null;
   isEditMode: boolean;
   isInterviewsLoading: boolean;
@@ -31,7 +30,6 @@ export type ApplicationInterviewsSectionProps = {
 
 export const ApplicationInterviewsSection = ({
   disabled,
-  hasInvalidRow,
   interviewsErrorMessage,
   isEditMode,
   isInterviewsLoading,
@@ -64,7 +62,6 @@ export const ApplicationInterviewsSection = ({
 
       <InterviewRows
         disabled={disabled}
-        hasInvalidRow={hasInvalidRow}
         pendingUndoRows={pendingUndoRows}
         rows={rows}
         onAddRow={onAddRow}

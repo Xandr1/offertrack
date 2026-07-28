@@ -23,37 +23,24 @@ export const toInterviewDraftRow = (
   };
 };
 
-export const hasMissingInterviewType = (rows: InterviewDraftRow[]): boolean => {
-  return rows.some((row) => row.type === "");
-};
-
 const toInterviewPayload = (
   row: InterviewDraftRow,
-): Omit<ReplaceApplicationInterviewItemRequest, "id"> | null => {
-  if (row.type === "") {
-    return null;
-  }
-
-  return {
+): Omit<ReplaceApplicationInterviewItemRequest, "id"> => ({
     type: row.type,
     status: row.status,
     scheduledAt: dateTimeLocalToApiDateTime(row.scheduledAt),
-  };
-};
+});
 
 export const toCreateInterviewPayload = (
   row: InterviewDraftRow,
-): CreateApplicationInterviewItemRequest | null => {
+): CreateApplicationInterviewItemRequest => {
   return toInterviewPayload(row);
 };
 
 export const toReplaceInterviewPayload = (
   row: InterviewDraftRow,
-): ReplaceApplicationInterviewItemRequest | null => {
+): ReplaceApplicationInterviewItemRequest => {
   const payload = toInterviewPayload(row);
-  if (!payload) {
-    return null;
-  }
 
   return row.interviewId ? { ...payload, id: row.interviewId } : payload;
 };

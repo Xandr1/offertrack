@@ -2,6 +2,7 @@
 
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Application, ApplicationBoard } from "@/lib/api";
 import { ApplicationsBoard } from "./applications-board";
 
@@ -69,11 +70,11 @@ describe("ApplicationsBoard", () => {
       (screen.getByRole("button", { name: "Load more" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
-    expect(screen.getByText(/📅 Technical/)).toBeTruthy();
+    expect(screen.getByText(/Next interview: Technical/)).toBeTruthy();
     expect(screen.getByText(/^Updated /).className).toContain("truncate");
     expect(screen.getByText(/^Updated /).className).toContain("block");
     expect(screen.getByText("Initial").closest("section")?.className).toContain(
-      "xl:min-w-[280px]",
+      "xl:min-w-[272px]",
     );
     expect(screen.queryByRole("combobox")).toBeNull();
   });
@@ -105,7 +106,47 @@ describe("ApplicationsBoard", () => {
       }),
     );
 
-    expect(screen.getByText("📅 Technical")).toBeTruthy();
+    expect(screen.getByText("Next interview: Technical")).toBeTruthy();
     expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("opens from the card body without conflating actions or drag handle", async () => {
+    const onDelete = jest.fn();
+    const onEdit = jest.fn();
+    const user = userEvent.setup();
+    render(
+      React.createElement(ApplicationsBoard, {
+        board,
+        errorMessage: null,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onDelete,
+        onDragEnd: jest.fn(),
+        onEdit,
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Open Acme application" }),
+    );
+    expect(onEdit).toHaveBeenCalledTimes(1);
+
+    onEdit.mockClear();
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onDelete).not.toHaveBeenCalled();
+
+    onEdit.mockClear();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onEdit).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole("button", { name: "Move Acme application" }),
+    );
+    expect(onEdit).not.toHaveBeenCalled();
   });
 });

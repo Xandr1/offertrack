@@ -15,8 +15,6 @@ import {
 import { ApplicationFormState } from "../models/application-form-model";
 import { InterviewDraftRow } from "../models/interview-row-model";
 
-const isDefined = <T>(value: T | null): value is T => value !== null;
-
 type SaveCreateInput = {
   form: ApplicationFormState;
   mode: "create";
@@ -51,7 +49,7 @@ const defaultDeps: ApplicationSaveServiceDeps = {
 };
 
 const buildCreateInterviewsPayload = (rows: InterviewDraftRow[]) => {
-  return rows.map(toCreateInterviewPayload).filter(isDefined);
+  return rows.map(toCreateInterviewPayload);
 };
 
 const buildReplaceInterviewsPayload = (
@@ -62,8 +60,7 @@ const buildReplaceInterviewsPayload = (
 
   return rows
     .filter((row) => !pendingUndoRowIdSet.has(row.rowId))
-    .map(toReplaceInterviewPayload)
-    .filter(isDefined);
+    .map(toReplaceInterviewPayload);
 };
 
 export const saveApplicationWithInterviews = async (

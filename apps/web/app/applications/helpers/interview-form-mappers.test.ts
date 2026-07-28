@@ -1,26 +1,11 @@
 import { ApplicationInterview } from "@/lib/api";
 import {
-  hasMissingInterviewType,
   toCreateInterviewPayload,
   toInterviewDraftRow,
   toReplaceInterviewPayload,
 } from "./interview-form-mappers";
 
 describe("interview-form-mappers", () => {
-  it("detects rows with missing type", () => {
-    expect(
-      hasMissingInterviewType([
-        {
-          interviewId: null,
-          rowId: "row-1",
-          scheduledAt: "",
-          status: "initial",
-          type: "",
-        },
-      ]),
-    ).toBe(true);
-  });
-
   it("maps API interview to draft row", () => {
     const interview: ApplicationInterview = {
       applicationId: "app-1",
@@ -58,16 +43,25 @@ describe("interview-form-mappers", () => {
     });
   });
 
-  it("returns null payload for row without type", () => {
+  it("keeps an undated Other row valid for create and replace", () => {
     const row = {
       interviewId: "int-1",
       rowId: "row-1",
       scheduledAt: "",
       status: "initial" as const,
-      type: "" as const,
+      type: "other" as const,
     };
 
-    expect(toCreateInterviewPayload(row)).toBeNull();
-    expect(toReplaceInterviewPayload(row)).toBeNull();
+    expect(toCreateInterviewPayload(row)).toEqual({
+      scheduledAt: null,
+      status: "initial",
+      type: "other",
+    });
+    expect(toReplaceInterviewPayload(row)).toEqual({
+      id: "int-1",
+      scheduledAt: null,
+      status: "initial",
+      type: "other",
+    });
   });
 });

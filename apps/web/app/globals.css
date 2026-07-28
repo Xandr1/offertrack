@@ -24,3 +24,51 @@ body {
   color: var(--foreground);
   font-family: var(--font-roboto), Arial, sans-serif;
 }
+
+@media (min-width: 48rem) {
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-grid] {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-grid] {
+    grid-template-columns: 66px minmax(0, 1fr);
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-brand] {
+    justify-content: flex-start;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-nav-link] {
+    justify-content: flex-start;
+    padding-inline: 0.75rem;
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-brand],
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
+    justify-content: center;
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
+    padding-inline: 0.5rem;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-label] {
+    max-width: 7rem;
+    opacity: 1;
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-label] {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-collapse-icon],
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-expand-icon] {
+    display: block;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-expand-icon],
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-collapse-icon] {
+    display: none;
+  }
+}

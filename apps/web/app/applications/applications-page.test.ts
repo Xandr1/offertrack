@@ -918,7 +918,9 @@ describe("ApplicationsPage", () => {
     expect(
       await screen.findByRole("heading", { name: "Edit application" }),
     ).toBeTruthy();
-    expect(screen.getByDisplayValue("Acme")).toBeTruthy();
+    const company = screen.getByDisplayValue("Acme");
+    expect(company).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(company));
   });
 
   it("shows loading while direct id fetch is pending", async () => {
@@ -1005,17 +1007,43 @@ describe("ApplicationsPage", () => {
     expect(url.searchParams.get("search")).toBe("acme");
   });
 
-  it("opens the Create with AI modal", async () => {
+  it("renders one create CTA and opens the unified modal in AI mode", async () => {
     installApiMocks();
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    const addButtons = await screen.findAllByRole("button", {
+      name: "Add application",
+    });
+    expect(addButtons).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Create with AI" }),
+    ).toBeNull();
+    await user.click(addButtons[0]);
 
     expect(
-      screen.getByRole("heading", { name: "Create with AI" }),
+      screen.getByRole("heading", { name: "Create application" }),
     ).toBeTruthy();
-    expect(screen.getByPlaceholderText("https://company.com/jobs/123")).toBeTruthy();
+    expect(
+      screen.getByRole("radio", { name: "AI" }).getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("radio", { name: "Manual" }).getAttribute("aria-checked"),
+    ).toBe("false");
+    const jobUrlInput = screen.getByLabelText("Job URL");
+    expect(jobUrlInput).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(jobUrlInput));
+    expect(screen.queryByLabelText("Company")).toBeNull();
+
+    const aiMode = screen.getByRole("radio", { name: "AI" });
+    aiMode.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(
+      screen.getByRole("radio", { name: "Manual" }).getAttribute("aria-checked"),
+    ).toBe("true");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Company")),
+    );
   });
 
   it("handles empty and invalid AI job URLs safely", async () => {
@@ -1023,7 +1051,7 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
     await user.click(screen.getByRole("button", { name: "Generate draft" }));
 
     expect(screen.getByText("Enter a job URL.")).toBeTruthy();
@@ -1049,7 +1077,7 @@ describe("ApplicationsPage", () => {
     );
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
     await user.type(
       screen.getByPlaceholderText("https://company.com/jobs/123"),
       "https://example.com/jobs/123",
@@ -1063,7 +1091,7 @@ describe("ApplicationsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    await user.click(screen.getByRole("button", { name: "Create with AI" }));
+    await user.click(screen.getByRole("button", { name: "Add application" }));
     expect(
       (screen.getByRole("button", { name: "Generate draft" }) as HTMLButtonElement)
         .disabled,
@@ -1087,7 +1115,7 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
     await user.type(
       screen.getByPlaceholderText("https://company.com/jobs/123"),
       "https://example.com/jobs/123",
@@ -1099,8 +1127,12 @@ describe("ApplicationsPage", () => {
         "AI draft generation is temporarily unavailable. Try again.",
       ),
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Create with AI" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Create application" })).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "Create application" }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText("Job URL").getAttribute("aria-invalid")).toBe(
+      "true",
+    );
     expect(mockedCreateApplication).not.toHaveBeenCalled();
   });
 
@@ -1114,7 +1146,7 @@ describe("ApplicationsPage", () => {
 
     await screen.findByRole("heading", { name: "Applications" });
     view.queryClient.setQueryData(queryKeys.dashboardSummary, { stale: true });
-    await user.click(screen.getByRole("button", { name: "Create with AI" }));
+    await user.click(screen.getByRole("button", { name: "Add application" }));
     await user.type(
       screen.getByPlaceholderText("https://company.com/jobs/123"),
       "https://example.com/jobs/123",
@@ -1152,7 +1184,7 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Create with AI" }));
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
     await user.type(
       screen.getByPlaceholderText("https://company.com/jobs/123"),
       "example.com/jobs/123",
@@ -1183,17 +1215,122 @@ describe("ApplicationsPage", () => {
     expect(mockedCreateApplication).not.toHaveBeenCalled();
   });
 
-  it("manual Add application still opens an empty create modal", async () => {
+  it("switches between AI and Manual without losing entered values", async () => {
     installApiMocks();
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Add application" }));
+    const aiJobUrl = screen.getByLabelText("Job URL");
+    await user.type(aiJobUrl, "https://example.com/jobs/kept");
+    await user.click(screen.getByRole("radio", { name: "Manual" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Create application" }),
-    ).toBeTruthy();
+    const company = screen.getByLabelText("Company");
+    expect(screen.getByLabelText("Job URL")).toHaveProperty(
+      "value",
+      "https://example.com/jobs/kept",
+    );
+    await user.type(company, "User-entered company");
+    await user.click(screen.getByRole("radio", { name: "AI" }));
+
+    expect(screen.queryByLabelText("Company")).toBeNull();
+    expect(screen.getByLabelText("Job URL")).toHaveProperty(
+      "value",
+      "https://example.com/jobs/kept",
+    );
+    await user.click(screen.getByRole("radio", { name: "Manual" }));
+
+    expect(screen.getByLabelText("Company")).toHaveProperty(
+      "value",
+      "User-entered company",
+    );
     expect(screen.queryByText("AI draft warnings")).toBeNull();
-    expect(screen.queryByDisplayValue("Globex")).toBeNull();
+  });
+
+  it("preserves non-empty manual values when applying an AI draft", async () => {
+    installApiMocks();
+    mockedCreateApplicationDraft.mockResolvedValue(makeDraft());
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
+    await user.click(screen.getByRole("radio", { name: "Manual" }));
+    await user.type(screen.getByLabelText("Company"), "Kept Company");
+    await user.type(screen.getByLabelText("Position"), "Kept Position");
+    await user.click(screen.getByRole("radio", { name: "AI" }));
+    await user.type(
+      screen.getByLabelText("Job URL"),
+      "https://example.com/jobs/123",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate draft" }));
+
+    expect(await screen.findByDisplayValue("Kept Company")).toBeTruthy();
+    expect(screen.getByDisplayValue("Kept Position")).toBeTruthy();
+    expect(screen.getAllByDisplayValue("Remote")).toHaveLength(2);
+    expect(
+      screen.getByRole("radio", { name: "AI" }).getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("adds a valid Other and Initial interview that can be saved undated", async () => {
+    installApiMocks();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add application" }));
+    await user.click(screen.getByRole("radio", { name: "Manual" }));
+    await user.type(screen.getByLabelText("Company"), "Acme");
+    await user.type(screen.getByLabelText("Position"), "Engineer");
+    await user.click(screen.getByRole("button", { name: "Add interview" }));
+
+    expect(screen.getByRole("combobox", { name: "Interview type" })).toHaveProperty(
+      "value",
+      "other",
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Interview status" }),
+    ).toHaveProperty("value", "initial");
+    expect(
+      screen.queryByText(/choose a type of the interview/i),
+    ).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: "Create application" }),
+    );
+    await waitFor(() => expect(mockedCreateApplication).toHaveBeenCalled());
+    expect(mockedCreateApplication.mock.calls[0]?.[0].interviews).toEqual([
+      {
+        scheduledAt: null,
+        status: "initial",
+        type: "other",
+      },
+    ]);
+  });
+
+  it("does not show creation mode controls while editing", async () => {
+    currentUrl = "/applications?id=app-1";
+    installApiMocks();
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Edit application" });
+    expect(screen.queryByRole("radiogroup", { name: "Creation mode" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "AI" })).toBeNull();
+  });
+
+  it("clears non-default filters without changing Board view", async () => {
+    currentUrl =
+      "/applications?search=acme&stage=offer&sort=createdAt&direction=asc";
+    storeApplicationsView("board");
+    installApiMocks();
+    const user = userEvent.setup();
+    const view = renderPage();
+
+    await screen.findByRole("heading", { name: "Initial" });
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    view.rerenderPage();
+
+    const url = lastReplaceUrl();
+    expect(`${url.pathname}${url.search}`).toBe("/applications");
+    expect(getStoredApplicationsView()).toBe("board");
   });
 });

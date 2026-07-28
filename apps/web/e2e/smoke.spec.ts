@@ -25,6 +25,18 @@ const login = async (page: Page, account: E2eAccount): Promise<void> => {
   ).toHaveAttribute("aria-current", "page");
 };
 
+const expectNoPageOverflow = async (page: Page): Promise<void> => {
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth + 1,
+      ),
+    )
+    .toBe(true);
+};
+
 const installProtectedShellObserver = async (page: Page): Promise<void> => {
   await page.addInitScript(
     ({ marker }) => {
@@ -128,8 +140,16 @@ test("manual application persists after reload", async ({ page }) => {
 
   const dialog = page.getByRole("dialog", { name: "Create application" });
   await expect(dialog).toBeVisible();
+  await dialog.getByRole("radio", { name: "Manual" }).click();
   await dialog.getByLabel("Company").fill(company);
   await dialog.getByLabel("Position").fill(position);
+  await dialog.getByRole("button", { name: "Add interview" }).click();
+  await expect(
+    dialog.getByRole("combobox", { name: "Interview type" }),
+  ).toHaveValue("other");
+  await expect(
+    dialog.getByRole("combobox", { name: "Interview status" }),
+  ).toHaveValue("initial");
   await dialog.getByRole("button", { name: "Create application" }).click();
 
   await expect(dialog).toBeHidden();
@@ -139,6 +159,113 @@ test("manual application persists after reload", async ({ page }) => {
   await page.reload();
   await expect(page.getByRole("heading", { name: company })).toBeVisible();
   await expect(page.getByText(position, { exact: true })).toBeVisible();
+});
+
+const responsiveViewports = [
+  { height: 900, label: "1600x900", width: 1600 },
+  { height: 900, label: "1279x900", width: 1279 },
+  { height: 768, label: "1024x768", width: 1024 },
+  { height: 900, label: "768x900", width: 768 },
+] as const;
+
+for (const viewport of responsiveViewports) {
+  test(`Applications remains usable without page overflow at ${viewport.label}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({
+      height: viewport.height,
+      width: viewport.width,
+    });
+    await login(page, accounts.navigation);
+    await page.getByRole("link", { name: "Applications" }).click();
+
+    const search = page.getByRole("textbox", { name: "Search applications" });
+    await expect(search).toBeVisible();
+    const searchBox = await search.boundingBox();
+    expect(searchBox?.width ?? 0).toBeGreaterThan(180);
+    await expect(page.getByRole("combobox", { name: "Stage" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Sort" })).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Direction" }),
+    ).toBeVisible();
+    await expectNoPageOverflow(page);
+
+    await page.getByRole("button", { name: "Board" }).click();
+    await expect(page.getByRole("heading", { name: "Initial" })).toBeVisible();
+    await expectNoPageOverflow(page);
+
+    await page.getByRole("button", { name: "Add application" }).click();
+    const dialog = page.getByRole("dialog", { name: "Create application" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("radio", { name: "Manual" }).click();
+    await expect(dialog.getByLabel("Company")).toBeFocused();
+    const dialogBox = await dialog.boundingBox();
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+    expect(dialogBox!.y).toBeGreaterThanOrEqual(0);
+    expect(dialogBox!.width).toBeLessThanOrEqual(viewport.width);
+    expect(dialogBox!.height).toBeLessThanOrEqual(viewport.height);
+    await expect(
+      dialog.getByRole("button", { name: "Create application" }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+  });
+}
+
+test("collapsed sidebar expands content and persists across navigation and reload", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await login(page, accounts.navigation);
+
+  const shell = page.getByTestId("protected-page-shell");
+  const content = shell.locator(":scope > div > section");
+  const expandedBox = await content.boundingBox();
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+
+  await expect(shell).toHaveAttribute("data-sidebar-state", "collapsed");
+  await expect(
+    page.getByRole("button", { name: "Expand sidebar" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect
+    .poll(async () => (await content.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(expandedBox?.width ?? 0);
+
+  const applicationsLink = page.getByRole("link", { name: "Applications" });
+  await applicationsLink.hover();
+  await expect(page.getByRole("tooltip", { name: "Applications" })).toBeVisible();
+  await applicationsLink.click();
+  await expect(shell).toHaveAttribute("data-sidebar-state", "collapsed");
+
+  await page.route("**/*", async (route) => {
+    if (route.request().resourceType() === "script") {
+      await route.abort();
+      return;
+    }
+
+    await route.continue();
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-offertrack-sidebar",
+    "collapsed",
+  );
+  await expect(page.getByText("Loading applications...")).toBeVisible();
+  await page.unroute("**/*");
+
+  await page.reload();
+  await expect(shell).toHaveAttribute("data-sidebar-state", "collapsed");
+  await expect
+    .poll(
+      async () =>
+        (await page.locator("[data-sidebar-grid] > aside").boundingBox())
+          ?.width ?? Number.POSITIVE_INFINITY,
+    )
+    .toBeLessThanOrEqual(68);
+  await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Settings" })).toBeVisible();
+  await expectNoPageOverflow(page);
 });
 
 const protectedRouteScenarios = [

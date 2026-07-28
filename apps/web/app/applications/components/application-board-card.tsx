@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { formatCompactDateTime } from "@/lib/date-format";
 import { formatUpdatedAtRelative } from "../helpers/application-date-helpers";
 import { mapInterviewTypeLabel, mapWorkModeLabel } from "../helpers/application-labels";
-import { IconPencil, IconTrash } from "./ui-icons";
+import { IconCalendar, IconGrip, IconPencil, IconTrash } from "./ui-icons";
 
 type ApplicationBoardCardProps = {
   application: Application;
@@ -40,11 +40,11 @@ export const ApplicationBoardCard = ({
   const workMode = mapWorkModeLabel(application.workMode);
   const interview = application.nextInterview ?? application.lastInterview;
   const interviewLabel = interview
-    ? interview.scheduledAt
-      ? `${application.nextInterview ? "📅" : "Last:"} ${mapInterviewTypeLabel(interview.type)} · ${formatCompactDateTime(interview.scheduledAt)}`
-      : application.nextInterview
-        ? `📅 ${mapInterviewTypeLabel(interview.type)}`
-        : null
+    ? `${application.nextInterview ? "Next" : "Last"} interview: ${mapInterviewTypeLabel(interview.type)}${
+        interview.scheduledAt
+          ? ` · ${formatCompactDateTime(interview.scheduledAt)}`
+          : ""
+      }`
     : null;
 
   return (
@@ -52,44 +52,60 @@ export const ApplicationBoardCard = ({
       <Card
         as="article"
         className={isDragging ? "opacity-70 shadow-xl" : "shadow-sm"}
+        variant="board"
       >
-        <div
-          {...attributes}
-          {...listeners}
-          aria-disabled={dragDisabled}
-          aria-label={`Move ${application.companyName} application`}
-          className={`min-w-0 rounded-lg p-1 outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${dragDisabled
-            ? "cursor-not-allowed"
-            : "cursor-grab select-none active:cursor-grabbing"
+        <div className="flex items-start gap-1">
+          <button
+            aria-label={`Open ${application.companyName} application`}
+            className="min-w-0 flex-1 rounded-lg p-1 text-left outline-none transition hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-violet-500"
+            disabled={dragDisabled}
+            onClick={() => onEdit(application)}
+            type="button"
+          >
+            <h3 className="truncate text-sm font-semibold text-zinc-950">
+              {application.companyName}
+            </h3>
+            <p className="line-clamp-2 text-sm leading-5 text-zinc-700">
+              {application.positionTitle}
+            </p>
+            {(application.location || workMode) && (
+              <p className="mt-0.5 truncate text-xs text-zinc-500">
+                {[application.location, workMode].filter(Boolean).join(" · ")}
+              </p>
+            )}
+            {interviewLabel && (
+              <span className="mt-2 flex min-w-0 items-center gap-1.5 border-t border-zinc-100 pt-2 text-xs font-medium text-zinc-700">
+                <IconCalendar className="h-3.5 w-3.5 shrink-0 text-violet-600" />
+                <span className="truncate">{interviewLabel}</span>
+              </span>
+            )}
+            <span className="mt-1.5 block w-full min-w-0 truncate text-[11px] text-zinc-400">
+              {formatUpdatedAtRelative(application.updatedAt)}
+            </span>
+          </button>
+
+          <button
+            {...attributes}
+            {...listeners}
+            aria-disabled={dragDisabled}
+            aria-label={`Move ${application.companyName} application`}
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 outline-none transition hover:bg-zinc-100 focus-visible:ring-2 focus-visible:ring-violet-500 ${
+              dragDisabled
+                ? "cursor-not-allowed opacity-50"
+                : "cursor-grab touch-none active:cursor-grabbing"
             }`}
-          ref={setActivatorNodeRef}
-          tabIndex={dragDisabled ? -1 : attributes.tabIndex}
-        >
-          <h3 className="truncate text-sm font-semibold text-zinc-950">
-            {application.companyName}
-          </h3>
-          <p className="truncate text-sm text-zinc-700">
-            {application.positionTitle}
-          </p>
-          {(application.location || workMode) && (
-            <p className="truncate text-sm text-zinc-500">
-              {[application.location, workMode].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          {interviewLabel && (
-            <p className="mt-2 truncate text-xs font-medium text-zinc-700">
-              {interviewLabel}
-            </p>
-          )}
-          <span className="block w-full min-w-0 truncate text-xs text-zinc-500 mt-2">
-            {formatUpdatedAtRelative(application.updatedAt)}
-          </span>
+            disabled={dragDisabled}
+            ref={setActivatorNodeRef}
+            type="button"
+          >
+            <IconGrip className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="flex items-center justify-between border-t border-zinc-100 pt-2">
-          <div className="flex shrink-0 items-center gap-0.5">
+        <div className="mt-1.5 flex items-center border-t border-zinc-100 pt-1.5">
+          <div className="flex items-center gap-0.5">
             <Button
-              className="px-2 py-1 text-xs"
+              className="h-8 px-2 py-1 text-xs"
               disabled={dragDisabled}
               onClick={() => onEdit(application)}
               variant="ghost"
@@ -98,7 +114,7 @@ export const ApplicationBoardCard = ({
               Edit
             </Button>
             <Button
-              className="px-2 py-1 text-xs"
+              className="h-8 px-2 py-1 text-xs"
               disabled={dragDisabled}
               onClick={() => onDelete(application)}
               variant="ghostDanger"

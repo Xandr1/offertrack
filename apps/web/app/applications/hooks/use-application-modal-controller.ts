@@ -2,15 +2,13 @@
 
 import { useEffect, useMemo, useReducer, useRef } from "react";
 import { Application, ApplicationInterview } from "@/lib/api";
-import {
-  hasMissingInterviewType,
-  toInterviewDraftRow,
-} from "../helpers/interview-form-mappers";
+import { toInterviewDraftRow } from "../helpers/interview-form-mappers";
 import {
   ApplicationFormState,
 } from "../models/application-form-model";
 import { InterviewDraftRow } from "../models/interview-row-model";
 import {
+  ApplicationCreateMethod,
   applicationModalReducer,
   initialApplicationModalState,
 } from "../state/application-modal-reducer";
@@ -28,14 +26,14 @@ const createNewInterviewDraftRow = (): InterviewDraftRow => {
   return {
     rowId: createLocalId(),
     interviewId: null,
-    type: "",
+    type: "other",
     status: "initial",
     scheduledAt: "",
   };
 };
 
-type OpenCreateModalOptions = {
-  form?: ApplicationFormState;
+type ApplyAiDraftOptions = {
+  form: ApplicationFormState;
   rows?: InterviewDraftRow[];
   warnings?: string[];
 };
@@ -63,19 +61,10 @@ export const useApplicationModalController = () => {
     };
   }, []);
 
-  const hasInvalidRow = useMemo(
-    () => hasMissingInterviewType(state.draftInterviewRows),
+  const normalizedRows = useMemo(
+    () => state.draftInterviewRows,
     [state.draftInterviewRows],
   );
-
-  const normalizedRows = useMemo(() => {
-    return state.draftInterviewRows
-      .filter((row) => row.type !== "")
-      .map((row) => ({
-        ...row,
-        type: row.type,
-      }));
-  }, [state.draftInterviewRows]);
 
   const interviewsLoadedForEdit =
     state.mode !== "edit" ||
@@ -83,14 +72,9 @@ export const useApplicationModalController = () => {
       !state.isInterviewsLoading &&
       state.interviewsError === null);
 
-  const openCreateModal = (options: OpenCreateModalOptions = {}) => {
+  const openCreateModal = () => {
     undoTimersRef.current.clearAll();
-    dispatch({
-      type: "OPEN_CREATE",
-      form: options.form,
-      rows: options.rows,
-      warnings: options.warnings,
-    });
+    dispatch({ type: "OPEN_CREATE" });
   };
 
   const openEditModal = (application: Application) => {
@@ -101,6 +85,26 @@ export const useApplicationModalController = () => {
   const closeApplicationModal = () => {
     undoTimersRef.current.clearAll();
     dispatch({ type: "CLOSE_MODAL" });
+  };
+
+  const setCreateMethod = (method: ApplicationCreateMethod) => {
+    dispatch({
+      type: "SET_CREATE_METHOD",
+      method,
+    });
+  };
+
+  const applyAiDraft = ({
+    form,
+    rows = [],
+    warnings = [],
+  }: ApplyAiDraftOptions) => {
+    dispatch({
+      type: "APPLY_AI_DRAFT",
+      form,
+      rows,
+      warnings,
+    });
   };
 
   const markInterviewsLoading = () => {
@@ -190,11 +194,13 @@ export const useApplicationModalController = () => {
 
   return {
     addRow,
+    applyAiDraft,
     closeApplicationModal,
+    createMethod: state.createMethod,
     draftInterviewRows: state.draftInterviewRows,
     form: state.form,
     formMode: state.mode,
-    hasInvalidRow,
+    hasGeneratedDraft: state.hasGeneratedDraft,
     draftWarnings: state.draftWarnings,
     initialInterviewRows: state.initialInterviewRows,
     interviewsError: state.interviewsError,
@@ -216,6 +222,7 @@ export const useApplicationModalController = () => {
     pendingUndoRows: state.pendingUndoRows,
     removeRow,
     saveError: state.saveError && state.saveError.trim() !== "" ? state.saveError : null,
+    setCreateMethod,
     selectedApplicationId: state.selectedApplicationId,
     undoRowRemoval,
     updateFormField,

@@ -34,7 +34,6 @@ export const useApplicationSaveFlow = ({
         !modalController.formMode ||
         !modalController.form.companyName.trim() ||
         !modalController.form.positionTitle.trim() ||
-        modalController.hasInvalidRow ||
         !modalController.interviewsLoadedForEdit
       ) {
         return;
@@ -85,7 +84,6 @@ export const useApplicationSaveFlow = ({
     modalController.isSaving ||
     !modalController.form.companyName.trim() ||
     !modalController.form.positionTitle.trim() ||
-    modalController.hasInvalidRow ||
     !modalController.interviewsLoadedForEdit;
 
   return {

@@ -221,8 +221,16 @@ function DashboardPageContent() {
   return (
     <ShellLayout activeRoute="/dashboard">
       <div className={layoutStyles.container}>
+        <header className={layoutStyles.splitHeader}>
+          <div>
+            <h1 className={textStyles.pageHeadline}>Dashboard</h1>
+            <p className={textStyles.subtitle}>
+              Focus on applications that need your attention.
+            </p>
+          </div>
+        </header>
         {summaryQuery.error && <Card><h2 className={textStyles.sectionTitle}>Summary unavailable</h2><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(summaryQuery.error)}</div><Button className="mt-4" onClick={() => summaryQuery.refetch()} variant="secondary">Retry</Button></Card>}
-        {!summaryQuery.error && <section className="grid gap-4 xl:grid-cols-3">
+        {!summaryQuery.error && <section className="mt-5 grid gap-4 xl:grid-cols-3">
           <DashboardActionModule
             count={summary?.applicationsToFollowUp.totalCount ?? 0}
             errorMessage={applicationError}

@@ -73,7 +73,7 @@ export const ApplicationsBoard = ({
       sensors={sensors}
       onDragEnd={onDragEnd}
     >
-      <div className="flex min-w-0 max-w-full gap-4 overflow-x-auto pb-4">
+      <div className="flex min-w-0 max-w-full gap-3 overflow-x-auto pb-3">
         {board.columns.map((column) => (
           <ApplicationBoardColumn
             column={column}

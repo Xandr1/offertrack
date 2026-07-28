@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEventHandler } from "react";
-import { sectionStyles, textStyles } from "@/lib/styles";
 import {
   ApplicationDetailsSection,
   ApplicationDetailsSectionProps,
@@ -31,11 +30,16 @@ export const ApplicationModalBody = ({
   onSubmit,
 }: ApplicationModalBodyProps) => {
   return (
-    <form className="space-y-3" onSubmit={onSubmit}>
+    <form className="space-y-6" onSubmit={onSubmit}>
       {draftWarnings.length > 0 && (
-        <div className={sectionStyles.softPanel}>
-          <p className={textStyles.label}>AI draft warnings</p>
-          <ul className="mt-1 list-disc space-y-1 pl-4 text-sm text-zinc-700">
+        <div
+          className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5"
+          role="note"
+        >
+          <p className="text-sm font-medium text-amber-900">
+            AI draft warnings
+          </p>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-amber-900/80">
             {draftWarnings.map((warning, index) => (
               <li key={`${warning}-${index}`}>{warning}</li>
             ))}

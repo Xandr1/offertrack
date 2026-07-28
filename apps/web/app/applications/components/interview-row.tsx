@@ -30,6 +30,12 @@ export const InterviewRow = ({
   onUpdate,
 }: InterviewRowProps) => {
   const isPassed = row.status === "passed";
+  const statusClassName: Record<InterviewStatus, string> = {
+    initial: "border-zinc-300 bg-zinc-50 text-zinc-800",
+    scheduled: "border-violet-200 bg-violet-50 text-violet-800",
+    passed: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    rejected: "border-red-200 bg-red-50 text-red-800",
+  };
 
   return (
     <div className={sectionStyles.interviewRow}>
@@ -40,13 +46,13 @@ export const InterviewRow = ({
           )}
         </span>
         <Select
+          aria-label="Interview type"
           disabled={disabled || isPassed}
           value={row.type}
           onChange={(event) =>
-            onUpdate(row.rowId, "type", event.target.value as InterviewType | "")
+            onUpdate(row.rowId, "type", event.target.value as InterviewType)
           }
         >
-          <option value="">Select type</option>
           {interviewTypes.map((type) => (
             <option key={type} value={type}>
               {interviewTypeLabels[type]}
@@ -57,6 +63,8 @@ export const InterviewRow = ({
 
       <div>
         <Select
+          aria-label="Interview status"
+          className={statusClassName[row.status]}
           disabled={disabled}
           value={row.status}
           onChange={(event) =>
@@ -73,6 +81,7 @@ export const InterviewRow = ({
 
       <div>
         <Input
+          aria-label="Scheduled date and time"
           disabled={disabled || isPassed}
           type="datetime-local"
           value={row.scheduledAt}

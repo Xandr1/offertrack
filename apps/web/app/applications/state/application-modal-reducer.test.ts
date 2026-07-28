@@ -39,9 +39,63 @@ describe("application-modal-reducer", () => {
     });
 
     expect(nextState.mode).toBe("create");
+    expect(nextState.createMethod).toBe("ai");
+    expect(nextState.hasGeneratedDraft).toBe(false);
     expect(nextState.form).toEqual(initialApplicationFormState);
     expect(nextState.draftInterviewRows).toEqual([]);
     expect(nextState.pendingUndoRows).toEqual([]);
+  });
+
+  it("switches create methods without resetting entered form data", () => {
+    const openState = applicationModalReducer(initialApplicationModalState, {
+      type: "OPEN_CREATE",
+    });
+    const editedState = applicationModalReducer(openState, {
+      type: "UPDATE_APPLICATION_FIELD",
+      key: "companyName",
+      value: "Kept Company",
+    });
+    const manualState = applicationModalReducer(editedState, {
+      type: "SET_CREATE_METHOD",
+      method: "manual",
+    });
+    const aiState = applicationModalReducer(manualState, {
+      type: "SET_CREATE_METHOD",
+      method: "ai",
+    });
+
+    expect(manualState.form.companyName).toBe("Kept Company");
+    expect(aiState.form.companyName).toBe("Kept Company");
+    expect(aiState.createMethod).toBe("ai");
+  });
+
+  it("applies an AI draft into empty fields without overwriting manual values", () => {
+    const openState = applicationModalReducer(initialApplicationModalState, {
+      type: "OPEN_CREATE",
+    });
+    const editedState = applicationModalReducer(openState, {
+      type: "UPDATE_APPLICATION_FIELD",
+      key: "companyName",
+      value: "Kept Company",
+    });
+    const draftState = applicationModalReducer(editedState, {
+      type: "APPLY_AI_DRAFT",
+      form: {
+        ...initialApplicationFormState,
+        companyName: "Generated Company",
+        location: "Remote",
+        positionTitle: "Generated Engineer",
+      },
+      rows: [makeRow("draft-row", { interviewId: null, type: "recruiter" })],
+      warnings: ["Location was inferred."],
+    });
+
+    expect(draftState.hasGeneratedDraft).toBe(true);
+    expect(draftState.form.companyName).toBe("Kept Company");
+    expect(draftState.form.positionTitle).toBe("Generated Engineer");
+    expect(draftState.form.location).toBe("Remote");
+    expect(draftState.draftInterviewRows[0]?.type).toBe("recruiter");
+    expect(draftState.draftWarnings).toEqual(["Location was inferred."]);
   });
 
   it("opens edit in loading state", () => {
@@ -245,7 +299,7 @@ describe("application-modal-reducer", () => {
         rowId: "new-row-1",
         scheduledAt: "",
         status: "initial",
-        type: "",
+        type: "other",
       },
     });
 
@@ -282,7 +336,7 @@ describe("application-modal-reducer", () => {
         rowId: "new-row-after-undo",
         scheduledAt: "",
         status: "initial",
-        type: "",
+        type: "other",
       },
     });
 
@@ -323,7 +377,7 @@ describe("application-modal-reducer", () => {
         rowId: "new-row-after-expiry",
         scheduledAt: "",
         status: "initial",
-        type: "",
+        type: "other",
       },
     });
 
@@ -471,7 +525,7 @@ describe("application-modal-reducer", () => {
         rowId: "new-row-after-expiry",
         scheduledAt: "",
         status: "initial",
-        type: "",
+        type: "other",
       },
     });
 

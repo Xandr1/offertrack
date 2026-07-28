@@ -16,8 +16,12 @@ export type PendingUndoInterviewRow = {
   row: InterviewDraftRow;
 };
 
+export type ApplicationCreateMethod = "ai" | "manual";
+
 export type ApplicationModalState = {
   mode: ApplicationFormMode | null;
+  createMethod: ApplicationCreateMethod | null;
+  hasGeneratedDraft: boolean;
   selectedApplicationId: string | null;
   form: ApplicationFormState;
   initialInterviewRows: InterviewDraftRow[];
@@ -35,6 +39,8 @@ export type ApplicationModalState = {
 
 export const initialApplicationModalState: ApplicationModalState = {
   mode: null,
+  createMethod: null,
+  hasGeneratedDraft: false,
   selectedApplicationId: null,
   form: initialApplicationFormState,
   initialInterviewRows: [],
@@ -51,14 +57,16 @@ export const initialApplicationModalState: ApplicationModalState = {
 };
 
 type ApplicationModalAction =
-  | {
-      type: "OPEN_CREATE";
-      form?: ApplicationFormState;
-      rows?: InterviewDraftRow[];
-      warnings?: string[];
-    }
+  | { type: "OPEN_CREATE" }
   | { type: "OPEN_EDIT"; application: Application }
   | { type: "CLOSE_MODAL" }
+  | { type: "SET_CREATE_METHOD"; method: ApplicationCreateMethod }
+  | {
+      type: "APPLY_AI_DRAFT";
+      form: ApplicationFormState;
+      rows: InterviewDraftRow[];
+      warnings: string[];
+    }
   | { type: "INTERVIEWS_LOADING" }
   | { type: "INTERVIEWS_LOADED"; rows: InterviewDraftRow[] }
   | { type: "INTERVIEWS_FAILED"; error: string }
@@ -121,6 +129,24 @@ const getNextRowOrder = (rowOrderByRowId: Record<string, number>): number => {
   return Math.max(...orders) + 1;
 };
 
+const mergeDraftIntoEmptyFormFields = (
+  current: ApplicationFormState,
+  draft: ApplicationFormState,
+): ApplicationFormState => ({
+  appliedAt: current.appliedAt.trim() ? current.appliedAt : draft.appliedAt,
+  companyName: current.companyName.trim()
+    ? current.companyName
+    : draft.companyName,
+  jobUrl: current.jobUrl.trim() ? current.jobUrl : draft.jobUrl,
+  location: current.location.trim() ? current.location : draft.location,
+  notes: current.notes.trim() ? current.notes : draft.notes,
+  positionTitle: current.positionTitle.trim()
+    ? current.positionTitle
+    : draft.positionTitle,
+  stage: current.stage !== "initial" ? current.stage : draft.stage,
+  workMode: current.workMode || draft.workMode,
+});
+
 const resolveUndoInsertIndex = (
   rows: InterviewDraftRow[],
   rowOrderByRowId: Record<string, number>,
@@ -147,11 +173,7 @@ export const applicationModalReducer = (
       return {
         ...initialApplicationModalState,
         mode: "create",
-        form: action.form ?? initialApplicationFormState,
-        initialInterviewRows: action.rows ?? [],
-        draftInterviewRows: action.rows ?? [],
-        rowOrderByRowId: buildRowOrderByRowId(action.rows ?? []),
-        draftWarnings: action.warnings ?? [],
+        createMethod: "ai",
       };
     case "OPEN_EDIT":
       return {
@@ -163,6 +185,36 @@ export const applicationModalReducer = (
       };
     case "CLOSE_MODAL":
       return initialApplicationModalState;
+    case "SET_CREATE_METHOD":
+      if (state.mode !== "create") {
+        return state;
+      }
+
+      return {
+        ...state,
+        createMethod: action.method,
+      };
+    case "APPLY_AI_DRAFT": {
+      if (state.mode !== "create") {
+        return state;
+      }
+
+      const rows =
+        state.draftInterviewRows.length > 0 || state.pendingUndoRows.length > 0
+          ? state.draftInterviewRows
+          : action.rows;
+
+      return {
+        ...state,
+        createMethod: "ai",
+        hasGeneratedDraft: true,
+        form: mergeDraftIntoEmptyFormFields(state.form, action.form),
+        initialInterviewRows: rows,
+        draftInterviewRows: rows,
+        rowOrderByRowId: buildRowOrderByRowId(rows),
+        draftWarnings: action.warnings,
+      };
+    }
     case "INTERVIEWS_LOADING":
       if (state.mode !== "edit") {
         return state;

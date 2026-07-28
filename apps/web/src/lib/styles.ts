@@ -10,18 +10,19 @@ export const pageStyles = {
 
 export const shellStyles = {
   grid:
-    "grid min-h-screen w-full grid-cols-1 md:grid-cols-[190px_minmax(0,1fr)]",
+    "grid min-h-screen w-full grid-cols-1 transition-[grid-template-columns] duration-300 motion-reduce:transition-none",
   sidebar:
-    "border-b border-zinc-200 bg-white p-4 md:border-b-0 md:border-r",
-  brand: "mb-8 flex items-center gap-2 text-sm font-bold text-zinc-950",
-  logo: "h-8 w-8",
+    "relative border-b border-zinc-200 bg-white p-4 md:border-b-0 md:border-r md:p-3",
+  brand:
+    "mb-6 flex min-h-10 items-center gap-2 text-sm font-bold text-zinc-950",
+  logo: "h-8 w-8 shrink-0",
   nav: "space-y-1.5 text-sm",
   navLink:
-    "block rounded-xl px-3 py-2 text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900",
+    "flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-zinc-600 outline-none transition hover:bg-zinc-50 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
   navLinkActive:
-    "block rounded-xl bg-violet-50 px-3 py-2 font-medium text-violet-700",
+    "flex min-h-11 items-center gap-3 rounded-xl bg-violet-50 px-3 py-2 font-medium text-violet-700 outline-none ring-1 ring-inset ring-violet-100 transition focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
   panel:
-    "min-w-0 bg-white/90 p-5 backdrop-blur md:p-8",
+    "min-w-0 overflow-x-clip bg-white/90 p-5 backdrop-blur md:p-8",
 };
 
 export const layoutStyles = {
@@ -82,6 +83,8 @@ export const cardStyles = {
     "rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center",
   application:
     "rounded-2xl border border-zinc-200/80 bg-white p-3.5 shadow-[0_10px_24px_-22px_rgba(24,24,27,0.55)] transition hover:border-violet-200 hover:shadow-md",
+  board:
+    "rounded-xl border border-zinc-200/80 bg-white p-2.5 shadow-[0_8px_20px_-18px_rgba(24,24,27,0.65)] transition hover:border-violet-200 hover:shadow-sm",
 };
 
 export const textStyles = {
@@ -149,26 +152,27 @@ export const buttonStyles = {
 
 export const modalStyles = {
   softContainer:
-    "fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4 backdrop-blur-sm",
+    "fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-2 backdrop-blur-sm sm:p-4",
   softPanel:
-    "w-full max-w-[900px] overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl",
+    "flex max-h-[calc(100dvh-1rem)] w-full max-w-[1040px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl",
   compactPanel:
-    "w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl",
+    "flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:rounded-3xl",
   softHeader:
-    "flex items-start justify-between gap-4 border-b border-zinc-200 px-6 py-4",
+    "flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3.5 sm:px-6 sm:py-4",
   compactHeader:
-    "flex items-start justify-between gap-4 px-6 py-4",
-  softBody: "max-h-[82vh] overflow-y-auto px-6 pb-0 pt-4",
-  compactBody: "px-6 py-4",
+    "flex shrink-0 items-start justify-between gap-4 px-5 py-4 sm:px-6",
+  softBody:
+    "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-0 pt-4 sm:px-6 sm:pt-5",
+  compactBody: "min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6",
   softFooterBleedCompact:
     "flex items-center justify-end gap-3 pt-1",
   softFooterBleed:
-    "sticky bottom-0 -mx-6 mt-3 flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4",
+    "sticky bottom-0 z-10 -mx-4 mt-3 flex items-center justify-end gap-3 border-t border-zinc-200 bg-white/95 px-4 py-3.5 backdrop-blur sm:-mx-6 sm:px-6 sm:py-4",
 };
 
 export const sectionStyles = {
   toolbar:
-    "grid items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3",
+    "items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-3",
   searchIcon:
     "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400",
   searchIconButton:
@@ -186,7 +190,7 @@ export const sectionStyles = {
   listItem: "rounded-xl border border-zinc-200 px-4 py-3",
   splitRow: "flex flex-wrap items-center justify-between gap-3",
   interviewRow:
-    "grid min-h-[46px] gap-2 rounded-xl border border-zinc-200/80 bg-white p-1.5 md:grid-cols-[1.2fr_1fr_1fr_36px] md:items-center",
+    "grid gap-2 rounded-lg border border-zinc-200/80 bg-zinc-50/60 p-2 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_40px] lg:items-center",
   interviewStatusSlot:
     "inline-flex h-4 w-4 shrink-0 items-center justify-center",
   interviewStatusIcon:
@@ -194,7 +198,7 @@ export const sectionStyles = {
   topBorderRow:
     "mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2.5",
   undoRowSoft:
-    "grid min-h-[46px] gap-2 rounded-xl border border-violet-100 bg-white/80 p-1.5 md:grid-cols-[1.2fr_1fr_1fr_36px] md:items-center",
+    "grid gap-2 rounded-lg border border-violet-100 bg-violet-50/40 p-2 sm:grid-cols-[1fr_auto] sm:items-center",
   undoContent:
-    "flex min-h-10 min-w-0 items-center gap-2 px-1 text-sm text-zinc-700 md:col-span-3",
+    "flex min-h-10 min-w-0 items-center gap-2 px-1 text-sm text-zinc-700",
 };

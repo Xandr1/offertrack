@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import type {
   DashboardApplicationItem,
   DashboardInterviewItem,
@@ -91,7 +91,7 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => {
     )))
     : null;
 
-  return <Card className="flex flex-col self-start">
+  return <Card className="flex flex-col self-start p-4">
     <div className={sectionStyles.splitRow}>
       <div>
         <h2 className={textStyles.sectionTitle}>{props.title}</h2>
@@ -106,14 +106,12 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => {
     {props.isLoading && <p className="mt-4 text-sm text-zinc-700">Loading action items...</p>}
 
     {!props.isLoading && props.items.length === 0 && (
-      <div className="mt-4">
-        <div className={sectionStyles.dashedEmpty}>
-          <div className="flex items-center justify-center gap-2 text-sm font-medium text-emerald-700">
-            <CheckCircle2 aria-hidden className="h-4 w-4" />
-            <p>All clear — no action needed</p>
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        className="mt-4"
+        compact
+        description="Nothing needs your attention in this section."
+        title="All clear"
+      />
     )}
 
     {!props.isLoading && props.items.length > 0 && (
@@ -155,7 +153,7 @@ export const DashboardActionModule = (props: DashboardActionModuleProps) => {
         <Button
           disabled={props.isLoadingMore}
           onClick={props.onLoadMore}
-          variant="secondary"
+          variant="secondarySoft"
         >
           {props.isLoadingMore ? "Loading..." : "Load more"}
         </Button>
@@ -189,7 +187,7 @@ const ApplicationActionItem = ({
   ]);
 
   return (
-    <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
+    <li className={`rounded-xl border border-zinc-200 bg-white p-3 ${pending ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap gap-2">
         <span className={`${chipBaseStyles} ${waitingToneStyles[waitingTone]}`}>
           {formatWaitingLabel(waitingDays)}
@@ -249,7 +247,7 @@ const InterviewActionItem = ({
     : upcomingToneStyles[timing.tone as UpcomingTone];
 
   return (
-    <li className={`rounded-xl border border-zinc-200 bg-white px-4 py-3 ${pending ? "opacity-60" : ""}`}>
+    <li className={`rounded-xl border border-zinc-200 bg-white p-3 ${pending ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap gap-2">
         <span className={buttonStyles.pill}>{mapInterviewTypeLabel(item.interviewType)}</span>
         <span className={`${chipBaseStyles} ${timingStyles}`}>{timing.label}</span>
@@ -283,24 +281,26 @@ const ItemActions = ({
   onMark: () => void;
   onUndo: () => void;
 }) => (
-  <div className="mt-4 flex h-8 items-end flex-nowrap gap-4 border-t border-zinc-100">
+  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-2.5">
     <Link
-      className={`${buttonStyles.link} inline-flex h-6 shrink-0 items-center whitespace-nowrap`}
+      className="inline-flex h-8 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium text-violet-700 transition hover:bg-violet-50 hover:text-violet-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
       href={applicationHref(applicationId)}
     >
       View application
     </Link>
     {showFollowUp &&
       (pending ? (
-        <div className="flex h-5 items-center whitespace-nowrap text-sm">
+        <div className="flex items-center gap-2 whitespace-nowrap text-sm text-zinc-700">
           <span>Marked followed up</span>
-          <button className={buttonStyles.link} onClick={onUndo} type="button">Undo</button>
+          <button className={buttonStyles.link} onClick={onUndo} type="button">
+            Undo
+          </button>
         </div>
       ) : (
         <Button
-          className="inline-flex h-6 shrink-0 items-center justify-center whitespace-nowrap px-2 py-0 text-xs leading-none"
+          className="h-8 shrink-0 whitespace-nowrap text-xs"
           onClick={onMark}
-          variant="secondary"
+          variant="ghost"
         >
           Mark followed up
         </Button>

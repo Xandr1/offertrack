@@ -9,14 +9,15 @@ import {
   formStyles,
 } from "@/lib/styles";
 import { ApplicationModal } from "./components/application-modal";
+import { ApplicationAiDraftStep } from "./components/application-ai-draft-step";
+import { ApplicationCreateMethodSwitch } from "./components/application-create-method-switch";
 import { ApplicationModalBody } from "./components/application-modal-body";
 import { ApplicationToolbar } from "./components/application-toolbar";
 import { ApplicationsPagination } from "./components/applications-pagination";
 import { ApplicationsList } from "./components/applications-list";
 import { ApplicationsBoard } from "./components/applications-board";
-import { CreateWithAiModal } from "./components/create-with-ai-modal";
 import { DeleteApplicationConfirmModal } from "./components/delete-application-confirm-modal";
-import { IconPlus, IconSparkles } from "./components/ui-icons";
+import { IconPlus } from "./components/ui-icons";
 import { useApplicationsPageController } from "./hooks/use-applications-page-controller";
 
 const ApplicationsPageContent = () => {
@@ -38,13 +39,6 @@ const ApplicationsPageContent = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            onClick={controller.openCreateWithAiModal}
-            variant="secondarySoftAccent"
-          >
-            <IconSparkles className="mr-2 h-4 w-4" />
-            Create with AI
-          </Button>
-          <Button
             onClick={controller.openCreateApplicationModal}
             variant="primarySoft"
           >
@@ -57,10 +51,12 @@ const ApplicationsPageContent = () => {
       <div className={layoutStyles.section}>
         <ApplicationToolbar
           direction={controller.direction}
+          hasActiveFilters={controller.hasActiveFilters}
           searchInput={controller.searchInput}
           sort={controller.sort}
           stageFilter={controller.stageFilter}
           view={controller.view}
+          onClearFilters={controller.clearFilters}
           onDirectionChange={(value) =>
             controller.setFilters({ direction: value })
           }
@@ -104,6 +100,7 @@ const ApplicationsPageContent = () => {
                   : undefined
               }
               errorMessage={controller.listErrorMessage}
+              hasActiveFilters={controller.hasActiveFilters}
               isLoading={controller.applicationsQuery.isPending}
               nextInterviewStatusApplicationId={
                 controller.updateInterviewStatusMutation.isPending
@@ -111,6 +108,7 @@ const ApplicationsPageContent = () => {
                   : undefined
               }
               onDelete={controller.handleDeleteRequest}
+              onClearFilters={controller.clearFilters}
               onEdit={controller.openEditApplicationModal}
               onNextInterviewStatusChange={
                 controller.handleNextInterviewStatusChange
@@ -154,6 +152,25 @@ const ApplicationsPageContent = () => {
       <ApplicationModal
         isCloseDisabled={modalController.isSaving}
         isOpen={modalController.isApplicationModalOpen}
+        initialFocusSelector={
+          modalController.isEditMode &&
+          !modalController.interviewsLoadedForEdit
+            ? undefined
+            : modalController.isCreateMode &&
+          modalController.createMethod === "ai" &&
+          !modalController.hasGeneratedDraft
+            ? "#application-ai-job-url"
+            : "#application-company"
+        }
+        headerControls={
+          modalController.isCreateMode && modalController.createMethod ? (
+            <ApplicationCreateMethodSwitch
+              disabled={controller.isCreateWithAiGenerating}
+              method={modalController.createMethod}
+              onChange={modalController.setCreateMethod}
+            />
+          ) : undefined
+        }
         title={
           modalController.isCreateMode
             ? "Create application"
@@ -161,7 +178,18 @@ const ApplicationsPageContent = () => {
         }
         onClose={controller.closeApplicationModal}
       >
-        {modalController.formMode && (
+        {modalController.isCreateMode &&
+        modalController.createMethod === "ai" &&
+        !modalController.hasGeneratedDraft ? (
+          <ApplicationAiDraftStep
+            errorMessage={controller.createWithAiError}
+            isGenerating={controller.isCreateWithAiGenerating}
+            jobUrl={controller.createWithAiJobUrl}
+            onCancel={controller.closeApplicationModal}
+            onJobUrlChange={controller.setCreateWithAiJobUrl}
+            onSubmit={controller.handleCreateWithAiSubmit}
+          />
+        ) : modalController.formMode ? (
           <ApplicationModalBody
             footerSection={{
               formMode: modalController.formMode,
@@ -169,6 +197,20 @@ const ApplicationsPageContent = () => {
               isSubmitting: modalController.isSaving,
               modalError: modalController.saveError,
               onCancel: controller.closeApplicationModal,
+              onDelete:
+                modalController.isEditMode &&
+                controller.applicationDetailQuery.data
+                  ? () => {
+                      const application =
+                        controller.applicationDetailQuery.data;
+                      if (!application) {
+                        return;
+                      }
+
+                      controller.closeApplicationModal();
+                      controller.handleDeleteRequest(application);
+                    }
+                  : undefined,
             }}
             formSection={{
               disabled: isModalFormDisabled,
@@ -178,7 +220,6 @@ const ApplicationsPageContent = () => {
             draftWarnings={modalController.draftWarnings}
             interviewsSection={{
               disabled: isModalFormDisabled,
-              hasInvalidRow: modalController.hasInvalidRow,
               interviewsErrorMessage: modalController.interviewsError,
               isEditMode: modalController.isEditMode,
               isInterviewsLoading:
@@ -195,18 +236,8 @@ const ApplicationsPageContent = () => {
             }}
             onSubmit={controller.handleSaveModal}
           />
-        )}
+        ) : null}
       </ApplicationModal>
-
-      <CreateWithAiModal
-        errorMessage={controller.createWithAiError}
-        isGenerating={controller.isCreateWithAiGenerating}
-        isOpen={controller.isCreateWithAiModalOpen}
-        jobUrl={controller.createWithAiJobUrl}
-        onClose={controller.closeCreateWithAiModal}
-        onJobUrlChange={controller.setCreateWithAiJobUrl}
-        onSubmit={controller.handleCreateWithAiSubmit}
-      />
 
       <DeleteApplicationConfirmModal
         isDeleting={controller.deleteApplicationMutation.isPending}
