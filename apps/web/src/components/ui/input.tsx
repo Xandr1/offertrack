@@ -36,17 +36,40 @@ type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   variant?: TextareaVariant;
 };
 
-export const Input = ({ className, variant = "soft", ...props }: InputProps) => (
-  <input
-    {...props}
-    className={[inputVariantClassNames[variant], className].filter(Boolean).join(" ")}
-  />
-);
+const pointerInputTypes = new Set(["checkbox", "date", "datetime-local", "radio"]);
+
+export const Input = ({
+  className,
+  type,
+  variant = "soft",
+  ...props
+}: InputProps) => {
+  const pointerClassName =
+    type && pointerInputTypes.has(type)
+      ? "cursor-pointer disabled:cursor-not-allowed"
+      : undefined;
+
+  return (
+    <input
+      {...props}
+      className={[inputVariantClassNames[variant], pointerClassName, className]
+        .filter(Boolean)
+        .join(" ")}
+      type={type}
+    />
+  );
+};
 
 export const Select = ({ className, variant = "soft", ...props }: SelectProps) => (
   <select
     {...props}
-    className={[selectVariantClassNames[variant], className].filter(Boolean).join(" ")}
+    className={[
+      selectVariantClassNames[variant],
+      "cursor-pointer disabled:cursor-not-allowed",
+      className,
+    ]
+      .filter(Boolean)
+      .join(" ")}
   />
 );
 

@@ -3,18 +3,24 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  ShellLayout,
-} from "./shell-layout";
+import { ShellLayout } from "./shell-layout";
 import {
   SIDEBAR_DOCUMENT_ATTRIBUTE,
   SIDEBAR_PREFERENCE_BOOTSTRAP_SCRIPT,
   parseStoredSidebarExpanded,
 } from "./sidebar-preference";
 
+const mockUsePathname = jest.fn(() => "/applications");
+const mockUseSearchParams = jest.fn(() => new URLSearchParams());
+
+jest.mock("next/navigation", () => ({
+  usePathname: () => mockUsePathname(),
+  useSearchParams: () => mockUseSearchParams(),
+}));
+
 const renderShell = () =>
   render(
-    <ShellLayout activeRoute="/applications">
+    <ShellLayout>
       <div>Content</div>
     </ShellLayout>,
   );
@@ -23,10 +29,12 @@ describe("ShellLayout", () => {
   beforeEach(() => {
     window.localStorage.clear();
     document.documentElement.removeAttribute(SIDEBAR_DOCUMENT_ATTRIBUTE);
+    mockUsePathname.mockReturnValue("/applications");
+    mockUseSearchParams.mockReturnValue(new URLSearchParams());
   });
 
-  it("renders expanded navigation with accessible names and active state", () => {
-    renderShell();
+  it("derives the active navigation item from the current pathname", () => {
+    const view = renderShell();
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeTruthy();
     expect(
@@ -39,14 +47,71 @@ describe("ShellLayout", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(
       screen.getByTestId("protected-page-shell").getAttribute(
+        "data-protected-route",
+      ),
+    ).toBe("/applications");
+
+    mockUsePathname.mockReturnValue("/settings/profile");
+    view.rerender(
+      <ShellLayout>
+        <div>Content</div>
+      </ShellLayout>,
+    );
+    expect(
+      screen
+        .getByRole("link", { name: "Settings" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
+  it("retains Applications filters across non-sidebar protected navigation", () => {
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams(
+        "stage=applied&search=platform&id=application-to-edit",
+      ),
+    );
+    const view = renderShell();
+
+    expect(
+      screen.getByRole("link", { name: "Applications" }).getAttribute("href"),
+    ).toBe("/applications?stage=applied&search=platform");
+
+    mockUsePathname.mockReturnValue("/dashboard");
+    mockUseSearchParams.mockReturnValue(new URLSearchParams());
+    view.rerender(
+      <ShellLayout>
+        <div>Content</div>
+      </ShellLayout>,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Applications" }).getAttribute("href"),
+    ).toBe("/applications?stage=applied&search=platform");
+  });
+
+  it("renders an accessible, contained, minimal sidebar toggle", () => {
+    renderShell();
+
+    const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.className).toContain("h-8");
+    expect(toggle.className).toContain("w-8");
+    expect(toggle.className).toContain("hover:bg-zinc-100");
+    expect(toggle.className).toContain("focus-visible:ring-2");
+    expect(toggle.className).toContain("motion-reduce:transition-none");
+    expect(toggle.className).not.toContain("-right-");
+    expect(toggle.className).not.toContain("shadow");
+    expect(toggle.className).not.toContain("border");
+    expect(
+      screen.getByTestId("protected-page-shell").getAttribute(
         "data-sidebar-state",
       ),
     ).toBe("expanded");
   });
 
-  it("collapses, exposes icon tooltips, and persists the preference", async () => {
+  it("centers collapsed content without leaving labels in desktop layout", async () => {
     const user = userEvent.setup();
-    renderShell();
+    const { container } = renderShell();
 
     await user.click(
       screen.getByRole("button", { name: "Collapse sidebar" }),
@@ -68,8 +133,23 @@ describe("ShellLayout", () => {
     expect(screen.getAllByRole("tooltip")).toHaveLength(3);
     const grid = screen.getByTestId("protected-page-shell").firstElementChild;
     expect(grid?.className).toContain("md:grid-cols-[66px_minmax(0,1fr)]");
-    expect(grid?.className).toContain("duration-300");
-    expect(grid?.className).toContain("motion-reduce:transition-none");
+
+    const brand = container.querySelector("[data-sidebar-brand]");
+    expect(brand?.className).toContain("md:justify-center");
+    expect(brand?.className).toContain("md:gap-0");
+
+    for (const link of container.querySelectorAll("[data-sidebar-nav-link]")) {
+      expect(link.className).toContain("md:mx-auto");
+      expect(link.className).toContain("md:h-10");
+      expect(link.className).toContain("md:w-10");
+      expect(link.className).toContain("md:justify-center");
+      expect(link.className).toContain("md:gap-0");
+      expect(link.className).toContain("md:p-0");
+    }
+
+    for (const label of container.querySelectorAll("[data-sidebar-label]")) {
+      expect(label.className).toContain("md:hidden");
+    }
   });
 
   it("restores a valid collapsed preference and defaults invalid values", async () => {

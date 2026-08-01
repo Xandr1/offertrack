@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import { SIDEBAR_PREFERENCE_BOOTSTRAP_SCRIPT } from "@/components/layout/sidebar-preference";
 import "./globals.css";
+import { ProtectedAppBoundary } from "./protected-app-boundary";
 import { Providers } from "./providers";
 
 const roboto = Roboto({
@@ -34,7 +35,9 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers>
+          <ProtectedAppBoundary>{children}</ProtectedAppBoundary>
+        </Providers>
       </body>
     </html>
   );

@@ -1,7 +1,5 @@
 "use client";
 
-import { ShellLayout } from "@/components/layout/shell-layout";
-import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import {
   layoutStyles,
@@ -26,9 +24,13 @@ const ApplicationsPageContent = () => {
   const isModalFormDisabled =
     modalController.isSaving ||
     (modalController.isEditMode && !modalController.interviewsLoadedForEdit);
+  const isInitialAiCreateStep =
+    modalController.isCreateMode &&
+    modalController.createMethod === "ai" &&
+    !modalController.hasGeneratedDraft;
 
   return (
-    <ShellLayout activeRoute="/applications">
+    <>
       <header className={layoutStyles.splitHeader}>
         <div>
           <h1 className={textStyles.pageHeadline}>Applications</h1>
@@ -95,9 +97,7 @@ const ApplicationsPageContent = () => {
             <ApplicationsList
               applications={controller.applications}
               deletingApplicationId={
-                controller.deleteApplicationMutation.isPending
-                  ? controller.deletingApplicationId
-                  : undefined
+                controller.deletingApplicationId ?? undefined
               }
               errorMessage={controller.listErrorMessage}
               hasActiveFilters={controller.hasActiveFilters}
@@ -132,6 +132,9 @@ const ApplicationsPageContent = () => {
         ) : (
           <ApplicationsBoard
             board={controller.boardController.boardQuery.data}
+            deletingApplicationId={
+              controller.deletingApplicationId ?? undefined
+            }
             errorMessage={controller.boardErrorMessage}
             isLoading={controller.boardController.boardQuery.isPending}
             isStageUpdatePending={
@@ -156,14 +159,14 @@ const ApplicationsPageContent = () => {
           modalController.isEditMode &&
           !modalController.interviewsLoadedForEdit
             ? undefined
-            : modalController.isCreateMode &&
-          modalController.createMethod === "ai" &&
-          !modalController.hasGeneratedDraft
+            : isInitialAiCreateStep
             ? "#application-ai-job-url"
             : "#application-company"
         }
         headerControls={
-          modalController.isCreateMode && modalController.createMethod ? (
+          modalController.isCreateMode &&
+          modalController.createMethod &&
+          !modalController.hasGeneratedDraft ? (
             <ApplicationCreateMethodSwitch
               disabled={controller.isCreateWithAiGenerating}
               method={modalController.createMethod}
@@ -176,11 +179,10 @@ const ApplicationsPageContent = () => {
             ? "Create application"
             : "Edit application"
         }
+        variant={isInitialAiCreateStep ? "ai" : "default"}
         onClose={controller.closeApplicationModal}
       >
-        {modalController.isCreateMode &&
-        modalController.createMethod === "ai" &&
-        !modalController.hasGeneratedDraft ? (
+        {isInitialAiCreateStep ? (
           <ApplicationAiDraftStep
             errorMessage={controller.createWithAiError}
             isGenerating={controller.isCreateWithAiGenerating}
@@ -249,17 +251,10 @@ const ApplicationsPageContent = () => {
         }}
         onConfirm={controller.handleDeleteConfirm}
       />
-    </ShellLayout>
+    </>
   );
 };
 
-const ApplicationsPage = () => (
-  <ProtectedRoute
-    errorTitle="Applications unavailable"
-    loadingLabel="Loading applications..."
-  >
-    {() => <ApplicationsPageContent />}
-  </ProtectedRoute>
-);
+const ApplicationsPage = () => <ApplicationsPageContent />;
 
 export default ApplicationsPage;

@@ -1,4 +1,4 @@
-import { expect, Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const E2E_PASSWORD = "E2e-Test-Password-123!";
 const PROTECTED_SHELL_MARKER = '[data-testid="protected-page-shell"]';
@@ -35,6 +35,181 @@ const expectNoPageOverflow = async (page: Page): Promise<void> => {
       ),
     )
     .toBe(true);
+};
+
+const navigateToApplications = async (page: Page): Promise<void> => {
+  const applicationsLink = page.getByRole("link", { name: "Applications" });
+
+  await Promise.all([
+    page.waitForURL(/\/applications(?:\?.*)?$/),
+    applicationsLink.click(),
+  ]);
+  await expect(
+    page.getByRole("heading", { name: "Applications", exact: true }),
+  ).toBeVisible();
+};
+
+type VisibleBox = NonNullable<Awaited<ReturnType<Locator["boundingBox"]>>>;
+
+const getVisibleBox = async (
+  locator: Locator,
+  name: string,
+): Promise<VisibleBox> => {
+  await expect(locator, `${name} should be visible`).toBeVisible();
+  const box = await locator.boundingBox();
+  expect(box, `${name} should have a bounding box`).not.toBeNull();
+  return box!;
+};
+
+type ToolbarLayout = "intermediate" | "narrow" | "wide";
+
+const expectApplicationsToolbarLayout = async (
+  page: Page,
+  layout: ToolbarLayout,
+  includeClearFilters: boolean,
+): Promise<void> => {
+  const toolbar = page.getByTestId("applications-toolbar");
+  const shellPanel = page
+    .getByTestId("protected-page-shell")
+    .locator(":scope > div > section");
+  const controls = [
+    {
+      locator: toolbar.getByRole("group", { name: "Applications view" }),
+      name: "Applications view",
+    },
+    {
+      locator: toolbar.getByRole("combobox", { name: "Stage" }),
+      name: "Stage",
+    },
+    {
+      locator: toolbar.getByRole("textbox", {
+        name: "Search applications",
+      }),
+      name: "Search",
+    },
+    {
+      locator: toolbar.getByRole("combobox", { name: "Sort" }),
+      name: "Sort",
+    },
+    {
+      locator: toolbar.getByRole("combobox", { name: "Direction" }),
+      name: "Direction",
+    },
+  ];
+
+  if (includeClearFilters) {
+    controls.push({
+      locator: toolbar.getByRole("button", { name: "Clear filters" }),
+      name: "Clear filters",
+    });
+  }
+
+  const toolbarBox = await getVisibleBox(toolbar, "Applications toolbar");
+  const shellPanelBox = await getVisibleBox(shellPanel, "Protected shell panel");
+  const boxes = new Map<string, VisibleBox>();
+
+  for (const control of controls) {
+    boxes.set(
+      control.name,
+      await getVisibleBox(control.locator, `${control.name} control`),
+    );
+  }
+
+  const tolerance = 1;
+  expect(
+    toolbarBox.x,
+    "Toolbar should remain inside the shell panel on the left",
+  ).toBeGreaterThanOrEqual(shellPanelBox.x - tolerance);
+  expect(
+    toolbarBox.x + toolbarBox.width,
+    "Toolbar should remain inside the shell panel on the right",
+  ).toBeLessThanOrEqual(shellPanelBox.x + shellPanelBox.width + tolerance);
+
+  for (const [name, box] of boxes) {
+    expect(
+      box.x,
+      `${name} should remain inside the toolbar on the left`,
+    ).toBeGreaterThanOrEqual(toolbarBox.x - tolerance);
+    expect(
+      box.y,
+      `${name} should remain inside the toolbar at the top`,
+    ).toBeGreaterThanOrEqual(toolbarBox.y - tolerance);
+    expect(
+      box.x + box.width,
+      `${name} should remain inside the toolbar on the right`,
+    ).toBeLessThanOrEqual(toolbarBox.x + toolbarBox.width + tolerance);
+    expect(
+      box.y + box.height,
+      `${name} should remain inside the toolbar at the bottom`,
+    ).toBeLessThanOrEqual(toolbarBox.y + toolbarBox.height + tolerance);
+  }
+
+  const controlEntries = [...boxes.entries()];
+  for (let index = 0; index < controlEntries.length; index += 1) {
+    const [firstName, firstBox] = controlEntries[index];
+
+    for (
+      let comparisonIndex = index + 1;
+      comparisonIndex < controlEntries.length;
+      comparisonIndex += 1
+    ) {
+      const [secondName, secondBox] = controlEntries[comparisonIndex];
+      const overlapWidth =
+        Math.min(
+          firstBox.x + firstBox.width,
+          secondBox.x + secondBox.width,
+        ) - Math.max(firstBox.x, secondBox.x);
+      const overlapHeight =
+        Math.min(
+          firstBox.y + firstBox.height,
+          secondBox.y + secondBox.height,
+        ) - Math.max(firstBox.y, secondBox.y);
+
+      expect(
+        overlapWidth <= tolerance || overlapHeight <= tolerance,
+        `${firstName} and ${secondName} controls should not overlap`,
+      ).toBe(true);
+    }
+  }
+
+  const viewBox = boxes.get("Applications view")!;
+  const stageBox = boxes.get("Stage")!;
+  const searchBox = boxes.get("Search")!;
+  const sortBox = boxes.get("Sort")!;
+  const directionBox = boxes.get("Direction")!;
+
+  if (layout === "wide") {
+    const rowCenters = [
+      viewBox,
+      stageBox,
+      searchBox,
+      sortBox,
+      directionBox,
+    ].map((box) => box.y + box.height / 2);
+    expect(Math.max(...rowCenters) - Math.min(...rowCenters)).toBeLessThanOrEqual(
+      tolerance,
+    );
+  } else if (layout === "intermediate") {
+    const firstRowBottom = Math.max(
+      viewBox.y + viewBox.height,
+      stageBox.y + stageBox.height,
+      sortBox.y + sortBox.height,
+      directionBox.y + directionBox.height,
+      includeClearFilters
+        ? boxes.get("Clear filters")!.y + boxes.get("Clear filters")!.height
+        : 0,
+    );
+    expect(searchBox.y).toBeGreaterThan(firstRowBottom + tolerance);
+  } else {
+    const firstRowBottom = Math.max(
+      viewBox.y + viewBox.height,
+      stageBox.y + stageBox.height,
+    );
+    expect(searchBox.y).toBeGreaterThan(firstRowBottom + tolerance);
+    expect(Math.min(sortBox.y, directionBox.y)).toBeGreaterThan(
+      searchBox.y + searchBox.height + tolerance,
+    );
+  }
 };
 
 const installProtectedShellObserver = async (page: Page): Promise<void> => {
@@ -117,11 +292,7 @@ test("public landing page opens login without protected content", async ({
 test("login permits protected navigation", async ({ page }) => {
   await login(page, accounts.navigation);
 
-  await page.getByRole("link", { name: "Applications" }).click();
-  await expect(page).toHaveURL(/\/applications(?:\?.*)?$/);
-  await expect(
-    page.getByRole("heading", { name: "Applications", exact: true }),
-  ).toBeVisible();
+  await navigateToApplications(page);
 
   await page.getByRole("link", { name: "Settings" }).click();
   await expect(page).toHaveURL(/\/settings$/);
@@ -130,12 +301,71 @@ test("login permits protected navigation", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("protected navigation preserves the shell and Applications state", async ({
+  page,
+}) => {
+  let authMeRequestCount = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/auth/me")) {
+      authMeRequestCount += 1;
+    }
+  });
+
+  await login(page, accounts.navigation);
+  await navigateToApplications(page);
+
+  const shell = page.getByTestId("protected-page-shell");
+  await shell.evaluate((element) => {
+    element.setAttribute("data-e2e-persistent-shell", "mounted");
+  });
+
+  await page
+    .getByRole("combobox", { name: "Stage" })
+    .selectOption("applied");
+  await page.getByRole("button", { name: "Board" }).click();
+  await expect(page.getByRole("button", { name: "Board" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(
+    page.getByRole("link", { name: "Applications" }),
+  ).toHaveAttribute("href", /[?&]stage=applied(?:&|$)/);
+  const authenticatedRequestCount = authMeRequestCount;
+
+  const dashboardLink = page.getByRole("link", { name: "Dashboard" });
+  await Promise.all([
+    page.waitForURL(/\/dashboard$/),
+    dashboardLink.click(),
+  ]);
+  await expect(
+    page.getByRole("heading", { name: "Dashboard", exact: true }),
+  ).toBeVisible();
+  await expect(shell).toHaveAttribute(
+    "data-e2e-persistent-shell",
+    "mounted",
+  );
+
+  await navigateToApplications(page);
+  await expect(
+    page.getByRole("combobox", { name: "Stage" }),
+  ).toHaveValue("applied");
+  await expect(page.getByRole("button", { name: "Board" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(shell).toHaveAttribute(
+    "data-e2e-persistent-shell",
+    "mounted",
+  );
+  expect(authMeRequestCount).toBe(authenticatedRequestCount);
+});
+
 test("manual application persists after reload", async ({ page }) => {
   const company = "Isolated E2E Company";
   const position = "Isolated E2E Engineer";
 
   await login(page, accounts.application);
-  await page.getByRole("link", { name: "Applications" }).click();
+  await navigateToApplications(page);
   await page.getByRole("button", { name: "Add application" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Create application" });
@@ -162,10 +392,48 @@ test("manual application persists after reload", async ({ page }) => {
 });
 
 const responsiveViewports = [
-  { height: 900, label: "1600x900", width: 1600 },
-  { height: 900, label: "1279x900", width: 1279 },
-  { height: 768, label: "1024x768", width: 1024 },
-  { height: 900, label: "768x900", width: 768 },
+  {
+    activeFilters: false,
+    height: 900,
+    label: "1600x900",
+    layout: "wide",
+    width: 1600,
+  },
+  {
+    activeFilters: true,
+    height: 768,
+    label: "1366x768",
+    layout: "intermediate",
+    width: 1366,
+  },
+  {
+    activeFilters: true,
+    height: 900,
+    label: "1280x900",
+    layout: "intermediate",
+    width: 1280,
+  },
+  {
+    activeFilters: false,
+    height: 900,
+    label: "1279x900",
+    layout: "intermediate",
+    width: 1279,
+  },
+  {
+    activeFilters: false,
+    height: 768,
+    label: "1024x768",
+    layout: "intermediate",
+    width: 1024,
+  },
+  {
+    activeFilters: false,
+    height: 900,
+    label: "768x900",
+    layout: "narrow",
+    width: 768,
+  },
 ] as const;
 
 for (const viewport of responsiveViewports) {
@@ -177,7 +445,16 @@ for (const viewport of responsiveViewports) {
       width: viewport.width,
     });
     await login(page, accounts.navigation);
-    await page.getByRole("link", { name: "Applications" }).click();
+    await navigateToApplications(page);
+
+    if (viewport.activeFilters) {
+      await page
+        .getByRole("combobox", { name: "Stage" })
+        .selectOption("applied");
+      await expect(
+        page.getByRole("button", { name: "Clear filters" }),
+      ).toBeVisible();
+    }
 
     const search = page.getByRole("textbox", { name: "Search applications" });
     await expect(search).toBeVisible();
@@ -188,6 +465,11 @@ for (const viewport of responsiveViewports) {
     await expect(
       page.getByRole("combobox", { name: "Direction" }),
     ).toBeVisible();
+    await expectApplicationsToolbarLayout(
+      page,
+      viewport.layout,
+      viewport.activeFilters,
+    );
     await expectNoPageOverflow(page);
 
     await page.getByRole("button", { name: "Board" }).click();
@@ -235,7 +517,13 @@ test("collapsed sidebar expands content and persists across navigation and reloa
   const applicationsLink = page.getByRole("link", { name: "Applications" });
   await applicationsLink.hover();
   await expect(page.getByRole("tooltip", { name: "Applications" })).toBeVisible();
-  await applicationsLink.click();
+  await Promise.all([
+    page.waitForURL(/\/applications(?:\?.*)?$/),
+    applicationsLink.click(),
+  ]);
+  await expect(
+    page.getByRole("heading", { name: "Applications", exact: true }),
+  ).toBeVisible();
   await expect(shell).toHaveAttribute("data-sidebar-state", "collapsed");
 
   await page.route("**/*", async (route) => {
@@ -251,10 +539,12 @@ test("collapsed sidebar expands content and persists across navigation and reloa
     "data-offertrack-sidebar",
     "collapsed",
   );
-  await expect(page.getByText("Loading applications...")).toBeVisible();
   await page.unroute("**/*");
 
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Applications", exact: true }),
+  ).toBeVisible();
   await expect(shell).toHaveAttribute("data-sidebar-state", "collapsed");
   await expect
     .poll(

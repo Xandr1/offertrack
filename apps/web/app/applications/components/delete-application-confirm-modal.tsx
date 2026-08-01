@@ -20,10 +20,10 @@ export const DeleteApplicationConfirmModal = ({
   return (
     <ApplicationModal
       description="This will remove the application and all its interview rounds."
-      isCompact
       isCloseDisabled={isDeleting}
       isOpen={isOpen}
       title="Delete application?"
+      variant="compact"
       onClose={onCancel}
     >
       <div className={modalStyles.softFooterBleedCompact}>

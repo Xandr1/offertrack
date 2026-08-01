@@ -103,3 +103,20 @@ export const replaceBoardApplication = (
     ),
   })),
 });
+
+export const removeBoardApplication = (
+  board: ApplicationBoard,
+  applicationId: string,
+): ApplicationBoard => ({
+  columns: board.columns.map((column) => {
+    if (!column.items.some((item) => item.id === applicationId)) {
+      return column;
+    }
+
+    return withPagination(
+      column,
+      column.items.filter((item) => item.id !== applicationId),
+      Math.max(0, column.totalCount - 1),
+    );
+  }),
+});

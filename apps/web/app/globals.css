@@ -35,29 +35,50 @@ body {
   }
 
   html[data-offertrack-sidebar="expanded"] [data-sidebar-brand] {
+    gap: 0.5rem;
     justify-content: flex-start;
   }
 
   html[data-offertrack-sidebar="expanded"] [data-sidebar-nav-link] {
+    gap: 0.75rem;
     justify-content: flex-start;
     padding-inline: 0.75rem;
   }
 
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-header] {
+    flex-direction: row;
+    gap: 0;
+    justify-content: space-between;
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-header] {
+    flex-direction: column;
+    gap: 0.5rem;
+    justify-content: flex-start;
+  }
+
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-brand],
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
+    gap: 0;
     justify-content: center;
   }
 
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
-    padding-inline: 0.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    margin-inline: auto;
+    padding: 0;
+    width: 2.5rem;
   }
 
   html[data-offertrack-sidebar="expanded"] [data-sidebar-label] {
+    display: inline;
     max-width: 7rem;
     opacity: 1;
   }
 
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-label] {
+    display: none;
     max-width: 0;
     opacity: 0;
   }

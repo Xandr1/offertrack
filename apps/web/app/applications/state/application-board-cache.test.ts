@@ -2,6 +2,7 @@ import type { Application, ApplicationBoard } from "@/lib/api";
 import {
   appendBoardColumn,
   moveBoardApplication,
+  removeBoardApplication,
   replaceBoardApplication,
 } from "./application-board-cache";
 
@@ -120,5 +121,17 @@ describe("application board cache", () => {
     expect(result.columns[1].items[0].updatedAt).toBe(
       "2026-06-28T12:00:00Z",
     );
+  });
+
+  it("removes a deleted card and keeps pagination consistent", () => {
+    const result = removeBoardApplication(board(), "app-1");
+
+    expect(result.columns[0]).toMatchObject({
+      items: [],
+      totalCount: 1,
+      nextOffset: 0,
+      hasMore: true,
+    });
+    expect(result.columns[1]).toEqual(board().columns[1]);
   });
 });

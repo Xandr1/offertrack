@@ -10,6 +10,7 @@ import { ApplicationBoardCard } from "./application-board-card";
 
 type ApplicationBoardColumnProps = {
   column: BoardColumn;
+  deletingApplicationId?: string;
   isStageUpdatePending: boolean;
   loadState: BoardLoadMoreState[BoardColumn["stage"]];
   onDelete: (application: Application) => void;
@@ -19,6 +20,7 @@ type ApplicationBoardColumnProps = {
 
 export const ApplicationBoardColumn = ({
   column,
+  deletingApplicationId,
   isStageUpdatePending,
   loadState,
   onDelete,
@@ -26,6 +28,8 @@ export const ApplicationBoardColumn = ({
   onLoadMore,
 }: ApplicationBoardColumnProps) => {
   const { isOver, setNodeRef } = useDroppable({ id: column.stage });
+  const isInteractionPending =
+    isStageUpdatePending || Boolean(deletingApplicationId);
 
   return (
     <section
@@ -61,7 +65,7 @@ export const ApplicationBoardColumn = ({
         {column.items.map((application) => (
           <ApplicationBoardCard
             application={application}
-            dragDisabled={isStageUpdatePending}
+            dragDisabled={isInteractionPending}
             key={application.id}
             onDelete={onDelete}
             onEdit={onEdit}
@@ -75,7 +79,7 @@ export const ApplicationBoardColumn = ({
       {column.hasMore && (
         <Button
           className="mt-2 w-full border-transparent bg-transparent"
-          disabled={loadState?.isLoading || isStageUpdatePending}
+          disabled={loadState?.isLoading || isInteractionPending}
           onClick={() => onLoadMore(column.stage)}
           variant="secondarySoft"
         >

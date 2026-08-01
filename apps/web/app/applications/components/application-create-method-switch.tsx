@@ -57,6 +57,10 @@ export const ApplicationCreateMethodSwitch = ({
               isSelected
                 ? "bg-white text-violet-700 shadow-sm"
                 : "text-zinc-600 hover:text-zinc-950"
+            } ${
+              disabled
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer"
             }`}
             data-create-method={option.value}
             disabled={disabled}

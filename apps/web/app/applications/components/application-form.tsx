@@ -24,14 +24,9 @@ export const ApplicationForm = ({
   return (
     <div className="space-y-6">
       <section aria-labelledby="application-role-heading">
-        <div>
-          <h3 className={textStyles.sectionTitle} id="application-role-heading">
-            Role
-          </h3>
-          <p className={textStyles.description}>
-            The company, role, and source job post.
-          </p>
-        </div>
+        <h3 className={textStyles.sectionTitle} id="application-role-heading">
+          Role
+        </h3>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
@@ -90,17 +85,12 @@ export const ApplicationForm = ({
         aria-labelledby="application-details-heading"
         className="border-t border-zinc-200 pt-5"
       >
-        <div>
-          <h3
-            className={textStyles.sectionTitle}
-            id="application-details-heading"
-          >
-            Application details
-          </h3>
-          <p className={textStyles.description}>
-            Context for tracking this application.
-          </p>
-        </div>
+        <h3
+          className={textStyles.sectionTitle}
+          id="application-details-heading"
+        >
+          Application details
+        </h3>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
@@ -172,9 +162,6 @@ export const ApplicationForm = ({
         <h3 className={textStyles.sectionTitle} id="application-notes-heading">
           Notes
         </h3>
-        <p className={textStyles.description}>
-          Add context you will want when following up.
-        </p>
         <label className="sr-only" htmlFor="application-notes">
           Notes
         </label>

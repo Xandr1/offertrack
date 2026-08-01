@@ -6,27 +6,79 @@ import { Button } from "@/components/ui/button";
 import { modalStyles, textStyles } from "@/lib/styles";
 import { IconClose } from "./ui-icons";
 
+type ApplicationModalVariant = "default" | "compact" | "ai";
+
 type ApplicationModalProps = {
   children: ReactNode;
   description?: string;
   headerControls?: ReactNode;
-  isCompact?: boolean;
   isOpen: boolean;
   isCloseDisabled?: boolean;
   initialFocusSelector?: string;
   title: string;
+  variant?: ApplicationModalVariant;
   onClose: () => void;
 };
+
+const focusableElementSelector =
+  'a[href], button, input:not([type="hidden"]), select, textarea, [tabindex]';
+
+const isElementVisible = (
+  element: HTMLElement,
+  panel: HTMLElement,
+): boolean => {
+  if (
+    !element.isConnected ||
+    element.closest('[hidden], [inert], [aria-hidden="true"]') ||
+    element.getAttribute("aria-disabled") === "true"
+  ) {
+    return false;
+  }
+
+  let currentElement: HTMLElement | null = element;
+  while (currentElement) {
+    const style = window.getComputedStyle(currentElement);
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      style.visibility === "collapse" ||
+      style.opacity === "0" ||
+      style.contentVisibility === "hidden"
+    ) {
+      return false;
+    }
+
+    currentElement = currentElement.parentElement;
+  }
+
+  const browserProvidesLayout =
+    document.documentElement.getClientRects().length > 0;
+  return (
+    !browserProvidesLayout ||
+    (panel.getClientRects().length > 0 &&
+      element.getClientRects().length > 0)
+  );
+};
+
+const getFocusableElements = (panel: HTMLElement): HTMLElement[] =>
+  Array.from(
+    panel.querySelectorAll<HTMLElement>(focusableElementSelector),
+  ).filter(
+    (element) =>
+      element.tabIndex >= 0 &&
+      !element.matches(":disabled") &&
+      isElementVisible(element, panel),
+  );
 
 export const ApplicationModal = ({
   children,
   description,
   headerControls,
-  isCompact = false,
   isOpen,
   isCloseDisabled = false,
   initialFocusSelector,
   title,
+  variant = "default",
   onClose,
 }: ApplicationModalProps) => {
   const titleId = useId();
@@ -89,11 +141,7 @@ export const ApplicationModal = ({
         return;
       }
 
-      const focusableElements = Array.from(
-        panel.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((element) => element.getAttribute("aria-hidden") !== "true");
+      const focusableElements = getFocusableElements(panel);
 
       if (focusableElements.length === 0) {
         event.preventDefault();
@@ -153,11 +201,17 @@ export const ApplicationModal = ({
       const initialElement = initialFocusSelector
         ? panel.querySelector<HTMLElement>(initialFocusSelector)
         : null;
-      const fallbackElement = panel.querySelector<HTMLElement>(
-        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href]',
-      );
+      const focusableElements = getFocusableElements(panel);
+      const validInitialElement =
+        initialElement &&
+        initialElement.tabIndex >= 0 &&
+        !initialElement.matches(":disabled") &&
+        isElementVisible(initialElement, panel)
+          ? initialElement
+          : null;
+      const fallbackElement = focusableElements[0] ?? null;
 
-      (initialElement ?? fallbackElement ?? panel).focus();
+      (validInitialElement ?? fallbackElement ?? panel).focus();
     });
   }, [initialFocusSelector, isOpen]);
 
@@ -179,7 +233,13 @@ export const ApplicationModal = ({
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
-        className={isCompact ? modalStyles.compactPanel : modalStyles.softPanel}
+        className={
+          variant === "compact"
+            ? modalStyles.compactPanel
+            : variant === "ai"
+              ? modalStyles.aiPanel
+              : modalStyles.softPanel
+        }
         ref={panelRef}
         role="dialog"
         tabIndex={-1}
@@ -189,7 +249,9 @@ export const ApplicationModal = ({
       >
         <div
           className={
-            isCompact ? modalStyles.compactHeader : modalStyles.softHeader
+            variant === "default"
+              ? modalStyles.softHeader
+              : modalStyles.compactHeader
           }
         >
           <div>
@@ -218,7 +280,11 @@ export const ApplicationModal = ({
         </div>
 
         <div
-          className={isCompact ? modalStyles.compactBody : modalStyles.softBody}
+          className={
+            variant === "default"
+              ? modalStyles.softBody
+              : modalStyles.compactBody
+          }
         >
           {children}
         </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser } from "@/lib/api";
 import type { UserSummary } from "@/lib/api";
+import { clearProtectedDataQueries } from "@/lib/auth-session-cache";
 import { queryKeys } from "@/lib/query-keys";
 import { isAuthError } from "@/lib/request-errors";
 
@@ -16,8 +17,19 @@ type FreshAuthSessionResult =
 type FreshAuthSession = FreshAuthSessionResult & { retry: () => void };
 
 export const useFreshAuthSession = (): FreshAuthSession => {
+  const queryClient = useQueryClient();
   const sessionQuery = useQuery({
-    queryFn: getCurrentUser,
+    queryFn: async () => {
+      const previousUser =
+        queryClient.getQueryData<UserSummary>(queryKeys.authMe);
+      const currentUser = await getCurrentUser();
+
+      if (previousUser?.id !== currentUser.id) {
+        clearProtectedDataQueries(queryClient);
+      }
+
+      return currentUser;
+    },
     queryKey: queryKeys.authMe,
     refetchOnMount: "always",
     retry: false,

@@ -3,8 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ProtectedRoute } from "@/components/auth/protected-route";
-import { ShellLayout } from "@/components/layout/shell-layout";
+import { useProtectedUser } from "@/components/auth/protected-route";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -33,14 +32,9 @@ import { SettingsFormState } from "./models/settings-form-model";
 import { invalidateSettingsFeatureQueries } from "./services/settings-invalidation";
 
 export default function SettingsPage() {
-  return (
-    <ProtectedRoute
-      errorTitle="Settings unavailable"
-      loadingLabel="Loading settings..."
-    >
-      {(user) => <SettingsPageContent user={user} />}
-    </ProtectedRoute>
-  );
+  const user = useProtectedUser();
+
+  return <SettingsPageContent user={user} />;
 }
 
 const SettingsPageContent = ({ user }: { user: UserSummary }) => {
@@ -70,8 +64,7 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
   }
 
   return (
-    <ShellLayout activeRoute="/settings">
-      <div className={layoutStyles.container}>
+    <div className={layoutStyles.container}>
         <SettingsPageHeader email={user.email} onSignOut={handleLogout} />
 
         <section className={layoutStyles.section}>
@@ -103,8 +96,7 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
             </Card>
           )}
         </section>
-      </div>
-    </ShellLayout>
+    </div>
   );
 };
 

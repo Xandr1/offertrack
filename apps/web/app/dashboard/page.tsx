@@ -12,8 +12,6 @@ import {
   markInterviewFollowedUp,
 } from "@/lib/api";
 import type { DashboardSummary } from "@/lib/api";
-import { ProtectedRoute } from "@/components/auth/protected-route";
-import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
@@ -219,8 +217,7 @@ function DashboardPageContent() {
   }
 
   return (
-    <ShellLayout activeRoute="/dashboard">
-      <div className={layoutStyles.container}>
+    <div className={layoutStyles.container}>
         <header className={layoutStyles.splitHeader}>
           <div>
             <h1 className={textStyles.pageHeadline}>Dashboard</h1>
@@ -282,18 +279,10 @@ function DashboardPageContent() {
             onUndo={undo}
           />
         </section>}
-      </div>
-    </ShellLayout>
+    </div>
   );
 }
 
 export default function DashboardPage() {
-  return (
-    <ProtectedRoute
-      errorTitle="Dashboard unavailable"
-      loadingLabel="Loading dashboard..."
-    >
-      {() => <DashboardPageContent />}
-    </ProtectedRoute>
-  );
+  return <DashboardPageContent />;
 }

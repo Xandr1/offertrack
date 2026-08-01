@@ -84,7 +84,7 @@ export const cardStyles = {
   application:
     "rounded-2xl border border-zinc-200/80 bg-white p-3.5 shadow-[0_10px_24px_-22px_rgba(24,24,27,0.55)] transition hover:border-violet-200 hover:shadow-md",
   board:
-    "rounded-xl border border-zinc-200/80 bg-white p-2.5 shadow-[0_8px_20px_-18px_rgba(24,24,27,0.65)] transition hover:border-violet-200 hover:shadow-sm",
+    "rounded-xl border border-zinc-200/80 bg-white shadow-[0_8px_20px_-18px_rgba(24,24,27,0.65)] transition hover:border-violet-200 hover:shadow-sm",
 };
 
 export const textStyles = {
@@ -138,7 +138,7 @@ export const buttonStyles = {
   ghostDanger:
     "inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60",
   iconGhostDanger:
-    "inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 disabled:opacity-60",
+    "inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60",
   iconGhost:
     "inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-60",
   textAccent:
@@ -147,7 +147,7 @@ export const buttonStyles = {
     "rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-800",
   pillAccent:
     "rounded-full bg-violet-100 px-3 py-1 text-md font-medium text-zinc-800",
-  link: "text-sm font-medium text-zinc-950 underline",
+  link: "cursor-pointer text-sm font-medium text-zinc-950 underline",
 };
 
 export const modalStyles = {
@@ -157,10 +157,12 @@ export const modalStyles = {
     "flex max-h-[calc(100dvh-1rem)] w-full max-w-[1040px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl",
   compactPanel:
     "flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:rounded-3xl",
+  aiPanel:
+    "flex max-h-[calc(100dvh-1rem)] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl",
   softHeader:
     "flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3.5 sm:px-6 sm:py-4",
   compactHeader:
-    "flex shrink-0 items-start justify-between gap-4 px-5 py-4 sm:px-6",
+    "flex shrink-0 flex-wrap items-start justify-between gap-4 px-5 py-4 sm:px-6",
   softBody:
     "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-0 pt-4 sm:px-6 sm:pt-5",
   compactBody: "min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6",

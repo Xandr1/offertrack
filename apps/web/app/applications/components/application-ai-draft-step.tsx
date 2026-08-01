@@ -26,22 +26,13 @@ export const ApplicationAiDraftStep = ({
   onJobUrlChange,
   onSubmit,
 }: ApplicationAiDraftStepProps) => (
-  <form className="space-y-5" onSubmit={onSubmit}>
-    <section className="mx-auto max-w-2xl py-2 sm:py-5">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
-          <IconSparkles className="h-4 w-4" />
-        </span>
-        <div>
-          <h3 className={textStyles.sectionTitle}>Generate an editable draft</h3>
-          <p className={textStyles.description} id={helpId}>
-            Paste a public job post URL. Generated details fill only empty
-            fields, so anything you entered manually is kept.
-          </p>
-        </div>
-      </div>
+  <form className="space-y-4" onSubmit={onSubmit}>
+    <section>
+      <p className={textStyles.subtitle} id={helpId}>
+        Paste a public job post URL to generate an editable draft.
+      </p>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <label className={textStyles.label} htmlFor="application-ai-job-url">
           Job URL
         </label>
@@ -73,7 +64,7 @@ export const ApplicationAiDraftStep = ({
       </div>
     </section>
 
-    <div className={modalStyles.softFooterBleed}>
+    <div className={modalStyles.softFooterBleedCompact}>
       <Button onClick={onCancel} variant="secondarySoft">
         Cancel
       </Button>

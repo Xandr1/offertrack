@@ -3,10 +3,12 @@
 import React, { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ApplicationCreateMethodSwitch } from "./application-create-method-switch";
 import { ApplicationModal } from "./application-modal";
 
 const ModalHarness = ({ closeDisabled = false }: { closeDisabled?: boolean }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [method, setMethod] = useState<"ai" | "manual">("ai");
 
   return (
     <div data-testid="background">
@@ -21,6 +23,25 @@ const ModalHarness = ({ closeDisabled = false }: { closeDisabled?: boolean }) =>
         <label htmlFor="initial-field">Initial field</label>
         <input id="initial-field" />
         <button type="button">Last action</button>
+        <ApplicationCreateMethodSwitch
+          method={method}
+          onChange={setMethod}
+        />
+        <button tabIndex={-1} type="button">
+          Programmatic action
+        </button>
+        <button disabled type="button">
+          Disabled action
+        </button>
+        <button hidden type="button">
+          Hidden action
+        </button>
+        <div inert>
+          <button type="button">Inert action</button>
+        </div>
+        <button style={{ visibility: "hidden" }} type="button">
+          Invisible action
+        </button>
       </ApplicationModal>
     </div>
   );
@@ -47,13 +68,16 @@ describe("ApplicationModal accessibility", () => {
       screen.getByRole("button", { name: "Last action" }),
     );
     await user.tab();
+    const aiOption = screen.getByRole("radio", { name: "AI" });
+    const manualOption = screen.getByRole("radio", { name: "Manual" });
+    expect(document.activeElement).toBe(aiOption);
+    expect(manualOption.tabIndex).toBe(-1);
+    await user.tab();
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "Close modal" }),
     );
     await user.tab({ shift: true });
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Last action" }),
-    );
+    expect(document.activeElement).toBe(aiOption);
 
     await user.keyboard("{Escape}");
     await waitFor(() =>

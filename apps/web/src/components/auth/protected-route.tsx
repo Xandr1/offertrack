@@ -1,23 +1,37 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UserSummary } from "@/lib/api";
-import {
-  clearAuthSessionQueries,
-  clearProtectedDataQueries,
-} from "@/lib/auth-session-cache";
+import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
 import { useFreshAuthSession } from "@/lib/auth/use-fresh-auth-session";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { formStyles, pageStyles, textStyles } from "@/lib/styles";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+const ProtectedUserContext = createContext<UserSummary | null>(null);
+
 type ProtectedRouteProps = {
-  children: (user: UserSummary) => ReactNode;
+  children: ReactNode;
   errorTitle: string;
   loadingLabel: string;
+};
+
+export const useProtectedUser = (): UserSummary => {
+  const user = useContext(ProtectedUserContext);
+
+  if (!user) {
+    throw new Error("useProtectedUser must be used inside ProtectedRoute");
+  }
+
+  return user;
 };
 
 export const ProtectedRoute = ({
@@ -66,50 +80,13 @@ export const ProtectedRoute = ({
     );
   }
 
-  return (
-    <ProtectedCacheBoundary
-      loadingLabel={loadingLabel}
-      queryClient={queryClient}
-    >
-      {children(session.user)}
-    </ProtectedCacheBoundary>
-  );
-};
-
-type ProtectedCacheBoundaryProps = {
-  children: ReactNode;
-  loadingLabel: string;
-  queryClient: ReturnType<typeof useQueryClient>;
-};
-
-const ProtectedCacheBoundary = ({
-  children,
-  loadingLabel,
-  queryClient,
-}: ProtectedCacheBoundaryProps) => {
-  const [isPrepared, setIsPrepared] = useState(false);
-
-  useEffect(() => {
-    let isActive = true;
-    clearProtectedDataQueries(queryClient);
-    queueMicrotask(() => {
-      if (isActive) {
-        setIsPrepared(true);
-      }
-    });
-
-    return () => {
-      isActive = false;
-    };
-  }, [queryClient]);
-
-  if (!isPrepared) {
-    return (
-      <main className={pageStyles.centered}>
-        <div className={pageStyles.statusMessage}>{loadingLabel}</div>
-      </main>
-    );
+  if (session.status !== "authenticated") {
+    return null;
   }
 
-  return <>{children}</>;
+  return (
+    <ProtectedUserContext.Provider key={session.user.id} value={session.user}>
+      {children}
+    </ProtectedUserContext.Provider>
+  );
 };

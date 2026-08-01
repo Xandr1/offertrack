@@ -29,6 +29,7 @@ import {
   getStoredApplicationsView,
   storeApplicationsView,
 } from "./helpers/application-filters";
+import { ProtectedAppBoundary } from "../protected-app-boundary";
 import ApplicationsPage from "./page";
 import { LoginClient } from "../login/login-client";
 import { queryKeys } from "@/lib/query-keys";
@@ -257,7 +258,11 @@ const renderPage = () => {
     React.createElement(
       QueryClientProvider,
       { client: queryClient },
-      React.createElement(ApplicationsPage),
+      React.createElement(
+        ProtectedAppBoundary,
+        null,
+        React.createElement(ApplicationsPage),
+      ),
     );
   const view = render(makeUi());
 
@@ -509,7 +514,7 @@ describe("ApplicationsPage", () => {
     expect(screen.getByText("Showing 1 of 1")).toBeTruthy();
     expect(screen.getAllByText("Showing 0 of 0")).toHaveLength(4);
     expect(
-      screen.getByRole("button", { name: "Move Acme application" }),
+      screen.getByRole("button", { name: "Open Acme application" }),
     ).toBeTruthy();
     expect(screen.getAllByRole("combobox")).toHaveLength(3);
     expect(
@@ -641,7 +646,11 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
 
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Acme application",
+      }),
+    );
 
     expect(screen.getByText("Delete application?")).toBeTruthy();
     expect(
@@ -658,7 +667,11 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
 
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Acme application",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Delete application" }));
 
     await waitFor(() => expect(mockedDeleteApplication).toHaveBeenCalledWith("app-1"));
@@ -681,7 +694,11 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
 
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Delete" }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Acme application",
+      }),
+    );
     await user.click(screen.getByRole("button", { name: "Delete application" }));
 
     expect(
@@ -689,6 +706,11 @@ describe("ApplicationsPage", () => {
     ).toBeTruthy();
     expect(mockedDeleteApplication).toHaveBeenCalledWith("app-1");
     expect(screen.queryByText("Delete application?")).toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: "Delete Acme application",
+      }),
+    ).toBeNull();
   });
 
   it("closes edit and refreshes board data after a successful board save", async () => {
@@ -698,7 +720,12 @@ describe("ApplicationsPage", () => {
     const user = userEvent.setup();
     const view = renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Open Acme application",
+      }),
+    );
     view.rerenderPage();
     await screen.findByRole("heading", { name: "Edit application" });
     const saveButton = await screen.findByRole("button", { name: "Save changes" });
@@ -1025,6 +1052,9 @@ describe("ApplicationsPage", () => {
       screen.getByRole("heading", { name: "Create application" }),
     ).toBeTruthy();
     expect(
+      screen.getByRole("dialog", { name: "Create application" }).className,
+    ).toContain("max-w-[640px]");
+    expect(
       screen.getByRole("radio", { name: "AI" }).getAttribute("aria-checked"),
     ).toBe("true");
     expect(
@@ -1041,6 +1071,18 @@ describe("ApplicationsPage", () => {
     expect(
       screen.getByRole("radio", { name: "Manual" }).getAttribute("aria-checked"),
     ).toBe("true");
+    expect(
+      screen.getByRole("dialog", { name: "Create application" }).className,
+    ).toContain("max-w-[1040px]");
+    expect(
+      screen.queryByText("The company, role, and source job post."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Context for tracking this application."),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Add context you will want when following up."),
+    ).toBeNull();
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByLabelText("Company")),
     );
@@ -1212,6 +1254,9 @@ describe("ApplicationsPage", () => {
     expect(
       screen.getByText("Company name was inferred from page metadata."),
     ).toBeTruthy();
+    expect(
+      screen.queryByRole("radiogroup", { name: "Creation mode" }),
+    ).toBeNull();
     expect(mockedCreateApplication).not.toHaveBeenCalled();
   });
 
@@ -1268,8 +1313,8 @@ describe("ApplicationsPage", () => {
     expect(screen.getByDisplayValue("Kept Position")).toBeTruthy();
     expect(screen.getAllByDisplayValue("Remote")).toHaveLength(2);
     expect(
-      screen.getByRole("radio", { name: "AI" }).getAttribute("aria-checked"),
-    ).toBe("true");
+      screen.queryByRole("radiogroup", { name: "Creation mode" }),
+    ).toBeNull();
   });
 
   it("adds a valid Other and Initial interview that can be saved undated", async () => {

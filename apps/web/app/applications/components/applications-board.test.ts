@@ -1,7 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Application, ApplicationBoard } from "@/lib/api";
 import { ApplicationsBoard } from "./applications-board";
@@ -110,8 +110,9 @@ describe("ApplicationsBoard", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
-  it("opens from the card body without conflating actions or drag handle", async () => {
+  it("opens from the full card surface and isolates the delete action", async () => {
     const onDelete = jest.fn();
+    const onDragEnd = jest.fn();
     const onEdit = jest.fn();
     const user = userEvent.setup();
     render(
@@ -122,7 +123,7 @@ describe("ApplicationsBoard", () => {
         isStageUpdatePending: false,
         loadMoreState: {},
         onDelete,
-        onDragEnd: jest.fn(),
+        onDragEnd,
         onEdit,
         onLoadMore: jest.fn(),
         onRetry: jest.fn(),
@@ -133,20 +134,121 @@ describe("ApplicationsBoard", () => {
       screen.getByRole("button", { name: "Open Acme application" }),
     );
     expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onDragEnd).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
 
     onEdit.mockClear();
-    await user.click(screen.getByRole("button", { name: "Edit" }));
-    expect(onEdit).toHaveBeenCalledTimes(1);
-    expect(onDelete).not.toHaveBeenCalled();
-
-    onEdit.mockClear();
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(
+      screen.getByRole("button", { name: "Delete Acme application" }),
+    );
     expect(onDelete).toHaveBeenCalledTimes(1);
     expect(onEdit).not.toHaveBeenCalled();
+  });
 
-    await user.click(
-      screen.getByRole("button", { name: "Move Acme application" }),
+  it("keeps Enter for opening and Space for a real keyboard drag", async () => {
+    const onDragEnd = jest.fn();
+    const onEdit = jest.fn();
+    const user = userEvent.setup();
+    render(
+      React.createElement(ApplicationsBoard, {
+        board,
+        errorMessage: null,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onDelete: jest.fn(),
+        onDragEnd,
+        onEdit,
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
     );
-    expect(onEdit).not.toHaveBeenCalled();
+    const surface = screen.getByRole("button", {
+      name: "Open Acme application",
+    });
+    surface.focus();
+
+    await user.keyboard("{Enter}");
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onDragEnd).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(surface, { code: "Space", key: " " });
+    await waitFor(() =>
+      expect(surface.getAttribute("aria-pressed")).toBe("true"),
+    );
+    fireEvent.keyDown(document, {
+      code: "ArrowRight",
+      key: "ArrowRight",
+    });
+    fireEvent.keyDown(document, { code: "Space", key: " " });
+
+    await waitFor(() => expect(onDragEnd).toHaveBeenCalledTimes(1));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("locks every board card until the delete refresh completes", () => {
+    const otherApplication: Application = {
+      ...application,
+      companyName: "Globex",
+      id: "app-2",
+    };
+    render(
+      React.createElement(ApplicationsBoard, {
+        board: {
+          ...board,
+          columns: board.columns.map((column) =>
+            column.stage === "applied"
+              ? {
+                ...column,
+                items: [application, otherApplication],
+              }
+              : column,
+          ),
+        },
+        deletingApplicationId: application.id,
+        errorMessage: null,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onDelete: jest.fn(),
+        onDragEnd: jest.fn(),
+        onEdit: jest.fn(),
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
+    );
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Open Acme application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Delete Acme application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Open Globex application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Delete Globex application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "Load more" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
 });

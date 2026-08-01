@@ -8,9 +8,11 @@ import {
   ApiError,
   getCurrentUser,
   getSettings,
+  logout,
   updateSettings,
 } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { ProtectedAppBoundary } from "../protected-app-boundary";
 import SettingsPage from "./page";
 
 const mockReplace = jest.fn();
@@ -33,11 +35,13 @@ jest.mock("@/lib/api", () => ({
   ...jest.requireActual("@/lib/api"),
   getCurrentUser: jest.fn(),
   getSettings: jest.fn(),
+  logout: jest.fn(),
   updateSettings: jest.fn(),
 }));
 
 const mockedGetCurrentUser = jest.mocked(getCurrentUser);
 const mockedGetSettings = jest.mocked(getSettings);
+const mockedLogout = jest.mocked(logout);
 const mockedUpdateSettings = jest.mocked(updateSettings);
 
 const settings = {
@@ -56,6 +60,7 @@ describe("SettingsPage auth gate", () => {
       name: "Person",
     });
     mockedGetSettings.mockResolvedValue(settings);
+    mockedLogout.mockResolvedValue();
   });
 
   it("redirects unauthenticated users without rendering or loading settings", async () => {
@@ -70,7 +75,9 @@ describe("SettingsPage auth gate", () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <SettingsPage />
+        <ProtectedAppBoundary>
+          <SettingsPage />
+        </ProtectedAppBoundary>
       </QueryClientProvider>,
     );
 
@@ -171,6 +178,27 @@ describe("SettingsPage auth gate", () => {
       screen.queryByText("Something went wrong. Please try again."),
     ).toBeNull();
   });
+
+  it("clears protected data when the user signs out", async () => {
+    const queryClient = createQueryClient();
+    const user = userEvent.setup();
+
+    renderPage(queryClient);
+    await screen.findByRole("heading", { name: "Settings" });
+    queryClient.setQueryData(queryKeys.dashboardSummary, { stale: true });
+    queryClient.setQueryData(queryKeys.applications.list(), { stale: true });
+
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await waitFor(() => expect(mockedLogout).toHaveBeenCalledTimes(1));
+    expect(mockReplace).toHaveBeenCalledWith("/login");
+    expect(queryClient.getQueryData(queryKeys.authMe)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.settings)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeUndefined();
+    expect(
+      queryClient.getQueryData(queryKeys.applications.list()),
+    ).toBeUndefined();
+  });
 });
 
 const createQueryClient = () =>
@@ -184,15 +212,17 @@ const createQueryClient = () =>
 const renderPage = (queryClient: QueryClient) =>
   render(
     <QueryClientProvider client={queryClient}>
-      <SettingsPage />
+      <ProtectedAppBoundary>
+        <SettingsPage />
+      </ProtectedAppBoundary>
     </QueryClientProvider>,
   );
 
 const seedProtectedCaches = (queryClient: QueryClient) => {
   queryClient.setQueryData(queryKeys.authMe, {
-    id: "stale-user",
-    email: "stale@example.com",
-    name: null,
+    id: "user-1",
+    email: "person@example.com",
+    name: "Person",
   });
   queryClient.setQueryData(queryKeys.settings, settings);
   queryClient.setQueryData(queryKeys.dashboardSummary, { stale: true });

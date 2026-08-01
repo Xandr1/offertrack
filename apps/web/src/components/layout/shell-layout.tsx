@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   BriefcaseBusiness,
   LayoutDashboard,
@@ -9,7 +10,7 @@ import {
   PanelLeftOpen,
   Settings,
 } from "lucide-react";
-import { ReactNode, useSyncExternalStore } from "react";
+import { ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import { pageStyles, shellStyles } from "@/lib/styles";
 import {
   getExpandedSidebarServerSnapshot,
@@ -24,19 +25,69 @@ const navItems = [
   { href: "/settings", icon: Settings, label: "Settings" },
 ] as const;
 
-type ShellRoute = (typeof navItems)[number]["href"];
-
 type ShellLayoutProps = {
-  activeRoute: ShellRoute;
   children?: ReactNode;
 };
 
-export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => {
+const createRetainedApplicationsHrefStore = () => {
+  let href = "/applications";
+  const listeners = new Set<() => void>();
+
+  return {
+    getSnapshot: () => href,
+    retain: (nextHref: string) => {
+      if (href === nextHref) {
+        return;
+      }
+
+      href = nextHref;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+};
+
+export const ShellLayout = ({ children }: ShellLayoutProps) => {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [retainedApplicationsHrefStore] = useState(
+    createRetainedApplicationsHrefStore,
+  );
+  const retainedApplicationsHref = useSyncExternalStore(
+    retainedApplicationsHrefStore.subscribe,
+    retainedApplicationsHrefStore.getSnapshot,
+    retainedApplicationsHrefStore.getSnapshot,
+  );
   const isSidebarExpanded = useSyncExternalStore(
     subscribeSidebarExpandedPreference,
     readSidebarExpandedPreference,
     getExpandedSidebarServerSnapshot,
   );
+
+  const isApplicationsPath =
+    pathname === "/applications" || pathname.startsWith("/applications/");
+  const currentApplicationsHref = (() => {
+    if (!isApplicationsPath) {
+      return null;
+    }
+    const retainedParams = new URLSearchParams(searchParams.toString());
+    retainedParams.delete("id");
+    const retainedQuery = retainedParams.toString();
+    return retainedQuery
+      ? `/applications?${retainedQuery}`
+      : "/applications";
+  })();
+  const applicationsHref =
+    currentApplicationsHref ?? retainedApplicationsHref;
+
+  useEffect(() => {
+    if (currentApplicationsHref) {
+      retainedApplicationsHrefStore.retain(currentApplicationsHref);
+    }
+  }, [currentApplicationsHref, retainedApplicationsHrefStore]);
 
   const toggleSidebar = () => {
     storeSidebarExpandedPreference(!isSidebarExpanded);
@@ -45,7 +96,7 @@ export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => {
   return (
     <main
       className={pageStyles.appMain}
-      data-protected-route={activeRoute}
+      data-protected-route={pathname}
       data-sidebar-state={isSidebarExpanded ? "expanded" : "collapsed"}
       data-testid="protected-page-shell"
     >
@@ -59,56 +110,68 @@ export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => {
       >
         <aside className={shellStyles.sidebar}>
           <div
-            data-sidebar-brand
-            className={`${shellStyles.brand} ${
-              isSidebarExpanded ? "md:justify-start" : "md:justify-center"
+            data-sidebar-header
+            className={`mb-6 flex min-h-10 items-center ${
+              isSidebarExpanded
+                ? "md:justify-between"
+                : "md:flex-col md:gap-2"
             }`}
           >
-            <Image
-              alt="OfferTrack logo"
-              className={shellStyles.logo}
-              height={32}
-              priority
-              src="/offertrack-logo.png"
-              width={32}
-            />
-            <span
-              data-sidebar-label
-              className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 motion-reduce:transition-none ${
+            <div
+              data-sidebar-brand
+              className={`flex min-h-10 items-center text-sm font-bold text-zinc-950 ${
                 isSidebarExpanded
-                  ? "md:max-w-28 md:opacity-100"
-                  : "md:max-w-0 md:opacity-0"
+                  ? "gap-2 md:justify-start"
+                  : "gap-2 md:justify-center md:gap-0"
               }`}
             >
-              OfferTrack
-            </span>
-          </div>
+              <Image
+                alt="OfferTrack logo"
+                className={shellStyles.logo}
+                height={32}
+                priority
+                src="/offertrack-logo.png"
+                width={32}
+              />
+              <span
+                data-sidebar-label
+                className={`whitespace-nowrap ${
+                  isSidebarExpanded ? "" : "md:hidden"
+                }`}
+              >
+                OfferTrack
+              </span>
+            </div>
 
-          <button
-            aria-expanded={isSidebarExpanded}
-            aria-label={
-              isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
-            }
-            className="absolute -right-5 top-12 z-20 hidden h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 shadow-sm outline-none transition hover:bg-zinc-50 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 md:inline-flex"
-            onClick={toggleSidebar}
-            type="button"
-          >
-            <PanelLeftClose
-              aria-hidden
-              className={isSidebarExpanded ? "h-4 w-4" : "hidden h-4 w-4"}
-              data-sidebar-collapse-icon
-            />
-            <PanelLeftOpen
-              aria-hidden
-              className={isSidebarExpanded ? "hidden h-4 w-4" : "h-4 w-4"}
-              data-sidebar-expand-icon
-            />
-          </button>
+            <button
+              aria-expanded={isSidebarExpanded}
+              aria-label={
+                isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
+              }
+              className="hidden h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 outline-none transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 motion-reduce:transition-none md:inline-flex"
+              data-sidebar-toggle
+              onClick={toggleSidebar}
+              type="button"
+            >
+              <PanelLeftClose
+                aria-hidden
+                className={isSidebarExpanded ? "h-4 w-4" : "hidden h-4 w-4"}
+                data-sidebar-collapse-icon
+              />
+              <PanelLeftOpen
+                aria-hidden
+                className={isSidebarExpanded ? "hidden h-4 w-4" : "h-4 w-4"}
+                data-sidebar-expand-icon
+              />
+            </button>
+          </div>
 
           <nav aria-label="Primary navigation" className={shellStyles.nav}>
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = item.href === activeRoute;
+              const isActive =
+                item.href === pathname ||
+                pathname.startsWith(`${item.href}/`);
 
               return (
                 <Link
@@ -116,18 +179,22 @@ export const ShellLayout = ({ activeRoute, children }: ShellLayoutProps) => {
                   aria-label={item.label}
                   data-sidebar-nav-link
                   className={`${isActive ? shellStyles.navLinkActive : shellStyles.navLink} ${
-                    isSidebarExpanded ? "" : "md:justify-center md:px-2"
+                    isSidebarExpanded
+                      ? ""
+                      : "md:mx-auto md:h-10 md:min-h-10 md:w-10 md:justify-center md:gap-0 md:p-0"
                   } group relative`}
-                  href={item.href}
+                  href={
+                    item.href === "/applications"
+                      ? applicationsHref
+                      : item.href
+                  }
                   key={item.href}
                 >
                   <Icon aria-hidden className="h-[18px] w-[18px] shrink-0" />
                   <span
                     data-sidebar-label
-                    className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 motion-reduce:transition-none ${
-                      isSidebarExpanded
-                        ? "md:max-w-28 md:opacity-100"
-                        : "md:max-w-0 md:opacity-0"
+                    className={`whitespace-nowrap ${
+                      isSidebarExpanded ? "" : "md:hidden"
                     }`}
                   >
                     {item.label}

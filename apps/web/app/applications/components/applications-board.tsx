@@ -18,6 +18,7 @@ import { ApplicationBoardColumn } from "./application-board-column";
 
 type ApplicationsBoardProps = {
   board?: ApplicationBoard;
+  deletingApplicationId?: string;
   errorMessage: string | null;
   isLoading: boolean;
   isStageUpdatePending: boolean;
@@ -31,6 +32,7 @@ type ApplicationsBoardProps = {
 
 export const ApplicationsBoard = ({
   board,
+  deletingApplicationId,
   errorMessage,
   isLoading,
   isStageUpdatePending,
@@ -77,6 +79,7 @@ export const ApplicationsBoard = ({
         {board.columns.map((column) => (
           <ApplicationBoardColumn
             column={column}
+            deletingApplicationId={deletingApplicationId}
             isStageUpdatePending={isStageUpdatePending}
             key={column.stage}
             loadState={loadMoreState[column.stage]}
