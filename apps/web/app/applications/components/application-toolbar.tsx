@@ -56,14 +56,14 @@ export const ApplicationToolbar = ({
   return (
     <section
       aria-label="Applications controls"
-      className={`${sectionStyles.toolbar} flex min-w-0 flex-wrap justify-start lg:flex-nowrap`}
+      className={`${sectionStyles.toolbar} flex min-w-0 flex-wrap justify-start`}
       data-testid="applications-toolbar"
     >
       <div className="order-1 shrink-0">
         <ApplicationsViewToggle view={view} onChange={onViewChange} />
       </div>
 
-      <div className="order-2 w-full min-w-0 sm:w-[170px] sm:shrink-0 md:w-[140px] xl:w-[170px]">
+      <div className="order-2 w-full min-w-0 sm:w-[170px] sm:shrink-0 md:w-[140px] 2xl:w-[170px]">
         <label className="sr-only">Stage</label>
         <Select
           aria-label="Stage"
@@ -81,7 +81,7 @@ export const ApplicationToolbar = ({
       </div>
 
       <form
-        className="relative order-3 w-full min-w-0 shrink-0 md:order-6 lg:order-3 lg:w-auto lg:min-w-[220px] lg:flex-1 xl:min-w-[280px]"
+        className="relative order-3 w-full min-w-0 shrink-0 lg:order-6 lg:basis-full xl:order-3 xl:w-auto xl:min-w-[180px] xl:basis-auto xl:flex-1 2xl:min-w-[280px]"
         onSubmit={handleSearchSubmit}
       >
         <label className="sr-only">Search</label>
@@ -115,7 +115,7 @@ export const ApplicationToolbar = ({
       <div
         className={
           "order-4 w-full min-w-0 sm:w-[180px] sm:shrink-0 " +
-          "md:w-[150px] xl:w-[180px]"
+          "md:w-[150px] lg:order-3 xl:order-4 2xl:w-[180px]"
         }
       >
         <label className="sr-only">Sort</label>
@@ -137,7 +137,7 @@ export const ApplicationToolbar = ({
       <div
         className={
           "order-5 w-full min-w-0 sm:w-[130px] sm:shrink-0 " +
-          "md:w-[110px] xl:w-[130px]"
+          "md:w-[110px] lg:order-4 xl:order-5 2xl:w-[130px]"
         }
       >
         <label className="sr-only">Direction</label>
@@ -158,7 +158,7 @@ export const ApplicationToolbar = ({
 
       {hasActiveFilters && (
         <Button
-          className="order-6 shrink-0 whitespace-nowrap text-xs"
+          className="order-6 shrink-0 whitespace-nowrap text-xs lg:order-5 xl:order-6"
           onClick={onClearFilters}
           variant="ghost"
         >

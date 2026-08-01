@@ -38,8 +38,8 @@ export const InterviewRow = ({
   };
 
   return (
-    <div className={sectionStyles.interviewRow}>
-      <div className="flex items-center gap-1.5">
+    <div className={sectionStyles.interviewRow} data-testid="interview-row">
+      <div className="relative min-w-0">
         <span className={sectionStyles.interviewStatusSlot} aria-hidden>
           {isPassed && (
             <IconCheckCircle className={sectionStyles.interviewStatusIcon} />
@@ -47,6 +47,7 @@ export const InterviewRow = ({
         </span>
         <Select
           aria-label="Interview type"
+          className="min-w-0 pl-9"
           disabled={disabled || isPassed}
           value={row.type}
           onChange={(event) =>
@@ -61,7 +62,7 @@ export const InterviewRow = ({
         </Select>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <Select
           aria-label="Interview status"
           className={statusClassName[row.status]}
@@ -79,9 +80,10 @@ export const InterviewRow = ({
         </Select>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <Input
           aria-label="Scheduled date and time"
+          className="min-w-0"
           disabled={disabled || isPassed}
           type="datetime-local"
           value={row.scheduledAt}

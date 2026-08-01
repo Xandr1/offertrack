@@ -48,7 +48,9 @@ const board: ApplicationBoard = {
 };
 
 describe("ApplicationsBoard", () => {
-  it("shows loaded counts and disables load more during a stage update", () => {
+  it("keeps cards openable while disabling drag, delete, and load more during a stage update", async () => {
+    const onEdit = jest.fn();
+    const user = userEvent.setup();
     render(
       React.createElement(ApplicationsBoard, {
         board,
@@ -58,7 +60,7 @@ describe("ApplicationsBoard", () => {
         loadMoreState: {},
         onDelete: jest.fn(),
         onDragEnd: jest.fn(),
-        onEdit: jest.fn(),
+        onEdit,
         onLoadMore: jest.fn(),
         onRetry: jest.fn(),
       }),
@@ -77,6 +79,25 @@ describe("ApplicationsBoard", () => {
       "xl:min-w-[272px]",
     );
     expect(screen.queryByRole("combobox")).toBeNull();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Open Acme application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Delete Acme application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    await user.click(
+      screen.getByRole("button", { name: "Open Acme application" }),
+    );
+    expect(onEdit).toHaveBeenCalledWith(application);
   });
 
   it("shows compact context for an undated scheduled next interview", () => {
@@ -186,12 +207,15 @@ describe("ApplicationsBoard", () => {
     expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
-  it("locks every board card until the delete refresh completes", () => {
+  it("keeps other cards openable while preventing duplicate deletion", async () => {
     const otherApplication: Application = {
       ...application,
       companyName: "Globex",
       id: "app-2",
     };
+    const onDelete = jest.fn();
+    const onEdit = jest.fn();
+    const user = userEvent.setup();
     render(
       React.createElement(ApplicationsBoard, {
         board: {
@@ -210,9 +234,9 @@ describe("ApplicationsBoard", () => {
         isLoading: false,
         isStageUpdatePending: false,
         loadMoreState: {},
-        onDelete: jest.fn(),
+        onDelete,
         onDragEnd: jest.fn(),
-        onEdit: jest.fn(),
+        onEdit,
         onLoadMore: jest.fn(),
         onRetry: jest.fn(),
       }),
@@ -238,7 +262,7 @@ describe("ApplicationsBoard", () => {
           name: "Open Globex application",
         }) as HTMLButtonElement
       ).disabled,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       (
         screen.getByRole("button", {
@@ -250,5 +274,14 @@ describe("ApplicationsBoard", () => {
       (screen.getByRole("button", { name: "Load more" }) as HTMLButtonElement)
         .disabled,
     ).toBe(true);
+
+    await user.click(
+      screen.getByRole("button", { name: "Open Globex application" }),
+    );
+    expect(onEdit).toHaveBeenCalledWith(otherApplication);
+    await user.click(
+      screen.getByRole("button", { name: "Delete Globex application" }),
+    );
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

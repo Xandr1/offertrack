@@ -96,13 +96,13 @@ export const InterviewRows = ({
   }
 
   return (
-    <section className="space-y-3 border-t border-zinc-200 pt-5">
+    <section
+      className="min-w-0 space-y-3"
+      data-testid="interview-rounds"
+    >
       <div className={sectionStyles.splitRow}>
         <div>
           <h3 className={textStyles.sectionTitle}>Interview rounds</h3>
-          <p className={textStyles.description}>
-            Track each conversation; scheduling is optional.
-          </p>
         </div>
         <Button
           disabled={disabled || isAtLimit}

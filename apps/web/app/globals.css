@@ -34,53 +34,52 @@ body {
     grid-template-columns: 66px minmax(0, 1fr);
   }
 
-  html[data-offertrack-sidebar="expanded"] [data-sidebar-brand] {
-    gap: 0.5rem;
-    justify-content: flex-start;
+  [data-sidebar-label] {
+    display: inline-block;
+    overflow: hidden;
+    transition-duration: 300ms;
+    transition-property: max-width, margin, opacity, transform;
+  }
+
+  [data-sidebar-toggle] {
+    transition-duration: 300ms;
+    transition-property: background-color, color;
   }
 
   html[data-offertrack-sidebar="expanded"] [data-sidebar-nav-link] {
-    gap: 0.75rem;
     justify-content: flex-start;
+    margin-inline: 0;
     padding-inline: 0.75rem;
+    width: 100%;
   }
 
-  html[data-offertrack-sidebar="expanded"] [data-sidebar-header] {
-    flex-direction: row;
-    gap: 0;
-    justify-content: space-between;
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-brand-label] {
+    margin-left: 0.5rem;
   }
 
-  html[data-offertrack-sidebar="collapsed"] [data-sidebar-header] {
-    flex-direction: column;
-    gap: 0.5rem;
-    justify-content: flex-start;
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-nav-label] {
+    margin-left: 0.75rem;
   }
 
-  html[data-offertrack-sidebar="collapsed"] [data-sidebar-brand],
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
-    gap: 0;
     justify-content: center;
-  }
-
-  html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
-    height: 2.5rem;
-    min-height: 2.5rem;
     margin-inline: auto;
     padding: 0;
     width: 2.5rem;
   }
 
   html[data-offertrack-sidebar="expanded"] [data-sidebar-label] {
-    display: inline;
     max-width: 7rem;
     opacity: 1;
+    transform: translateX(0);
   }
 
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-label] {
-    display: none;
+    margin-left: 0;
     max-width: 0;
     opacity: 0;
+    pointer-events: none;
+    transform: translateX(-0.25rem);
   }
 
   html[data-offertrack-sidebar="expanded"] [data-sidebar-collapse-icon],
@@ -91,5 +90,14 @@ body {
   html[data-offertrack-sidebar="expanded"] [data-sidebar-expand-icon],
   html[data-offertrack-sidebar="collapsed"] [data-sidebar-collapse-icon] {
     display: none;
+  }
+}
+
+@media (min-width: 48rem) and (prefers-reduced-motion: reduce) {
+  [data-sidebar-grid],
+  [data-sidebar-label],
+  [data-sidebar-nav-link],
+  [data-sidebar-toggle] {
+    transition-duration: 0s;
   }
 }

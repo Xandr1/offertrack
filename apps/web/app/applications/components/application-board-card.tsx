@@ -13,14 +13,18 @@ import { IconCalendar, IconTrash } from "./ui-icons";
 
 type ApplicationBoardCardProps = {
   application: Application;
+  deleteDisabled: boolean;
   dragDisabled: boolean;
+  openDisabled: boolean;
   onDelete: (application: Application) => void;
   onEdit: (application: Application) => void;
 };
 
 export const ApplicationBoardCard = ({
   application,
+  deleteDisabled,
   dragDisabled,
+  openDisabled,
   onDelete,
   onEdit,
 }: ApplicationBoardCardProps) => {
@@ -90,15 +94,16 @@ export const ApplicationBoardCard = ({
         <button
           {...attributes}
           {...listeners}
+          aria-disabled={openDisabled || undefined}
           aria-label={`Open ${application.companyName} application`}
           className={`block w-full touch-none rounded-xl p-3 pr-12 text-left outline-none transition hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 ${
-            dragDisabled
+            openDisabled
               ? "cursor-not-allowed opacity-60"
               : isDragging
                 ? "cursor-grabbing"
                 : "cursor-pointer"
           }`}
-          disabled={dragDisabled}
+          disabled={openDisabled}
           ref={setActivatorNodeRef}
           type="button"
           onClick={(event) => {
@@ -116,16 +121,16 @@ export const ApplicationBoardCard = ({
             }
           }}
         >
-          <h3 className="truncate text-sm font-semibold text-zinc-950">
+          <span className="block truncate text-sm font-semibold text-zinc-950">
             {application.companyName}
-          </h3>
-          <p className="line-clamp-2 text-sm leading-5 text-zinc-700">
+          </span>
+          <span className="block line-clamp-2 text-sm leading-5 text-zinc-700">
             {application.positionTitle}
-          </p>
+          </span>
           {(application.location || workMode) && (
-            <p className="mt-0.5 truncate text-xs text-zinc-500">
+            <span className="mt-0.5 block truncate text-xs text-zinc-500">
               {[application.location, workMode].filter(Boolean).join(" · ")}
-            </p>
+            </span>
           )}
           {interviewLabel && (
             <span className="mt-2 flex min-w-0 items-center gap-1.5 border-t border-zinc-100 pt-2 text-xs font-medium text-zinc-700">
@@ -141,7 +146,7 @@ export const ApplicationBoardCard = ({
         <Button
           aria-label={`Delete ${application.companyName} application`}
           className="absolute right-2 top-2 z-10"
-          disabled={dragDisabled}
+          disabled={deleteDisabled}
           variant="iconGhostDanger"
           onClick={(event) => {
             event.stopPropagation();

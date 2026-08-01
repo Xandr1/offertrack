@@ -185,9 +185,11 @@ const makeBoard = (overrides: Partial<ApplicationBoard> = {}): ApplicationBoard 
 });
 
 const installApiMocks = ({
+  board = makeBoard(),
   detailMode = "success",
   listPage = makePage(),
 }: {
+  board?: ApplicationBoard;
   detailMode?: "success" | "failure" | "pending";
   listPage?: ApplicationsPageResponse;
 } = {}) => {
@@ -197,7 +199,7 @@ const installApiMocks = ({
     name: null,
   });
   mockedListApplications.mockResolvedValue(listPage);
-  mockedGetApplicationsBoard.mockResolvedValue(makeBoard());
+  mockedGetApplicationsBoard.mockResolvedValue(board);
   mockedGetApplicationBoardColumn.mockResolvedValue({
     stage: "applied",
     totalCount: 1,
@@ -683,6 +685,82 @@ describe("ApplicationsPage", () => {
       direction: "asc",
     });
     expect(screen.queryByText("Delete application?")).toBeNull();
+  });
+
+  it("keeps other board cards openable and prevents duplicate deletes while deleting", async () => {
+    storeApplicationsView("board");
+    const otherApplication = makeApplication({
+      companyName: "Globex",
+      id: "app-2",
+    });
+    const baseBoard = makeBoard();
+    const board = {
+      ...baseBoard,
+      columns: baseBoard.columns.map((column) =>
+        column.stage === "applied"
+          ? {
+              ...column,
+              items: [makeApplication(), otherApplication],
+              totalCount: 2,
+            }
+          : column,
+      ),
+    };
+    installApiMocks({ board });
+    let resolveDelete: () => void = () => undefined;
+    mockedDeleteApplication.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Delete Acme application",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete application" }));
+
+    await waitFor(() =>
+      expect(mockedDeleteApplication).toHaveBeenCalledTimes(1),
+    );
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Open Acme application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Delete Acme application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Open Globex application",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+
+    await user.click(
+      screen.getByRole("button", { name: "Delete Globex application" }),
+    );
+    expect(mockedDeleteApplication).toHaveBeenCalledTimes(1);
+    await user.click(
+      screen.getByRole("button", { name: "Open Globex application" }),
+    );
+    await screen.findByRole("heading", { name: "Edit application" });
+
+    resolveDelete();
+    await waitFor(() =>
+      expect(mockedGetApplicationsBoard).toHaveBeenCalledTimes(2),
+    );
   });
 
   it("keeps delete successful and shows a page error when board refresh fails", async () => {

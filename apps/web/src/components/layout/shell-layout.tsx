@@ -25,6 +25,9 @@ const navItems = [
   { href: "/settings", icon: Settings, label: "Settings" },
 ] as const;
 
+const sidebarLabelClassName =
+  "inline-block max-w-28 translate-x-0 overflow-hidden whitespace-nowrap opacity-100 transition-[max-width,margin,opacity,transform] duration-300 motion-reduce:transition-none";
+
 type ShellLayoutProps = {
   children?: ReactNode;
 };
@@ -102,28 +105,19 @@ export const ShellLayout = ({ children }: ShellLayoutProps) => {
     >
       <div
         data-sidebar-grid
-        className={`${shellStyles.grid} ${
-          isSidebarExpanded
+        className={`${shellStyles.grid} ${isSidebarExpanded
             ? "md:grid-cols-[190px_minmax(0,1fr)]"
             : "md:grid-cols-[66px_minmax(0,1fr)]"
-        }`}
+          }`}
       >
         <aside className={shellStyles.sidebar}>
           <div
             data-sidebar-header
-            className={`mb-6 flex min-h-10 items-center ${
-              isSidebarExpanded
-                ? "md:justify-between"
-                : "md:flex-col md:gap-2"
-            }`}
+            className="mb-6 min-h-10 md:relative md:h-20"
           >
             <div
               data-sidebar-brand
-              className={`flex min-h-10 items-center text-sm font-bold text-zinc-950 ${
-                isSidebarExpanded
-                  ? "gap-2 md:justify-start"
-                  : "gap-2 md:justify-center md:gap-0"
-              }`}
+              className={shellStyles.brand}
             >
               <Image
                 alt="OfferTrack logo"
@@ -134,10 +128,9 @@ export const ShellLayout = ({ children }: ShellLayoutProps) => {
                 width={32}
               />
               <span
+                data-sidebar-brand-label
                 data-sidebar-label
-                className={`whitespace-nowrap ${
-                  isSidebarExpanded ? "" : "md:hidden"
-                }`}
+                className={sidebarLabelClassName}
               >
                 OfferTrack
               </span>
@@ -148,7 +141,7 @@ export const ShellLayout = ({ children }: ShellLayoutProps) => {
               aria-label={
                 isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
               }
-              className="hidden h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 outline-none transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 motion-reduce:transition-none md:inline-flex"
+              className="absolute right-[5px] top-12 hidden h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 outline-none transition-colors duration-300 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 motion-reduce:transition-none md:inline-flex"
               data-sidebar-toggle
               onClick={toggleSidebar}
               type="button"
@@ -178,11 +171,7 @@ export const ShellLayout = ({ children }: ShellLayoutProps) => {
                   aria-current={isActive ? "page" : undefined}
                   aria-label={item.label}
                   data-sidebar-nav-link
-                  className={`${isActive ? shellStyles.navLinkActive : shellStyles.navLink} ${
-                    isSidebarExpanded
-                      ? ""
-                      : "md:mx-auto md:h-10 md:min-h-10 md:w-10 md:justify-center md:gap-0 md:p-0"
-                  } group relative`}
+                  className={`${isActive ? shellStyles.navLinkActive : shellStyles.navLink} group relative`}
                   href={
                     item.href === "/applications"
                       ? applicationsHref
@@ -193,9 +182,8 @@ export const ShellLayout = ({ children }: ShellLayoutProps) => {
                   <Icon aria-hidden className="h-[18px] w-[18px] shrink-0" />
                   <span
                     data-sidebar-label
-                    className={`whitespace-nowrap ${
-                      isSidebarExpanded ? "" : "md:hidden"
-                    }`}
+                    data-sidebar-nav-label
+                    className={sidebarLabelClassName}
                   >
                     {item.label}
                   </span>

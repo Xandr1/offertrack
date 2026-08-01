@@ -5,22 +5,22 @@ export const pageStyles = {
   authForm: "mt-6 space-y-4",
   authFooter: "mt-4 text-sm text-zinc-700",
   appMain:
-    "min-h-screen bg-[radial-gradient(circle_at_top_left,#eef2ff,transparent_32rem),linear-gradient(to_bottom,#fafafa,#f4f4f5)] text-zinc-950",
+    "min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top_left,#eef2ff,transparent_32rem),linear-gradient(to_bottom,#fafafa,#f4f4f5)] text-zinc-950",
 };
 
 export const shellStyles = {
   grid:
-    "grid min-h-screen w-full grid-cols-1 transition-[grid-template-columns] duration-300 motion-reduce:transition-none",
+    "grid min-h-screen w-full grid-cols-1 overflow-x-hidden transition-[grid-template-columns] duration-300 motion-reduce:transition-none",
   sidebar:
     "relative border-b border-zinc-200 bg-white p-4 md:border-b-0 md:border-r md:p-3",
   brand:
-    "mb-6 flex min-h-10 items-center gap-2 text-sm font-bold text-zinc-950",
+    "flex min-h-10 items-center overflow-hidden text-sm font-bold text-zinc-950 md:pl-[5px]",
   logo: "h-8 w-8 shrink-0",
   nav: "space-y-1.5 text-sm",
   navLink:
-    "flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-zinc-600 outline-none transition hover:bg-zinc-50 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
+    "flex h-10 min-h-10 w-full items-center gap-0 rounded-xl text-zinc-600 outline-none transition-[width,margin,padding,background-color,color] duration-300 hover:bg-zinc-50 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 motion-reduce:transition-none",
   navLinkActive:
-    "flex min-h-11 items-center gap-3 rounded-xl bg-violet-50 px-3 py-2 font-medium text-violet-700 outline-none ring-1 ring-inset ring-violet-100 transition focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1",
+    "flex h-10 min-h-10 w-full items-center gap-0 rounded-xl bg-violet-50 font-medium text-violet-700 outline-none ring-1 ring-inset ring-violet-100 transition-[width,margin,padding,background-color,color] duration-300 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 motion-reduce:transition-none",
   panel:
     "min-w-0 overflow-x-clip bg-white/90 p-5 backdrop-blur md:p-8",
 };
@@ -192,9 +192,9 @@ export const sectionStyles = {
   listItem: "rounded-xl border border-zinc-200 px-4 py-3",
   splitRow: "flex flex-wrap items-center justify-between gap-3",
   interviewRow:
-    "grid gap-2 rounded-lg border border-zinc-200/80 bg-zinc-50/60 p-2 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_40px] lg:items-center",
+    "grid min-w-0 gap-2 rounded-lg border border-zinc-200/80 bg-zinc-50/60 p-2 sm:grid-cols-2 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_40px] md:items-center",
   interviewStatusSlot:
-    "inline-flex h-4 w-4 shrink-0 items-center justify-center",
+    "pointer-events-none absolute left-3 top-1/2 z-10 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center",
   interviewStatusIcon:
     "h-4 w-4 text-emerald-600",
   topBorderRow:

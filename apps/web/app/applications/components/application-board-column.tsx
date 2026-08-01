@@ -28,8 +28,9 @@ export const ApplicationBoardColumn = ({
   onLoadMore,
 }: ApplicationBoardColumnProps) => {
   const { isOver, setNodeRef } = useDroppable({ id: column.stage });
-  const isInteractionPending =
+  const dragDisabled =
     isStageUpdatePending || Boolean(deletingApplicationId);
+  const deleteDisabled = dragDisabled;
 
   return (
     <section
@@ -65,8 +66,10 @@ export const ApplicationBoardColumn = ({
         {column.items.map((application) => (
           <ApplicationBoardCard
             application={application}
-            dragDisabled={isInteractionPending}
+            deleteDisabled={deleteDisabled}
+            dragDisabled={dragDisabled}
             key={application.id}
+            openDisabled={deletingApplicationId === application.id}
             onDelete={onDelete}
             onEdit={onEdit}
           />
@@ -79,7 +82,7 @@ export const ApplicationBoardColumn = ({
       {column.hasMore && (
         <Button
           className="mt-2 w-full border-transparent bg-transparent"
-          disabled={loadState?.isLoading || isInteractionPending}
+          disabled={loadState?.isLoading || dragDisabled}
           onClick={() => onLoadMore(column.stage)}
           variant="secondarySoft"
         >

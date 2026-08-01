@@ -37,18 +37,24 @@ const application: Application = {
 };
 
 const renderCard = ({
+  deleteDisabled = false,
   dragDisabled = false,
+  openDisabled = false,
   onDelete = jest.fn(),
   onEdit = jest.fn(),
 }: {
+  deleteDisabled?: boolean;
   dragDisabled?: boolean;
+  openDisabled?: boolean;
   onDelete?: jest.Mock;
   onEdit?: jest.Mock;
 } = {}) => {
   const view = render(
     <ApplicationBoardCard
       application={application}
+      deleteDisabled={deleteDisabled}
       dragDisabled={dragDisabled}
+      openDisabled={openDisabled}
       onDelete={onDelete}
       onEdit={onEdit}
     />,
@@ -100,6 +106,9 @@ describe("ApplicationBoardCard", () => {
     expect(surface.closest("article")?.querySelectorAll("button")).toHaveLength(
       2,
     );
+    expect(surface.querySelector("h3, p")).toBeNull();
+    expect(screen.getByText("Acme").tagName).toBe("SPAN");
+    expect(screen.getByText("Engineer").tagName).toBe("SPAN");
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
 
     await user.click(surface);
@@ -139,7 +148,9 @@ describe("ApplicationBoardCard", () => {
     view.rerender(
       <ApplicationBoardCard
         application={application}
+        deleteDisabled={false}
         dragDisabled={false}
+        openDisabled={false}
         onDelete={view.onDelete}
         onEdit={onEdit}
       />,
@@ -148,7 +159,9 @@ describe("ApplicationBoardCard", () => {
     view.rerender(
       <ApplicationBoardCard
         application={application}
+        deleteDisabled={false}
         dragDisabled={false}
+        openDisabled={false}
         onDelete={view.onDelete}
         onEdit={onEdit}
       />,
@@ -169,8 +182,38 @@ describe("ApplicationBoardCard", () => {
     jest.useRealTimers();
   });
 
-  it("disables opening, deleting, and dragging while movement is pending", () => {
-    renderCard({ dragDisabled: true });
+  it("keeps opening available while dragging and deleting are disabled", async () => {
+    const user = userEvent.setup();
+    const { onEdit } = renderCard({
+      deleteDisabled: true,
+      dragDisabled: true,
+    });
+
+    const surface = screen.getByRole("button", {
+      name: "Open Acme application",
+    }) as HTMLButtonElement;
+    const deleteButton = screen.getByRole("button", {
+      name: "Delete Acme application",
+    }) as HTMLButtonElement;
+
+    expect(surface.disabled).toBe(false);
+    expect(surface.className).toContain("cursor-pointer");
+    expect(deleteButton.disabled).toBe(true);
+    expect(mockedUseDraggable).toHaveBeenCalledWith({
+      disabled: true,
+      id: "app-1",
+    });
+
+    await user.click(surface);
+    expect(onEdit).toHaveBeenCalledWith(application);
+  });
+
+  it("disables opening and deleting for the application being deleted", () => {
+    renderCard({
+      deleteDisabled: true,
+      dragDisabled: true,
+      openDisabled: true,
+    });
 
     const surface = screen.getByRole("button", {
       name: "Open Acme application",
@@ -182,9 +225,5 @@ describe("ApplicationBoardCard", () => {
     expect(surface.disabled).toBe(true);
     expect(surface.className).toContain("cursor-not-allowed");
     expect(deleteButton.disabled).toBe(true);
-    expect(mockedUseDraggable).toHaveBeenCalledWith({
-      disabled: true,
-      id: "app-1",
-    });
   });
 });

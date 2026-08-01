@@ -98,8 +98,13 @@ describe("ShellLayout", () => {
     expect(toggle.className).toContain("w-8");
     expect(toggle.className).toContain("hover:bg-zinc-100");
     expect(toggle.className).toContain("focus-visible:ring-2");
+    expect(toggle.className).toContain("focus-visible:ring-inset");
     expect(toggle.className).toContain("motion-reduce:transition-none");
-    expect(toggle.className).not.toContain("-right-");
+    expect(toggle.className).toContain("absolute");
+    expect(toggle.className).toContain("right-[5px]");
+    expect(toggle.className).toContain("top-12");
+    expect(toggle.className).not.toContain("bottom-0");
+    expect(toggle.className).not.toContain("-left-");
     expect(toggle.className).not.toContain("shadow");
     expect(toggle.className).not.toContain("border");
     expect(
@@ -109,7 +114,7 @@ describe("ShellLayout", () => {
     ).toBe("expanded");
   });
 
-  it("centers collapsed content without leaving labels in desktop layout", async () => {
+  it("animates collapsed labels without layout gaps or hidden display", async () => {
     const user = userEvent.setup();
     const { container } = renderShell();
 
@@ -133,23 +138,31 @@ describe("ShellLayout", () => {
     expect(screen.getAllByRole("tooltip")).toHaveLength(3);
     const grid = screen.getByTestId("protected-page-shell").firstElementChild;
     expect(grid?.className).toContain("md:grid-cols-[66px_minmax(0,1fr)]");
+    expect(grid?.className).toContain("duration-300");
+    expect(grid?.className).toContain("motion-reduce:transition-none");
 
+    const header = container.querySelector("[data-sidebar-header]");
+    expect(header?.className).toContain("md:h-20");
+    expect(header?.className).not.toContain("flex-col");
     const brand = container.querySelector("[data-sidebar-brand]");
-    expect(brand?.className).toContain("md:justify-center");
-    expect(brand?.className).toContain("md:gap-0");
+    expect(brand?.className).toContain("md:pl-[5px]");
+    expect(brand?.className).not.toContain("gap-");
 
     for (const link of container.querySelectorAll("[data-sidebar-nav-link]")) {
-      expect(link.className).toContain("md:mx-auto");
-      expect(link.className).toContain("md:h-10");
-      expect(link.className).toContain("md:w-10");
-      expect(link.className).toContain("md:justify-center");
-      expect(link.className).toContain("md:gap-0");
-      expect(link.className).toContain("md:p-0");
+      expect(link.className).toContain("h-10");
+      expect(link.className).toContain("gap-0");
+      expect(link.className).toContain("duration-300");
+      expect(link.className).toContain("motion-reduce:transition-none");
     }
 
     for (const label of container.querySelectorAll("[data-sidebar-label]")) {
-      expect(label.className).toContain("md:hidden");
+      expect(label.className).toContain("max-w-28");
+      expect(label.className).toContain("duration-300");
+      expect(label.className).toContain("motion-reduce:transition-none");
+      expect(label.className.split(" ")).not.toContain("hidden");
+      expect(label.className.split(" ")).not.toContain("md:hidden");
     }
+    expect(container.innerHTML).toContain("overflow-x-hidden");
   });
 
   it("restores a valid collapsed preference and defaults invalid values", async () => {
