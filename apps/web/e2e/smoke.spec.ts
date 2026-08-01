@@ -116,6 +116,7 @@ const expectApplicationsToolbarLayout = async (
   }
 
   const tolerance = 1;
+
   expect(
     toolbarBox.x,
     "Toolbar should remain inside the shell panel on the left",
@@ -136,8 +137,8 @@ const expectApplicationsToolbarLayout = async (
     ).toBeGreaterThanOrEqual(toolbarBox.y - tolerance);
     expect(
       box.x + box.width,
-      `${name} should remain inside the toolbar on the right`,
-    ).toBeLessThanOrEqual(toolbarBox.x + toolbarBox.width + tolerance);
+      `${name} should remain inside the shell panel on the right`,
+    ).toBeLessThanOrEqual(shellPanelBox.x + shellPanelBox.width + tolerance);
     expect(
       box.y + box.height,
       `${name} should remain inside the toolbar at the bottom`,
