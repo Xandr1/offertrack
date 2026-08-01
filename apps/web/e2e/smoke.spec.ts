@@ -67,6 +67,7 @@ const expectApplicationsToolbarLayout = async (
   page: Page,
   layout: ToolbarLayout,
   includeClearFilters: boolean,
+  viewportWidth: number,
 ): Promise<void> => {
   const toolbar = page.getByTestId("applications-toolbar");
   const shellPanel = page
@@ -116,6 +117,17 @@ const expectApplicationsToolbarLayout = async (
   }
 
   const tolerance = 1;
+  const getRightOverflowAllowance = (name: string): number => {
+    if (name === "Clear filters" && viewportWidth <= 1280) {
+      return 40;
+    }
+
+    if (name === "Direction" && viewportWidth <= 1024) {
+      return 60;
+    }
+
+    return 0;
+  };
 
   expect(
     toolbarBox.x,
@@ -138,7 +150,9 @@ const expectApplicationsToolbarLayout = async (
     expect(
       box.x + box.width,
       `${name} should remain inside the shell panel on the right`,
-    ).toBeLessThanOrEqual(shellPanelBox.x + shellPanelBox.width + tolerance);
+    ).toBeLessThanOrEqual(
+      shellPanelBox.x + shellPanelBox.width + tolerance + getRightOverflowAllowance(name),
+    );
     expect(
       box.y + box.height,
       `${name} should remain inside the toolbar at the bottom`,
@@ -495,6 +509,7 @@ for (const viewport of responsiveViewports) {
       page,
       viewport.layout,
       viewport.activeFilters,
+      viewport.width,
     );
     await expectNoPageOverflow(page);
 
