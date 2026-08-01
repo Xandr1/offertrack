@@ -30,23 +30,30 @@ export const InterviewRow = ({
   onUpdate,
 }: InterviewRowProps) => {
   const isPassed = row.status === "passed";
+  const statusClassName: Record<InterviewStatus, string> = {
+    initial: "border-zinc-300 bg-zinc-50 text-zinc-800",
+    scheduled: "border-violet-200 bg-violet-50 text-violet-800",
+    passed: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    rejected: "border-red-200 bg-red-50 text-red-800",
+  };
 
   return (
-    <div className={sectionStyles.interviewRow}>
-      <div className="flex items-center gap-1.5">
+    <div className={sectionStyles.interviewRow} data-testid="interview-row">
+      <div className="relative min-w-0">
         <span className={sectionStyles.interviewStatusSlot} aria-hidden>
           {isPassed && (
             <IconCheckCircle className={sectionStyles.interviewStatusIcon} />
           )}
         </span>
         <Select
+          aria-label="Interview type"
+          className="min-w-0 pl-9"
           disabled={disabled || isPassed}
           value={row.type}
           onChange={(event) =>
-            onUpdate(row.rowId, "type", event.target.value as InterviewType | "")
+            onUpdate(row.rowId, "type", event.target.value as InterviewType)
           }
         >
-          <option value="">Select type</option>
           {interviewTypes.map((type) => (
             <option key={type} value={type}>
               {interviewTypeLabels[type]}
@@ -55,8 +62,10 @@ export const InterviewRow = ({
         </Select>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <Select
+          aria-label="Interview status"
+          className={statusClassName[row.status]}
           disabled={disabled}
           value={row.status}
           onChange={(event) =>
@@ -71,8 +80,10 @@ export const InterviewRow = ({
         </Select>
       </div>
 
-      <div>
+      <div className="min-w-0">
         <Input
+          aria-label="Scheduled date and time"
+          className="min-w-0"
           disabled={disabled || isPassed}
           type="datetime-local"
           value={row.scheduledAt}

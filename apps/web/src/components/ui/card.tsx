@@ -7,6 +7,7 @@ const cardVariantClassNames = {
   soft: cardStyles.soft,
   dashed: cardStyles.dashed,
   application: cardStyles.application,
+  board: cardStyles.board,
 };
 
 type CardVariant = keyof typeof cardVariantClassNames;

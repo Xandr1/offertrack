@@ -15,11 +15,13 @@ import {
 } from "@/lib/api";
 import type { DashboardSummary } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { ProtectedAppBoundary } from "../protected-app-boundary";
 import DashboardPage, { FOLLOW_UP_UNDO_TIMEOUT_MS } from "./page";
 
 const mockReplace = jest.fn();
 
 jest.mock("next/navigation", () => ({
+  usePathname: () => "/dashboard",
   useRouter: () => ({ replace: mockReplace }),
 }));
 
@@ -349,7 +351,9 @@ const renderPage = () => {
   });
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <DashboardPage />
+      <ProtectedAppBoundary>
+        <DashboardPage />
+      </ProtectedAppBoundary>
     </QueryClientProvider>,
   );
 
@@ -358,9 +362,9 @@ const renderPage = () => {
 
 const seedProtectedCaches = (queryClient: QueryClient) => {
   queryClient.setQueryData(queryKeys.authMe, {
-    id: "stale-user",
-    email: "stale@example.com",
-    name: null,
+    id: "user-1",
+    email: "person@example.com",
+    name: "Person",
   });
   queryClient.setQueryData(queryKeys.dashboardSummary, summary());
   queryClient.setQueryData(queryKeys.settings, { stale: true });

@@ -24,6 +24,7 @@ import { refreshApplicationsBoardPreservingLoadedCounts } from "../services/appl
 import {
   appendBoardColumn,
   moveBoardApplication,
+  removeBoardApplication,
   replaceBoardApplication,
 } from "../state/application-board-cache";
 
@@ -251,10 +252,23 @@ export const useApplicationsBoardController = ({
           ...boardParams,
         });
       queryClient.setQueryData(boardQueryKey, refreshedBoard);
+      return true;
     } catch (error) {
       await onMutationError(error);
+      return false;
     }
   }, [boardParams, boardQueryKey, onMutationError, queryClient]);
+
+  const removeApplication = useCallback(
+    (applicationId: string) => {
+      queryClient.setQueryData<ApplicationBoard>(boardQueryKey, (current) =>
+        current
+          ? removeBoardApplication(current, applicationId)
+          : current,
+      );
+    },
+    [boardQueryKey, queryClient],
+  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -290,6 +304,7 @@ export const useApplicationsBoardController = ({
     isStageUpdatePending: updateStageMutation.isPending,
     loadMore,
     loadMoreState,
+    removeApplication,
     refreshPreservingLoadedCounts,
   };
 };

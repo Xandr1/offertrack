@@ -8,6 +8,7 @@ import { applicationStages } from "../helpers/constants";
 
 type ApplicationStageSelectProps = {
   disabled: boolean;
+  id?: string;
   labelClassName?: string;
   stage: ApplicationStage;
   label?: string;
@@ -19,6 +20,7 @@ type ApplicationStageSelectProps = {
 
 export const ApplicationStageSelect = ({
   disabled,
+  id,
   labelClassName,
   label = "Stage",
   selectClassName,
@@ -34,11 +36,14 @@ export const ApplicationStageSelect = ({
   return (
     <div className={wrapperClassName}>
       {showLabel && (
-        <label className={labelClassName ?? textStyles.label}>{label}</label>
+        <label className={labelClassName ?? textStyles.label} htmlFor={id}>
+          {label}
+        </label>
       )}
       <Select
         className={inputClassName}
         disabled={disabled}
+        id={id}
         value={stage}
         onChange={(event) => onChange(event.target.value as ApplicationStage)}
       >

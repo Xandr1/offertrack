@@ -10,6 +10,7 @@ export type ApplicationModalFooterProps = {
   isSubmitting: boolean;
   modalError: string | null;
   onCancel: () => void;
+  onDelete?: () => void;
 };
 
 export const ApplicationModalFooter = ({
@@ -18,34 +19,54 @@ export const ApplicationModalFooter = ({
   isSubmitting,
   modalError,
   onCancel,
+  onDelete,
 }: ApplicationModalFooterProps) => {
   const isCreateMode = formMode === "create";
 
   return (
     <>
-      {modalError && <div className={formStyles.error}>{modalError}</div>}
+      {modalError && (
+        <div className={formStyles.error} role="alert">
+          {modalError}
+        </div>
+      )}
 
-      <div className={modalStyles.softFooterBleed}>
-        <Button
-          disabled={isSubmitting}
-          onClick={onCancel}
-          variant="secondarySoft"
-        >
-          Cancel
-        </Button>
-        <Button
-          disabled={isSaveDisabled}
-          type="submit"
-          variant="primarySoft"
-        >
-          {isSubmitting
-            ? isCreateMode
-              ? "Creating..."
-              : "Saving..."
-            : isCreateMode
-              ? "Create application"
-              : "Save changes"}
-        </Button>
+      <div
+        className={`${modalStyles.softFooterBleed} ${
+          onDelete ? "justify-between" : "justify-end"
+        }`}
+      >
+        {onDelete && (
+          <Button
+            disabled={isSubmitting}
+            onClick={onDelete}
+            variant="ghostDanger"
+          >
+            Delete
+          </Button>
+        )}
+        <div className="flex items-center gap-3">
+          <Button
+            disabled={isSubmitting}
+            onClick={onCancel}
+            variant="secondarySoft"
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={isSaveDisabled}
+            type="submit"
+            variant="primarySoft"
+          >
+            {isSubmitting
+              ? isCreateMode
+                ? "Creating..."
+                : "Saving..."
+              : isCreateMode
+                ? "Create application"
+                : "Save changes"}
+          </Button>
+        </div>
       </div>
     </>
   );

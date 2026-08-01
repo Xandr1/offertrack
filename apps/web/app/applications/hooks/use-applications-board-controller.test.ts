@@ -206,7 +206,7 @@ describe("useApplicationsBoardController", () => {
     ).toBeDefined();
   });
 
-  it("blocks load more while a stage update is pending", async () => {
+  it("blocks load more and duplicate movement while a stage update is pending", async () => {
     let resolveStageUpdate: (application: Application) => void = () => undefined;
     mockedUpdateStage.mockReturnValue(
       new Promise<Application>((resolve) => {
@@ -225,6 +225,14 @@ describe("useApplicationsBoardController", () => {
 
     act(() => result.current.loadMore("applied"));
     expect(mockedGetColumn).not.toHaveBeenCalled();
+
+    act(() =>
+      result.current.handleDragEnd({
+        active: { id: "app-1" },
+        over: { id: "offer" },
+      } as never),
+    );
+    expect(mockedUpdateStage).toHaveBeenCalledTimes(1);
 
     resolveStageUpdate(makeApplication("app-1", "interviewing"));
     await waitFor(() => expect(result.current.isStageUpdatePending).toBe(false));
@@ -291,10 +299,13 @@ describe("useApplicationsBoardController", () => {
       queryKeys.applications.board(defaultBoardParams),
     );
 
+    let refreshSucceeded = true;
     await act(async () => {
-      await result.current.refreshPreservingLoadedCounts();
+      refreshSucceeded =
+        await result.current.refreshPreservingLoadedCounts();
     });
 
+    expect(refreshSucceeded).toBe(false);
     expect(onMutationError).toHaveBeenCalledWith(expect.any(Error));
     expect(mockedGetBoard).toHaveBeenCalledWith(defaultBoardParams);
     expect(

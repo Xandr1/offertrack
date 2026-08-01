@@ -3,6 +3,7 @@
 import { Application, ApplicationStage, InterviewStatus } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   formStyles,
   layoutStyles,
@@ -15,9 +16,11 @@ type ApplicationsListProps = {
   deletingApplicationId?: string;
   errorMessage: string | null;
   isLoading: boolean;
+  hasActiveFilters: boolean;
   nextInterviewStatusApplicationId?: string;
   stageUpdatingApplicationId?: string;
   onDelete: (application: Application) => void;
+  onClearFilters: () => void;
   onEdit: (application: Application) => void;
   onNextInterviewStatusChange: (
     application: Application,
@@ -31,8 +34,10 @@ export const ApplicationsList = ({
   applications,
   deletingApplicationId,
   errorMessage,
+  hasActiveFilters,
   isLoading,
   nextInterviewStatusApplicationId,
+  onClearFilters,
   onDelete,
   onEdit,
   onNextInterviewStatusChange,
@@ -61,12 +66,25 @@ export const ApplicationsList = ({
 
   if (applications.length === 0) {
     return (
-      <Card variant="dashed">
-        <h2 className={textStyles.sectionTitle}>No matching applications</h2>
-        <p className={textStyles.description}>
-          Try changing filters or add a new application.
-        </p>
-      </Card>
+      <EmptyState
+        action={
+          hasActiveFilters ? (
+            <Button onClick={onClearFilters} variant="secondarySoft">
+              Clear filters
+            </Button>
+          ) : undefined
+        }
+        description={
+          hasActiveFilters
+            ? "Try clearing your search or stage and sort filters."
+            : "Add your first role to start tracking its progress."
+        }
+        title={
+          hasActiveFilters
+            ? "No matching applications"
+            : "No applications yet"
+        }
+      />
     );
   }
 

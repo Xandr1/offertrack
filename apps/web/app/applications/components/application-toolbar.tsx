@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent } from "react";
+import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import type { ApplicationSortField, SortDirection } from "@/lib/api";
 import { sectionStyles } from "@/lib/styles";
@@ -20,6 +21,8 @@ type ApplicationToolbarProps = {
   sort: ApplicationSortField;
   stageFilter: StageFilter;
   view: ApplicationsView;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
   onSearchInputChange: (value: string) => void;
   onSearchClear: () => void;
   onSearchSubmit: () => void;
@@ -31,10 +34,12 @@ type ApplicationToolbarProps = {
 
 export const ApplicationToolbar = ({
   direction,
+  hasActiveFilters,
   searchInput,
   sort,
   stageFilter,
   view,
+  onClearFilters,
   onDirectionChange,
   onSearchClear,
   onSearchInputChange,
@@ -50,32 +55,33 @@ export const ApplicationToolbar = ({
 
   return (
     <section
-      className={`${sectionStyles.toolbar} md:grid-cols-[auto_170px_minmax(0,1fr)_190px_130px]`}
+      aria-label="Applications controls"
+      className={`${sectionStyles.toolbar} flex min-w-0 flex-wrap justify-start`}
+      data-testid="applications-toolbar"
     >
-      <ApplicationsViewToggle view={view} onChange={onViewChange} />
+      <div className="order-1 shrink-0">
+        <ApplicationsViewToggle view={view} onChange={onViewChange} />
+      </div>
 
-      <div>
-          <label className="sr-only">Stage</label>
-          <Select
-            value={stageFilter}
-            onChange={(event) =>
-              onStageChange(event.target.value as StageFilter)
-            }
-          >
-            {stageFilterOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+      <div className="order-2 w-full min-w-0 sm:w-[170px] sm:shrink-0 md:w-[140px] 2xl:w-[170px]">
+        <label className="sr-only">Stage</label>
+        <Select
+          aria-label="Stage"
+          value={stageFilter}
+          onChange={(event) =>
+            onStageChange(event.target.value as StageFilter)
+          }
+        >
+          {stageFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
       </div>
 
       <form
-        className={
-          view === "board"
-            ? "relative w-full md:max-w-md"
-            : "relative w-full"
-        }
+        className="relative order-3 w-full min-w-0 shrink-0 lg:order-6 lg:basis-full xl:order-3 xl:w-auto xl:min-w-[180px] xl:basis-auto xl:flex-1 2xl:min-w-[280px]"
         onSubmit={handleSearchSubmit}
       >
         <label className="sr-only">Search</label>
@@ -87,7 +93,8 @@ export const ApplicationToolbar = ({
           <IconSearch className="h-4 w-4" />
         </button>
         <Input
-          className="pr-10"
+          aria-label="Search applications"
+          className="min-w-0 pr-10"
           placeholder="Search company or position..."
           variant="softWithIcon"
           value={searchInput}
@@ -105,9 +112,15 @@ export const ApplicationToolbar = ({
         )}
       </form>
 
-      <div>
+      <div
+        className={
+          "order-4 w-full min-w-0 sm:w-[180px] sm:shrink-0 " +
+          "md:w-[150px] lg:order-3 xl:order-4 2xl:w-[180px]"
+        }
+      >
         <label className="sr-only">Sort</label>
         <Select
+          aria-label="Sort"
           value={sort}
           onChange={(event) =>
             onSortChange(event.target.value as ApplicationSortField)
@@ -121,9 +134,15 @@ export const ApplicationToolbar = ({
         </Select>
       </div>
 
-      <div>
+      <div
+        className={
+          "order-5 w-full min-w-0 sm:w-[130px] sm:shrink-0 " +
+          "md:w-[110px] lg:order-4 xl:order-5 2xl:w-[130px]"
+        }
+      >
         <label className="sr-only">Direction</label>
         <Select
+          aria-label="Direction"
           value={direction}
           onChange={(event) =>
             onDirectionChange(event.target.value as SortDirection)
@@ -136,6 +155,16 @@ export const ApplicationToolbar = ({
           ))}
         </Select>
       </div>
+
+      {hasActiveFilters && (
+        <Button
+          className="order-6 shrink-0 whitespace-nowrap text-xs lg:order-5 xl:order-6"
+          onClick={onClearFilters}
+          variant="ghost"
+        >
+          Clear filters
+        </Button>
+      )}
     </section>
   );
 };

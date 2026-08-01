@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
   Columns3,
+  GripVertical,
   List,
 } from "lucide-react";
 
@@ -35,3 +36,4 @@ export const IconUndoTimer = withDefaults(RotateCcw);
 export const IconClose = withDefaults(X);
 export const IconBoard = withDefaults(Columns3);
 export const IconList = withDefaults(List);
+export const IconGrip = withDefaults(GripVertical);

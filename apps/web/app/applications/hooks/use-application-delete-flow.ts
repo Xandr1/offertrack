@@ -27,32 +27,52 @@ export const useApplicationDeleteFlow = ({
 }: UseApplicationDeleteFlowParams) => {
   const [applicationToDelete, setApplicationToDelete] =
     useState<Application | null>(null);
+  const [deletingApplicationId, setDeletingApplicationId] =
+    useState<string | null>(null);
 
   const handleDeleteRequest = useCallback(
     (application: Application) => {
+      if (deletingApplicationId || deleteApplicationMutation.isPending) {
+        return;
+      }
+
       clearPageError();
       setApplicationToDelete(application);
     },
-    [clearPageError],
+    [
+      clearPageError,
+      deleteApplicationMutation.isPending,
+      deletingApplicationId,
+    ],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
-    if (!applicationToDelete) {
+    if (
+      !applicationToDelete ||
+      deletingApplicationId ||
+      deleteApplicationMutation.isPending
+    ) {
       return;
     }
 
     const applicationId = applicationToDelete.id;
     setApplicationToDelete(null);
+    setDeletingApplicationId(applicationId);
     clearPageError();
     closeSelectedApplicationAfterDelete(applicationId);
 
     try {
       await deleteApplicationMutation.mutateAsync({ applicationId });
       if (view === "board") {
-        void boardController.refreshPreservingLoadedCounts();
+        boardController.removeApplication(applicationId);
+        await boardController.refreshPreservingLoadedCounts();
       }
     } catch {
       // Mutation onError handles page-level error state.
+    } finally {
+      setDeletingApplicationId((currentId) =>
+        currentId === applicationId ? null : currentId,
+      );
     }
   }, [
     applicationToDelete,
@@ -60,12 +80,13 @@ export const useApplicationDeleteFlow = ({
     clearPageError,
     closeSelectedApplicationAfterDelete,
     deleteApplicationMutation,
+    deletingApplicationId,
     view,
   ]);
 
   return {
     applicationToDelete,
-    deletingApplicationId: deleteApplicationMutation.variables?.applicationId,
+    deletingApplicationId,
     handleDeleteConfirm,
     handleDeleteRequest,
     setApplicationToDelete,

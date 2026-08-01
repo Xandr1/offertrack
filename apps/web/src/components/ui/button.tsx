@@ -21,7 +21,8 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
 };
 
-const baseButtonClassName = "cursor-pointer disabled:cursor-not-allowed";
+const baseButtonClassName =
+  "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed";
 
 export const Button = ({
   className,

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { getErrorMessage } from "@/lib/api";
+import { APPLICATIONS_LIST_DEFAULTS, getErrorMessage } from "@/lib/api";
 import {
   getRequestErrorMessage,
   isAuthError,
@@ -186,20 +186,13 @@ export const useApplicationsPageController = () => {
     queryClient,
   });
 
-  const openCreateApplicationModal = useCallback(() => {
-    prepareCreateApplicationModal();
-    modalController.openCreateModal();
-  }, [modalController, prepareCreateApplicationModal]);
-
   const {
-    closeCreateWithAiModal,
     createApplicationDraftMutation,
     createWithAiError,
     createWithAiJobUrl,
     handleCreateWithAiSubmit,
     isCreateWithAiGenerating,
-    isCreateWithAiModalOpen,
-    openCreateWithAiModal,
+    openCreateApplicationModal,
     setCreateWithAiJobUrl,
   } = useCreateApplicationWithAiFlow({
     clearPageError,
@@ -249,6 +242,22 @@ export const useApplicationsPageController = () => {
     setFilters({ search: "" });
   }, [setFilters, setSearchInput]);
 
+  const hasActiveFilters =
+    searchQuery !== "" ||
+    stageFilter !== "all" ||
+    sort !== APPLICATIONS_LIST_DEFAULTS.sort ||
+    direction !== APPLICATIONS_LIST_DEFAULTS.direction;
+
+  const clearFilters = useCallback(() => {
+    setSearchInput("");
+    setFilters({
+      direction: APPLICATIONS_LIST_DEFAULTS.direction,
+      search: "",
+      sort: APPLICATIONS_LIST_DEFAULTS.sort,
+      stage: "all",
+    });
+  }, [setFilters, setSearchInput]);
+
   const isListAuthError = isAuthError(applicationsQuery.error);
   const isBoardAuthError = isAuthError(boardController.boardQuery.error);
 
@@ -265,7 +274,7 @@ export const useApplicationsPageController = () => {
         ? null
         : getErrorMessage(boardController.boardQuery.error),
     closeApplicationModal,
-    closeCreateWithAiModal,
+    clearFilters,
     createApplicationDraftMutation,
     createWithAiError,
     createWithAiJobUrl,
@@ -278,15 +287,14 @@ export const useApplicationsPageController = () => {
     handleNextInterviewStatusChange,
     handleSaveModal,
     handleStageChange,
+    hasActiveFilters,
     interviewsQuery,
     isCreateWithAiGenerating,
     isListAuthError,
-    isCreateWithAiModalOpen,
     isModalSaveDisabled,
     modalController,
     nextInterviewStatusApplicationId,
     openCreateApplicationModal,
-    openCreateWithAiModal,
     openEditApplicationModal,
     page: applicationsQuery.data?.page ?? page,
     pageError,

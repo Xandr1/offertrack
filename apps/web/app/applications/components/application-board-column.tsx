@@ -3,12 +3,14 @@
 import { useDroppable } from "@dnd-kit/core";
 import type { Application, ApplicationBoardColumn as BoardColumn } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { applicationStageLabels } from "../helpers/application-labels";
 import type { BoardLoadMoreState } from "../hooks/use-applications-board-controller";
 import { ApplicationBoardCard } from "./application-board-card";
 
 type ApplicationBoardColumnProps = {
   column: BoardColumn;
+  deletingApplicationId?: string;
   isStageUpdatePending: boolean;
   loadState: BoardLoadMoreState[BoardColumn["stage"]];
   onDelete: (application: Application) => void;
@@ -18,6 +20,7 @@ type ApplicationBoardColumnProps = {
 
 export const ApplicationBoardColumn = ({
   column,
+  deletingApplicationId,
   isStageUpdatePending,
   loadState,
   onDelete,
@@ -25,17 +28,20 @@ export const ApplicationBoardColumn = ({
   onLoadMore,
 }: ApplicationBoardColumnProps) => {
   const { isOver, setNodeRef } = useDroppable({ id: column.stage });
+  const dragDisabled =
+    isStageUpdatePending || Boolean(deletingApplicationId);
+  const deleteDisabled = dragDisabled;
 
   return (
     <section
-      className={`flex w-[280px] shrink-0 flex-col rounded-2xl border p-3 xl:w-auto xl:min-w-[280px] xl:flex-1 ${
+      className={`flex w-[272px] shrink-0 flex-col rounded-xl border p-2.5 xl:w-auto xl:min-w-[272px] xl:flex-1 ${
         isOver
-          ? "border-violet-400 bg-violet-50"
+          ? "border-violet-400 bg-violet-50/70 ring-2 ring-violet-100"
           : "border-zinc-200 bg-zinc-50"
       }`}
       ref={setNodeRef}
     >
-      <header className="mb-3 px-1">
+      <header className="mb-2 px-1">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-zinc-950">
             {applicationStageLabels[column.stage]}
@@ -49,17 +55,21 @@ export const ApplicationBoardColumn = ({
         </p>
       </header>
 
-      <div className="flex min-h-24 flex-col gap-2">
+      <div className="flex min-h-20 flex-col gap-2">
         {column.items.length === 0 && (
-          <p className="rounded-xl border border-dashed border-zinc-300 px-3 py-8 text-center text-sm text-zinc-500">
-            No applications
-          </p>
+          <EmptyState
+            compact
+            description="Drag an application here when it reaches this stage."
+            title="No applications"
+          />
         )}
         {column.items.map((application) => (
           <ApplicationBoardCard
             application={application}
-            dragDisabled={isStageUpdatePending}
+            deleteDisabled={deleteDisabled}
+            dragDisabled={dragDisabled}
             key={application.id}
+            openDisabled={deletingApplicationId === application.id}
             onDelete={onDelete}
             onEdit={onEdit}
           />
@@ -71,8 +81,8 @@ export const ApplicationBoardColumn = ({
       )}
       {column.hasMore && (
         <Button
-          className="mt-3 w-full"
-          disabled={loadState?.isLoading || isStageUpdatePending}
+          className="mt-2 w-full border-transparent bg-transparent"
+          disabled={loadState?.isLoading || dragDisabled}
           onClick={() => onLoadMore(column.stage)}
           variant="secondarySoft"
         >

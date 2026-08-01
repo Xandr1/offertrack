@@ -72,19 +72,16 @@ export const useCreateApplicationWithAiFlow = ({
 }: UseCreateApplicationWithAiFlowParams) => {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [isCreateWithAiModalOpen, setIsCreateWithAiModalOpen] = useState(false);
   const [isCreateWithAiGenerating, setIsCreateWithAiGenerating] = useState(false);
-  const [createWithAiJobUrl, setCreateWithAiJobUrl] = useState("");
   const [createWithAiError, setCreateWithAiError] = useState<string | null>(null);
   const activeAiDraftRequestRef = useRef(0);
   const createApplicationDraftMutation = useMutation({
     mutationFn: createApplicationDraft,
   });
 
-  const openCreateApplicationModalWithDraft = useCallback(
+  const applyDraftToCreateModal = useCallback(
     (draft: ApplicationDraftResponse) => {
-      prepareCreateApplicationModal();
-      modalController.openCreateModal({
+      modalController.applyAiDraft({
         form: toInitialDraftForm(draft),
         rows: toInitialDraftRows(draft),
         warnings: draft.warnings
@@ -92,41 +89,39 @@ export const useCreateApplicationWithAiFlow = ({
           .filter((warning) => warning !== ""),
       });
     },
-    [modalController, prepareCreateApplicationModal],
+    [modalController],
   );
 
-  const openCreateWithAiModal = useCallback(() => {
+  const openCreateApplicationModal = useCallback(() => {
     clearPageError();
+    prepareCreateApplicationModal();
     activeAiDraftRequestRef.current += 1;
     setIsCreateWithAiGenerating(false);
     setCreateWithAiError(null);
-    setCreateWithAiJobUrl("");
-    setIsCreateWithAiModalOpen(true);
-  }, [clearPageError]);
-
-  const closeCreateWithAiModal = useCallback(() => {
-    activeAiDraftRequestRef.current += 1;
-    setIsCreateWithAiModalOpen(false);
-    setIsCreateWithAiGenerating(false);
-    setCreateWithAiError(null);
-  }, []);
+    modalController.openCreateModal();
+  }, [
+    clearPageError,
+    modalController,
+    prepareCreateApplicationModal,
+  ]);
 
   const updateCreateWithAiJobUrl = useCallback((value: string) => {
-    setCreateWithAiJobUrl(value);
+    modalController.updateFormField("jobUrl", value);
     setCreateWithAiError(null);
-  }, []);
+  }, [modalController]);
 
   const handleCreateWithAiSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      const normalized = normalizeAiJobUrlInput(createWithAiJobUrl);
+      const normalized = normalizeAiJobUrlInput(modalController.form.jobUrl);
       if (normalized.error !== null) {
         setCreateWithAiError(normalized.error);
         return;
       }
 
       const jobUrl = normalized.jobUrl;
+      modalController.updateFormField("jobUrl", jobUrl);
       const requestId = activeAiDraftRequestRef.current + 1;
       activeAiDraftRequestRef.current = requestId;
       setCreateWithAiError(null);
@@ -141,9 +136,7 @@ export const useCreateApplicationWithAiFlow = ({
           return;
         }
 
-        setIsCreateWithAiModalOpen(false);
-        setCreateWithAiJobUrl("");
-        openCreateApplicationModalWithDraft(draft);
+        applyDraftToCreateModal(draft);
       } catch (error) {
         if (activeAiDraftRequestRef.current !== requestId) {
           return;
@@ -162,22 +155,20 @@ export const useCreateApplicationWithAiFlow = ({
     },
     [
       createApplicationDraftMutation,
-      createWithAiJobUrl,
-      openCreateApplicationModalWithDraft,
+      applyDraftToCreateModal,
+      modalController,
       queryClient,
       router,
     ],
   );
 
   return {
-    closeCreateWithAiModal,
     createApplicationDraftMutation,
     createWithAiError,
-    createWithAiJobUrl,
+    createWithAiJobUrl: modalController.form.jobUrl,
     handleCreateWithAiSubmit,
     isCreateWithAiGenerating,
-    isCreateWithAiModalOpen,
-    openCreateWithAiModal,
+    openCreateApplicationModal,
     setCreateWithAiJobUrl: updateCreateWithAiJobUrl,
   };
 };

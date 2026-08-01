@@ -12,8 +12,6 @@ import {
   markInterviewFollowedUp,
 } from "@/lib/api";
 import type { DashboardSummary } from "@/lib/api";
-import { ProtectedRoute } from "@/components/auth/protected-route";
-import { ShellLayout } from "@/components/layout/shell-layout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { queryKeys } from "@/lib/query-keys";
@@ -219,73 +217,72 @@ function DashboardPageContent() {
   }
 
   return (
-    <ShellLayout activeRoute="/dashboard">
-      <div className={layoutStyles.container}>
-        {summaryQuery.error && <Card><h2 className={textStyles.sectionTitle}>Summary unavailable</h2><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(summaryQuery.error)}</div><Button className="mt-4" onClick={() => summaryQuery.refetch()} variant="secondary">Retry</Button></Card>}
-        {!summaryQuery.error && <section className="grid gap-4 xl:grid-cols-3">
-          <DashboardActionModule
-            count={summary?.applicationsToFollowUp.totalCount ?? 0}
-            errorMessage={applicationError}
-            followUpAfterApplyingDays={summary?.followUpAfterApplyingDays ?? 0}
-            hasMore={summary?.applicationsToFollowUp.hasMore ?? false}
-            helperText={summary ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.` : "Applications that may need a follow-up."}
-            isLoading={summaryQuery.isPending}
-            isLoadingMore={applicationLoadMore.isPending}
-            items={summary?.applicationsToFollowUp.items ?? []}
-            kind="applications"
-            now={now}
-            pendingIds={pendingApplicationIds}
-            title="Applications to follow up"
-            onLoadMore={() => summary && applicationLoadMore.mutate(summary.applicationsToFollowUp.nextOffset)}
-            onMarkFollowedUp={markFollowedUp}
-            onUndo={undo}
-          />
-          <DashboardActionModule
-            count={summary?.upcomingInterviews.totalCount ?? 0}
-            errorMessage={upcomingError}
-            hasMore={summary?.upcomingInterviews.hasMore ?? false}
-            helperText={summary ? `Scheduled in the next ${summary.upcomingInterviewDays} days.` : "Scheduled interviews coming up soon."}
-            isLoading={summaryQuery.isPending}
-            isLoadingMore={upcomingLoadMore.isPending}
-            items={summary?.upcomingInterviews.items ?? []}
-            kind="upcoming-interviews"
-            now={now}
-            pendingIds={new Set<string>()}
-            title="Upcoming interviews"
-            onLoadMore={() => summary && upcomingLoadMore.mutate(summary.upcomingInterviews.nextOffset)}
-            onMarkFollowedUp={markFollowedUp}
-            onUndo={undo}
-          />
-          <DashboardActionModule
-            count={summary?.interviewsToFollowUp.totalCount ?? 0}
-            errorMessage={interviewError}
-            followUpAfterInterviewDays={summary?.followUpAfterInterviewDays ?? 0}
-            hasMore={summary?.interviewsToFollowUp.hasMore ?? false}
-            helperText={summary ? `Interviewed at least ${summary.followUpAfterInterviewDays} days ago.` : "Interviews waiting on an outcome."}
-            isLoading={summaryQuery.isPending}
-            isLoadingMore={interviewLoadMore.isPending}
-            items={summary?.interviewsToFollowUp.items ?? []}
-            kind="interviews-to-follow-up"
-            now={now}
-            pendingIds={pendingInterviewIds}
-            title="Interviews to follow up"
-            onLoadMore={() => summary && interviewLoadMore.mutate(summary.interviewsToFollowUp.nextOffset)}
-            onMarkFollowedUp={markFollowedUp}
-            onUndo={undo}
-          />
-        </section>}
-      </div>
-    </ShellLayout>
+    <div className={layoutStyles.container}>
+      <header className={layoutStyles.splitHeader}>
+        <div>
+          <h1 className={textStyles.pageHeadline}>Dashboard</h1>
+          <p className={textStyles.subtitle}>
+            Focus on applications that need your attention
+          </p>
+        </div>
+      </header>
+      {summaryQuery.error && <Card><h2 className={textStyles.sectionTitle}>Summary unavailable</h2><div className={`mt-4 ${formStyles.error}`}>{getRequestErrorMessage(summaryQuery.error)}</div><Button className="mt-4" onClick={() => summaryQuery.refetch()} variant="secondary">Retry</Button></Card>}
+      {!summaryQuery.error && <section className="mt-5 grid gap-4 xl:grid-cols-3">
+        <DashboardActionModule
+          count={summary?.applicationsToFollowUp.totalCount ?? 0}
+          errorMessage={applicationError}
+          followUpAfterApplyingDays={summary?.followUpAfterApplyingDays ?? 0}
+          hasMore={summary?.applicationsToFollowUp.hasMore ?? false}
+          helperText={summary ? `Applied at least ${summary.followUpAfterApplyingDays} days ago.` : "Applications that may need a follow-up."}
+          isLoading={summaryQuery.isPending}
+          isLoadingMore={applicationLoadMore.isPending}
+          items={summary?.applicationsToFollowUp.items ?? []}
+          kind="applications"
+          now={now}
+          pendingIds={pendingApplicationIds}
+          title="Applications to follow up"
+          onLoadMore={() => summary && applicationLoadMore.mutate(summary.applicationsToFollowUp.nextOffset)}
+          onMarkFollowedUp={markFollowedUp}
+          onUndo={undo}
+        />
+        <DashboardActionModule
+          count={summary?.upcomingInterviews.totalCount ?? 0}
+          errorMessage={upcomingError}
+          hasMore={summary?.upcomingInterviews.hasMore ?? false}
+          helperText={summary ? `Scheduled in the next ${summary.upcomingInterviewDays} days.` : "Scheduled interviews coming up soon."}
+          isLoading={summaryQuery.isPending}
+          isLoadingMore={upcomingLoadMore.isPending}
+          items={summary?.upcomingInterviews.items ?? []}
+          kind="upcoming-interviews"
+          now={now}
+          pendingIds={new Set<string>()}
+          title="Upcoming interviews"
+          onLoadMore={() => summary && upcomingLoadMore.mutate(summary.upcomingInterviews.nextOffset)}
+          onMarkFollowedUp={markFollowedUp}
+          onUndo={undo}
+        />
+        <DashboardActionModule
+          count={summary?.interviewsToFollowUp.totalCount ?? 0}
+          errorMessage={interviewError}
+          followUpAfterInterviewDays={summary?.followUpAfterInterviewDays ?? 0}
+          hasMore={summary?.interviewsToFollowUp.hasMore ?? false}
+          helperText={summary ? `Interviewed at least ${summary.followUpAfterInterviewDays} days ago.` : "Interviews waiting on an outcome."}
+          isLoading={summaryQuery.isPending}
+          isLoadingMore={interviewLoadMore.isPending}
+          items={summary?.interviewsToFollowUp.items ?? []}
+          kind="interviews-to-follow-up"
+          now={now}
+          pendingIds={pendingInterviewIds}
+          title="Interviews to follow up"
+          onLoadMore={() => summary && interviewLoadMore.mutate(summary.interviewsToFollowUp.nextOffset)}
+          onMarkFollowedUp={markFollowedUp}
+          onUndo={undo}
+        />
+      </section>}
+    </div>
   );
 }
 
 export default function DashboardPage() {
-  return (
-    <ProtectedRoute
-      errorTitle="Dashboard unavailable"
-      loadingLabel="Loading dashboard..."
-    >
-      {() => <DashboardPageContent />}
-    </ProtectedRoute>
-  );
+  return <DashboardPageContent />;
 }

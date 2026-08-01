@@ -12,8 +12,8 @@ describe("SettingsPageHeader", () => {
     );
 
     expect(html).toContain("Settings");
-    expect(html).toContain("Configure your dashboard timing and target role.");
-    expect(html).toContain("Signed in as");
+    expect(html).toContain("Configure your dashboard timing and target role");
+    expect(html).toContain("Account");
     expect(html).toContain("ollek@example.com");
     expect(html).toContain("Sign out");
   });

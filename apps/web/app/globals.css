@@ -24,3 +24,80 @@ body {
   color: var(--foreground);
   font-family: var(--font-roboto), Arial, sans-serif;
 }
+
+@media (min-width: 48rem) {
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-grid] {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-grid] {
+    grid-template-columns: 66px minmax(0, 1fr);
+  }
+
+  [data-sidebar-label] {
+    display: inline-block;
+    overflow: hidden;
+    transition-duration: 300ms;
+    transition-property: max-width, margin, opacity, transform;
+  }
+
+  [data-sidebar-toggle] {
+    transition-duration: 300ms;
+    transition-property: background-color, color;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-nav-link] {
+    justify-content: flex-start;
+    margin-inline: 0;
+    padding-inline: 0.75rem;
+    width: 100%;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-brand-label] {
+    margin-left: 0.5rem;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-nav-label] {
+    margin-left: 0.75rem;
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-nav-link] {
+    justify-content: center;
+    margin-inline: auto;
+    padding: 0;
+    width: 2.5rem;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-label] {
+    max-width: 7rem;
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-label] {
+    margin-left: 0;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-0.25rem);
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-collapse-icon],
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-expand-icon] {
+    display: block;
+  }
+
+  html[data-offertrack-sidebar="expanded"] [data-sidebar-expand-icon],
+  html[data-offertrack-sidebar="collapsed"] [data-sidebar-collapse-icon] {
+    display: none;
+  }
+}
+
+@media (min-width: 48rem) and (prefers-reduced-motion: reduce) {
+  [data-sidebar-grid],
+  [data-sidebar-label],
+  [data-sidebar-nav-link],
+  [data-sidebar-toggle] {
+    transition-duration: 0s;
+  }
+}

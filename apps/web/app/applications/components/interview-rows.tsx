@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { sectionStyles, textStyles } from "@/lib/styles";
 import {
   InterviewDraftRow,
@@ -16,7 +17,6 @@ type PendingUndoRow = {
 
 type InterviewRowsProps = {
   disabled: boolean;
-  hasInvalidRow: boolean;
   pendingUndoRows: PendingUndoRow[];
   rows: InterviewDraftRow[];
   onAddRow: () => void;
@@ -31,7 +31,6 @@ type InterviewRowsProps = {
 
 export const InterviewRows = ({
   disabled,
-  hasInvalidRow,
   pendingUndoRows,
   rows,
   onAddRow,
@@ -97,9 +96,14 @@ export const InterviewRows = ({
   }
 
   return (
-    <section className={sectionStyles.accentPanel}>
+    <section
+      className="min-w-0 space-y-3"
+      data-testid="interview-rounds"
+    >
       <div className={sectionStyles.splitRow}>
-        <h3 className={textStyles.sectionTitle}>Interview rounds</h3>
+        <div>
+          <h3 className={textStyles.sectionTitle}>Interview rounds</h3>
+        </div>
         <Button
           disabled={disabled || isAtLimit}
           onClick={onAddRow}
@@ -112,6 +116,13 @@ export const InterviewRows = ({
       </div>
 
       <div className="space-y-2">
+        {listItems.length === 0 && (
+          <EmptyState
+            compact
+            description="Add a round now or leave this section empty."
+            title="No interviews yet"
+          />
+        )}
         {listItems.map((item) =>
           item.kind === "row" ? (
             <InterviewRow
@@ -124,7 +135,7 @@ export const InterviewRows = ({
           ) : (
             <div className={sectionStyles.undoRowSoft} key={item.key}>
               <div className={sectionStyles.undoContent}>
-                <IconUndoTimer className="h-4 w-4 animate-spin text-violet-600" />
+                <IconUndoTimer className="h-4 w-4 animate-spin text-violet-600 motion-reduce:animate-none" />
                 <span>Interview deleted · Undo (3s)</span>
               </div>
               <div className="flex h-10 items-center justify-end">
@@ -142,11 +153,6 @@ export const InterviewRows = ({
         )}
       </div>
 
-      {hasInvalidRow && (
-        <p className={textStyles.helperError}>
-          Choose a type of the interview or delete it before saving
-        </p>
-      )}
     </section>
   );
 };
