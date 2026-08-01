@@ -61,7 +61,7 @@ const getVisibleBox = async (
   return box!;
 };
 
-type ToolbarLayout = "intermediate" | "narrow" | "wide";
+type ToolbarLayout = "compact-wide" | "intermediate" | "narrow" | "wide";
 
 const expectApplicationsToolbarLayout = async (
   page: Page,
@@ -178,17 +178,28 @@ const expectApplicationsToolbarLayout = async (
   const sortBox = boxes.get("Sort")!;
   const directionBox = boxes.get("Direction")!;
 
-  if (layout === "wide") {
+  if (layout === "wide" || layout === "compact-wide") {
     const rowCenters = [
       viewBox,
       stageBox,
       searchBox,
       sortBox,
       directionBox,
+      ...(includeClearFilters ? [boxes.get("Clear filters")!] : []),
     ].map((box) => box.y + box.height / 2);
     expect(Math.max(...rowCenters) - Math.min(...rowCenters)).toBeLessThanOrEqual(
       tolerance,
     );
+
+    if (layout === "compact-wide") {
+      expect(stageBox.width).toBeLessThanOrEqual(140 + tolerance);
+      expect(sortBox.width).toBeLessThanOrEqual(150 + tolerance);
+      expect(directionBox.width).toBeLessThanOrEqual(110 + tolerance);
+    } else {
+      expect(stageBox.width).toBeGreaterThanOrEqual(170 - tolerance);
+      expect(sortBox.width).toBeGreaterThanOrEqual(180 - tolerance);
+      expect(directionBox.width).toBeGreaterThanOrEqual(130 - tolerance);
+    }
   } else if (layout === "intermediate") {
     const firstRowBottom = Math.max(
       viewBox.y + viewBox.height,
@@ -401,37 +412,51 @@ const responsiveViewports = [
   },
   {
     activeFilters: true,
+    height: 900,
+    label: "1440x900",
+    layout: "wide",
+    width: 1440,
+  },
+  {
+    activeFilters: true,
     height: 768,
     label: "1366x768",
-    layout: "intermediate",
+    layout: "wide",
     width: 1366,
   },
   {
     activeFilters: true,
     height: 900,
     label: "1280x900",
-    layout: "intermediate",
+    layout: "wide",
     width: 1280,
   },
   {
     activeFilters: false,
     height: 900,
     label: "1279x900",
-    layout: "intermediate",
+    layout: "compact-wide",
     width: 1279,
   },
   {
     activeFilters: false,
     height: 768,
     label: "1024x768",
-    layout: "intermediate",
+    layout: "compact-wide",
     width: 1024,
+  },
+  {
+    activeFilters: false,
+    height: 768,
+    label: "1023x768",
+    layout: "intermediate",
+    width: 1023,
   },
   {
     activeFilters: false,
     height: 900,
     label: "768x900",
-    layout: "narrow",
+    layout: "intermediate",
     width: 768,
   },
 ] as const;
