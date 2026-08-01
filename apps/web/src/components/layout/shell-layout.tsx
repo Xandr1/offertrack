@@ -136,27 +136,36 @@ export const ShellLayout = ({ children }: ShellLayoutProps) => {
               </span>
             </div>
 
-            <button
-              aria-expanded={isSidebarExpanded}
-              aria-label={
-                isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
-              }
-              className="absolute right-[5px] top-12 hidden h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 outline-none transition-colors duration-300 hover:bg-zinc-100 hover:text-zinc-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 motion-reduce:transition-none md:inline-flex"
-              data-sidebar-toggle
-              onClick={toggleSidebar}
-              type="button"
+            <div
+              className={`absolute -left-3 -right-3 top-11 hidden h-10 items-center justify-end border-y pr-[17px] transition-colors duration-300 motion-reduce:transition-none md:flex ${
+                isSidebarExpanded
+                  ? "border-zinc-200"
+                  : "border-transparent"
+              }`}
+              data-sidebar-toggle-row
             >
-              <PanelLeftClose
-                aria-hidden
-                className={isSidebarExpanded ? "h-4 w-4" : "hidden h-4 w-4"}
-                data-sidebar-collapse-icon
-              />
-              <PanelLeftOpen
-                aria-hidden
-                className={isSidebarExpanded ? "hidden h-4 w-4" : "h-4 w-4"}
-                data-sidebar-expand-icon
-              />
-            </button>
+              <button
+                aria-expanded={isSidebarExpanded}
+                aria-label={
+                  isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"
+                }
+                className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-500 outline-none transition-colors duration-300 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 motion-reduce:transition-none"
+                data-sidebar-toggle
+                onClick={toggleSidebar}
+                type="button"
+              >
+                <PanelLeftClose
+                  aria-hidden
+                  className={isSidebarExpanded ? "h-4 w-4" : "hidden h-4 w-4"}
+                  data-sidebar-collapse-icon
+                />
+                <PanelLeftOpen
+                  aria-hidden
+                  className={isSidebarExpanded ? "hidden h-4 w-4" : "h-4 w-4"}
+                  data-sidebar-expand-icon
+                />
+              </button>
+            </div>
           </div>
 
           <nav aria-label="Primary navigation" className={shellStyles.nav}>

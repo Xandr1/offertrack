@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 
 import React from "react";
+import * as dndKit from "@dnd-kit/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Application, ApplicationBoard } from "@/lib/api";
@@ -47,7 +48,153 @@ const board: ApplicationBoard = {
   ],
 };
 
+const emptyBoard: ApplicationBoard = {
+  ...board,
+  columns: board.columns.map((column) => ({
+    ...column,
+    hasMore: false,
+    items: [],
+    nextOffset: 0,
+    totalCount: 0,
+  })),
+};
+
 describe("ApplicationsBoard", () => {
+  it("shows one actionable Board-level empty state for filtered zero results", async () => {
+    const onClearFilters = jest.fn();
+    const user = userEvent.setup();
+    render(
+      React.createElement(ApplicationsBoard, {
+        board: emptyBoard,
+        errorMessage: null,
+        hasActiveFilters: true,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onClearFilters,
+        onDelete: jest.fn(),
+        onDragEnd: jest.fn(),
+        onEdit: jest.fn(),
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
+    );
+
+    expect(screen.getByText("No matching applications")).toBeTruthy();
+    expect(
+      screen.getByText("Try changing or clearing the current filters."),
+    ).toBeTruthy();
+    expect(screen.queryByText("No applications")).toBeNull();
+    expect(
+      screen.queryByText(
+        "Drag an application here when it reaches this stage.",
+      ),
+    ).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the normal Board when active filters leave any visible result", () => {
+    render(
+      React.createElement(ApplicationsBoard, {
+        board,
+        errorMessage: null,
+        hasActiveFilters: true,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onClearFilters: jest.fn(),
+        onDelete: jest.fn(),
+        onDragEnd: jest.fn(),
+        onEdit: jest.fn(),
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
+    );
+
+    expect(screen.queryByText("No matching applications")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Initial" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Applied" })).toBeTruthy();
+    expect(screen.getByText("No applications")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open Acme application" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps unfiltered empty columns rendered with their drop instructions", () => {
+    const useDroppableSpy = jest.spyOn(dndKit, "useDroppable");
+
+    render(
+      React.createElement(ApplicationsBoard, {
+        board: emptyBoard,
+        errorMessage: null,
+        hasActiveFilters: false,
+        isLoading: false,
+        isStageUpdatePending: false,
+        loadMoreState: {},
+        onClearFilters: jest.fn(),
+        onDelete: jest.fn(),
+        onDragEnd: jest.fn(),
+        onEdit: jest.fn(),
+        onLoadMore: jest.fn(),
+        onRetry: jest.fn(),
+      }),
+    );
+
+    expect(screen.queryByText("No matching applications")).toBeNull();
+    expect(screen.getAllByText("No applications")).toHaveLength(2);
+    expect(
+      screen.getAllByText(
+        "Drag an application here when it reaches this stage.",
+      ),
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole("heading", { name: "Initial" }).closest("section"),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Applied" }).closest("section"),
+    ).toBeTruthy();
+    expect(useDroppableSpy).toHaveBeenCalledWith({ id: "initial" });
+    expect(useDroppableSpy).toHaveBeenCalledWith({ id: "applied" });
+    useDroppableSpy.mockRestore();
+  });
+
+  it("keeps loading and error states ahead of filtered-empty handling", () => {
+    const baseProps = {
+      board: emptyBoard,
+      hasActiveFilters: true,
+      isStageUpdatePending: false,
+      loadMoreState: {},
+      onClearFilters: jest.fn(),
+      onDelete: jest.fn(),
+      onDragEnd: jest.fn(),
+      onEdit: jest.fn(),
+      onLoadMore: jest.fn(),
+      onRetry: jest.fn(),
+    };
+    const view = render(
+      React.createElement(ApplicationsBoard, {
+        ...baseProps,
+        errorMessage: null,
+        isLoading: true,
+      }),
+    );
+
+    expect(screen.getByText("Loading board...")).toBeTruthy();
+    expect(screen.queryByText("No matching applications")).toBeNull();
+
+    view.rerender(
+      React.createElement(ApplicationsBoard, {
+        ...baseProps,
+        errorMessage: "Board unavailable",
+        isLoading: false,
+      }),
+    );
+    expect(screen.getByText("Board unavailable")).toBeTruthy();
+    expect(screen.queryByText("No matching applications")).toBeNull();
+  });
+
   it("keeps cards openable while disabling drag, delete, and load more during a stage update", async () => {
     const onEdit = jest.fn();
     const user = userEvent.setup();
@@ -55,9 +202,11 @@ describe("ApplicationsBoard", () => {
       React.createElement(ApplicationsBoard, {
         board,
         errorMessage: null,
+        hasActiveFilters: false,
         isLoading: false,
         isStageUpdatePending: true,
         loadMoreState: {},
+        onClearFilters: jest.fn(),
         onDelete: jest.fn(),
         onDragEnd: jest.fn(),
         onEdit,
@@ -116,9 +265,11 @@ describe("ApplicationsBoard", () => {
           })),
         },
         errorMessage: null,
+        hasActiveFilters: false,
         isLoading: false,
         isStageUpdatePending: false,
         loadMoreState: {},
+        onClearFilters: jest.fn(),
         onDelete: jest.fn(),
         onDragEnd: jest.fn(),
         onEdit: jest.fn(),
@@ -140,9 +291,11 @@ describe("ApplicationsBoard", () => {
       React.createElement(ApplicationsBoard, {
         board,
         errorMessage: null,
+        hasActiveFilters: false,
         isLoading: false,
         isStageUpdatePending: false,
         loadMoreState: {},
+        onClearFilters: jest.fn(),
         onDelete,
         onDragEnd,
         onEdit,
@@ -174,9 +327,11 @@ describe("ApplicationsBoard", () => {
       React.createElement(ApplicationsBoard, {
         board,
         errorMessage: null,
+        hasActiveFilters: false,
         isLoading: false,
         isStageUpdatePending: false,
         loadMoreState: {},
+        onClearFilters: jest.fn(),
         onDelete: jest.fn(),
         onDragEnd,
         onEdit,
@@ -231,9 +386,11 @@ describe("ApplicationsBoard", () => {
         },
         deletingApplicationId: application.id,
         errorMessage: null,
+        hasActiveFilters: false,
         isLoading: false,
         isStageUpdatePending: false,
         loadMoreState: {},
+        onClearFilters: jest.fn(),
         onDelete,
         onDragEnd: jest.fn(),
         onEdit,

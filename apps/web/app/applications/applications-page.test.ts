@@ -2,7 +2,7 @@
 
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   ApiError,
@@ -183,6 +183,21 @@ const makeBoard = (overrides: Partial<ApplicationBoard> = {}): ApplicationBoard 
   ],
   ...overrides,
 });
+
+const makeEmptyBoard = (): ApplicationBoard => {
+  const board = makeBoard();
+
+  return {
+    ...board,
+    columns: board.columns.map((column) => ({
+      ...column,
+      hasMore: false,
+      items: [],
+      nextOffset: 0,
+      totalCount: 0,
+    })),
+  };
+};
 
 const installApiMocks = ({
   board = makeBoard(),
@@ -550,6 +565,61 @@ describe("ApplicationsPage", () => {
     });
     expect(mockedListApplications).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ["search", "/applications?search=missing"],
+    ["stage", "/applications?stage=offer"],
+  ])(
+    "wires the filtered Board empty state and clears an active %s without leaving Board view",
+    async (_filterKind, filteredUrl) => {
+      currentUrl = filteredUrl;
+      storeApplicationsView("board");
+      const filteredBoard = makeEmptyBoard();
+      installApiMocks({ board: filteredBoard });
+      mockedGetApplicationsBoard
+        .mockResolvedValueOnce(filteredBoard)
+        .mockResolvedValue(makeBoard());
+      const user = userEvent.setup();
+      const view = renderPage();
+
+      expect(await screen.findByText("No matching applications")).toBeTruthy();
+      expect(
+        screen.getByText("Try changing or clearing the current filters."),
+      ).toBeTruthy();
+      expect(screen.queryByText("No applications")).toBeNull();
+
+      const emptyState = screen
+        .getByText("No matching applications")
+        .closest("div");
+      expect(emptyState).not.toBeNull();
+      await user.click(
+        within(emptyState!).getByRole("button", { name: "Clear filters" }),
+      );
+      expect(`${lastReplaceUrl().pathname}${lastReplaceUrl().search}`).toBe(
+        "/applications",
+      );
+      expect(getStoredApplicationsView()).toBe("board");
+
+      view.rerenderPage();
+      expect(
+        await screen.findByRole("button", {
+          name: "Open Acme application",
+        }),
+      ).toBeTruthy();
+      expect(screen.queryByText("No matching applications")).toBeNull();
+      expect(
+        screen
+          .getByRole("button", { name: "Board" })
+          .getAttribute("aria-pressed"),
+      ).toBe("true");
+      expect(mockedGetApplicationsBoard).toHaveBeenLastCalledWith({
+        direction: "desc",
+        search: "",
+        sort: "updatedAt",
+        stage: null,
+      });
+    },
+  );
 
   it("removes invalid legacy sorting when cleaning the initial board URL", async () => {
     currentUrl =

@@ -35,7 +35,7 @@ const ApplicationsPageContent = () => {
         <div>
           <h1 className={textStyles.pageHeadline}>Applications</h1>
           <p className={textStyles.subtitle}>
-            Track roles and see what’s next.
+            Track roles and see what&apos;s next
           </p>
         </div>
 
@@ -136,6 +136,7 @@ const ApplicationsPageContent = () => {
               controller.deletingApplicationId ?? undefined
             }
             errorMessage={controller.boardErrorMessage}
+            hasActiveFilters={controller.hasActiveFilters}
             isLoading={controller.boardController.boardQuery.isPending}
             isStageUpdatePending={
               controller.boardController.isStageUpdatePending
@@ -144,6 +145,7 @@ const ApplicationsPageContent = () => {
             onDragEnd={controller.boardController.handleDragEnd}
             onDelete={controller.handleDeleteRequest}
             onEdit={controller.openEditApplicationModal}
+            onClearFilters={controller.clearFilters}
             onLoadMore={controller.boardController.loadMore}
             onRetry={() => {
               void controller.boardController.boardQuery.refetch();
@@ -157,16 +159,16 @@ const ApplicationsPageContent = () => {
         isOpen={modalController.isApplicationModalOpen}
         initialFocusSelector={
           modalController.isEditMode &&
-          !modalController.interviewsLoadedForEdit
+            !modalController.interviewsLoadedForEdit
             ? undefined
             : isInitialAiCreateStep
-            ? "#application-ai-job-url"
-            : "#application-company"
+              ? "#application-ai-job-url"
+              : "#application-company"
         }
         headerControls={
           modalController.isCreateMode &&
-          modalController.createMethod &&
-          !modalController.hasGeneratedDraft ? (
+            modalController.createMethod &&
+            !modalController.hasGeneratedDraft ? (
             <ApplicationCreateMethodSwitch
               disabled={controller.isCreateWithAiGenerating}
               method={modalController.createMethod}
@@ -201,17 +203,17 @@ const ApplicationsPageContent = () => {
               onCancel: controller.closeApplicationModal,
               onDelete:
                 modalController.isEditMode &&
-                controller.applicationDetailQuery.data
+                  controller.applicationDetailQuery.data
                   ? () => {
-                      const application =
-                        controller.applicationDetailQuery.data;
-                      if (!application) {
-                        return;
-                      }
-
-                      controller.closeApplicationModal();
-                      controller.handleDeleteRequest(application);
+                    const application =
+                      controller.applicationDetailQuery.data;
+                    if (!application) {
+                      return;
                     }
+
+                    controller.closeApplicationModal();
+                    controller.handleDeleteRequest(application);
+                  }
                   : undefined,
             }}
             formSection={{

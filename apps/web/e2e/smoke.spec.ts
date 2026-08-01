@@ -817,13 +817,27 @@ for (const viewport of responsiveViewports) {
     await expectNoPageOverflow(page);
 
     await page.getByRole("button", { name: "Board" }).click();
-    await expect(page.getByRole("heading", { name: "Initial" })).toBeVisible();
-    await expectNoPageOverflow(page);
     if (viewport.activeFilters) {
-      await page.getByRole("button", { name: "Clear filters" }).click();
+      const filteredEmptyTitle = page.getByText("No matching applications", {
+        exact: true,
+      });
+      await expect(filteredEmptyTitle).toBeVisible();
+      await expect(
+        page.getByText("Try changing or clearing the current filters.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      const filteredEmptyState = filteredEmptyTitle.locator("..");
+      await expectNoPageOverflow(page);
+      await filteredEmptyState
+        .getByRole("button", { name: "Clear filters" })
+        .click();
       await expect(
         page.getByRole("button", { name: "Board" }),
       ).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByRole("heading", { name: "Initial" })).toBeVisible();
+      await expectNoPageOverflow(page);
+    } else {
       await expect(page.getByRole("heading", { name: "Initial" })).toBeVisible();
       await expectNoPageOverflow(page);
     }
@@ -1022,7 +1036,9 @@ test("collapsed sidebar expands content and persists across navigation and reloa
   ).toBeVisible();
   await expectApplicationsToolbarLayout(page, "intermediate", true);
   await page.getByRole("button", { name: "Board" }).click();
-  await expect(page.getByRole("heading", { name: "Initial" })).toBeVisible();
+  await expect(
+    page.getByText("No matching applications", { exact: true }),
+  ).toBeVisible();
   await expectNoPageOverflow(page);
 
   await page.route("**/*", async (route) => {

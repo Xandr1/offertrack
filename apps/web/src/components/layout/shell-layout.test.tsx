@@ -90,23 +90,32 @@ describe("ShellLayout", () => {
   });
 
   it("renders an accessible, contained, minimal sidebar toggle", () => {
-    renderShell();
+    const { container } = renderShell();
 
     const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
+    const toggleRow = container.querySelector("[data-sidebar-toggle-row]");
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(toggle.className).toContain("h-8");
     expect(toggle.className).toContain("w-8");
-    expect(toggle.className).toContain("hover:bg-zinc-100");
+    expect(toggle.className).not.toContain("hover:bg-");
+    expect(toggle.className).not.toContain("hover:text-");
     expect(toggle.className).toContain("focus-visible:ring-2");
     expect(toggle.className).toContain("focus-visible:ring-inset");
     expect(toggle.className).toContain("motion-reduce:transition-none");
-    expect(toggle.className).toContain("absolute");
-    expect(toggle.className).toContain("right-[5px]");
-    expect(toggle.className).toContain("top-12");
-    expect(toggle.className).not.toContain("bottom-0");
+    expect(toggle.className).not.toContain("absolute");
     expect(toggle.className).not.toContain("-left-");
     expect(toggle.className).not.toContain("shadow");
     expect(toggle.className).not.toContain("border");
+    expect(toggleRow?.className).toContain("border-y");
+    expect(toggleRow?.className).toContain("border-zinc-200");
+    expect(toggleRow?.className).toContain("-left-3");
+    expect(toggleRow?.className).toContain("-right-3");
+    expect(toggleRow?.className).toContain("top-11");
+    expect(toggleRow?.className).toContain("h-10");
+    expect(toggleRow?.className).toContain("justify-end");
+    expect(toggleRow?.className).toContain("pr-[17px]");
+    expect(toggleRow?.className).toContain("duration-300");
+    expect(toggleRow?.className).toContain("motion-reduce:transition-none");
     expect(
       screen.getByTestId("protected-page-shell").getAttribute(
         "data-sidebar-state",
@@ -123,7 +132,10 @@ describe("ShellLayout", () => {
     );
 
     const toggle = screen.getByRole("button", { name: "Expand sidebar" });
+    const toggleRow = container.querySelector("[data-sidebar-toggle-row]");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggleRow?.className).toContain("border-transparent");
+    expect(toggleRow?.className).not.toContain("border-zinc-200");
     expect(
       window.localStorage.getItem("offertrack.sidebar.expanded"),
     ).toBe("false");

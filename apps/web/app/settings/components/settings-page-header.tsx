@@ -14,7 +14,7 @@ export const SettingsPageHeader = ({
     <div>
       <h1 className={textStyles.pageHeadline}>Settings</h1>
       <p className={textStyles.subtitle}>
-        Configure your dashboard timing and target role.
+        Configure your dashboard timing and target role
       </p>
     </div>
 

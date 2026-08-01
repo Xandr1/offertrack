@@ -23,7 +23,7 @@ export const ApplicationForm = ({
 }: ApplicationFormProps) => {
   return (
     <div className="space-y-6">
-      <section aria-labelledby="application-role-heading">
+      <div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className={textStyles.label} htmlFor="application-company">
@@ -73,10 +73,8 @@ export const ApplicationForm = ({
             />
           </div>
         </div>
-      </section>
-      <section
-        aria-labelledby="application-details-heading"
-      >
+      </div>
+      <div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className={textStyles.label} htmlFor="application-location">
@@ -138,11 +136,9 @@ export const ApplicationForm = ({
             onChange={(stage) => onFieldChange("stage", stage)}
           />
         </div>
-      </section>
+      </div>
 
-      <section
-        aria-labelledby="application-notes-heading"
-      >
+      <div>
         <label className={textStyles.label} htmlFor="application-notes">
           Notes
         </label>
@@ -154,7 +150,7 @@ export const ApplicationForm = ({
           value={form.notes}
           onChange={(event) => onFieldChange("notes", event.target.value)}
         />
-      </section>
+      </div>
     </div>
   );
 };

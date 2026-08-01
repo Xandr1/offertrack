@@ -192,7 +192,7 @@ export const sectionStyles = {
   listItem: "rounded-xl border border-zinc-200 px-4 py-3",
   splitRow: "flex flex-wrap items-center justify-between gap-3",
   interviewRow:
-    "grid min-w-0 gap-2 rounded-lg border border-zinc-200/80 bg-zinc-50/60 p-2 sm:grid-cols-2 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_40px] md:items-center",
+    "grid min-w-0 gap-2 rounded-lg bg-zinc-50/60 p-2 sm:grid-cols-2 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_40px] md:items-center",
   interviewStatusSlot:
     "pointer-events-none absolute left-3 top-1/2 z-10 inline-flex h-4 w-4 -translate-y-1/2 items-center justify-center",
   interviewStatusIcon:

@@ -32,77 +32,71 @@ export const SettingsForm = ({
   <Card as="form" className="max-w-4xl space-y-5 p-4 sm:p-5" onSubmit={onSubmit}>
     <div>
       <h2 className={textStyles.sectionTitle}>Dashboard settings</h2>
-      <p className={textStyles.description}>
-        Tune the timing windows used by your dashboard action modules.
-      </p>
     </div>
 
     <fieldset>
       <legend className="text-sm font-semibold text-zinc-950">
         Timing windows
       </legend>
-      <p className={textStyles.description}>
-        Choose when dashboard reminders should appear.
-      </p>
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <div>
-        <label className={textStyles.label} htmlFor="follow-up-after-applying">
-          Follow up after applying
-        </label>
-        <Input
-          className="mt-1.5"
-          disabled={disabled}
-          id="follow-up-after-applying"
-          inputMode="numeric"
-          max={60}
-          min={1}
-          required
-          type="number"
-          value={form.followUpAfterApplyingDays}
-          onChange={(event) =>
-            onFieldChange("followUpAfterApplyingDays", event.target.value)
-          }
-        />
+          <label className={textStyles.label} htmlFor="follow-up-after-applying">
+            Follow up after applying
+          </label>
+          <Input
+            className="mt-1.5"
+            disabled={disabled}
+            id="follow-up-after-applying"
+            inputMode="numeric"
+            max={60}
+            min={1}
+            required
+            type="number"
+            value={form.followUpAfterApplyingDays}
+            onChange={(event) =>
+              onFieldChange("followUpAfterApplyingDays", event.target.value)
+            }
+          />
         </div>
 
         <div>
-        <label className={textStyles.label} htmlFor="upcoming-interviews-window">
-          Upcoming interviews window
-        </label>
-        <Input
-          className="mt-1.5"
-          disabled={disabled}
-          id="upcoming-interviews-window"
-          inputMode="numeric"
-          max={60}
-          min={1}
-          required
-          type="number"
-          value={form.upcomingInterviewDays}
-          onChange={(event) =>
-            onFieldChange("upcomingInterviewDays", event.target.value)
-          }
-        />
+          <label className={textStyles.label} htmlFor="upcoming-interviews-window">
+            Upcoming interviews window
+          </label>
+          <Input
+            className="mt-1.5"
+            disabled={disabled}
+            id="upcoming-interviews-window"
+            inputMode="numeric"
+            max={60}
+            min={1}
+            required
+            type="number"
+            value={form.upcomingInterviewDays}
+            onChange={(event) =>
+              onFieldChange("upcomingInterviewDays", event.target.value)
+            }
+          />
         </div>
 
         <div>
-        <label className={textStyles.label} htmlFor="follow-up-after-interview">
-          Follow up after interview
-        </label>
-        <Input
-          className="mt-1.5"
-          disabled={disabled}
-          id="follow-up-after-interview"
-          inputMode="numeric"
-          max={30}
-          min={1}
-          required
-          type="number"
-          value={form.followUpAfterInterviewDays}
-          onChange={(event) =>
-            onFieldChange("followUpAfterInterviewDays", event.target.value)
-          }
-        />
+          <label className={textStyles.label} htmlFor="follow-up-after-interview">
+            Follow up after interview
+          </label>
+          <Input
+            className="mt-1.5"
+            disabled={disabled}
+            id="follow-up-after-interview"
+            inputMode="numeric"
+            max={30}
+            min={1}
+            required
+            type="number"
+            value={form.followUpAfterInterviewDays}
+            onChange={(event) =>
+              onFieldChange("followUpAfterInterviewDays", event.target.value)
+            }
+          />
         </div>
       </div>
     </fieldset>
@@ -111,9 +105,6 @@ export const SettingsForm = ({
       <label className={textStyles.label} htmlFor="target-role">
         Target role
       </label>
-      <p className={textStyles.helper}>
-        Used to keep your search goals visible in one place.
-      </p>
       <Input
         className="mt-1.5"
         disabled={disabled}

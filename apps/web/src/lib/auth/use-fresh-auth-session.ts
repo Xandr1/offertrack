@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser } from "@/lib/api";
 import type { UserSummary } from "@/lib/api";
@@ -10,7 +10,11 @@ import { isAuthError } from "@/lib/request-errors";
 
 type FreshAuthSessionResult =
   | { status: "verifying" }
-  | { status: "authenticated"; user: UserSummary }
+  | {
+      status: "authenticated";
+      user: UserSummary;
+      isRefreshing: boolean;
+    }
   | { status: "unauthenticated" }
   | { status: "error"; error: unknown };
 
@@ -18,6 +22,10 @@ type FreshAuthSession = FreshAuthSessionResult & { retry: () => void };
 
 export const useFreshAuthSession = (): FreshAuthSession => {
   const queryClient = useQueryClient();
+  const [initialDataUpdateCount] = useState(
+    () => queryClient.getQueryState(queryKeys.authMe)?.dataUpdateCount ?? 0,
+  );
+
   const sessionQuery = useQuery({
     queryFn: async () => {
       const previousUser =
@@ -41,15 +49,27 @@ export const useFreshAuthSession = (): FreshAuthSession => {
   }, [sessionQuery]);
 
   let result: FreshAuthSessionResult = { status: "verifying" };
+  const currentDataUpdateCount =
+    queryClient.getQueryState(queryKeys.authMe)?.dataUpdateCount ?? 0;
+  // Track fetch status eagerly so a verification that returns structurally
+  // shared cached data still produces the render that marks it as verified.
+  const isFetching = sessionQuery.isFetching;
+  const hasVerifiedUser =
+    Boolean(sessionQuery.data) &&
+    currentDataUpdateCount > initialDataUpdateCount;
+  const hasCompletedError =
+    Boolean(sessionQuery.error) && !isFetching;
 
-  if (sessionQuery.isFetchedAfterMount && !sessionQuery.isFetching) {
-    if (sessionQuery.error) {
-      result = isAuthError(sessionQuery.error)
-        ? { status: "unauthenticated" }
-        : { status: "error", error: sessionQuery.error };
-    } else if (sessionQuery.data) {
-      result = { status: "authenticated", user: sessionQuery.data };
-    }
+  if (hasCompletedError && isAuthError(sessionQuery.error)) {
+    result = { status: "unauthenticated" };
+  } else if (hasVerifiedUser && sessionQuery.data) {
+    result = {
+      status: "authenticated",
+      user: sessionQuery.data,
+      isRefreshing: isFetching,
+    };
+  } else if (hasCompletedError) {
+    result = { status: "error", error: sessionQuery.error };
   }
 
   return { ...result, retry };
