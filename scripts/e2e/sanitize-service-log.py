@@ -32,7 +32,7 @@ URL_USERINFO = re.compile(
 SENSITIVE_HEADER = re.compile(
     r"(?P<prefix>(?<![A-Za-z0-9_-])[\"']?(?:authorization|proxy-authorization|cookie|set-cookie|"
     r"x-csrf-token|x-xsrf-token|x-api-key|x-internal-api-key|"
-    r"x-ai-service-key|x-ai-service-internal-key)\b[\"']?\s*[:=]\s*)"
+    r"x-ai-service-key|x-ai-service-internal-key|x-serverless-authorization)\b[\"']?\s*[:=]\s*)"
     r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\r\n}]*)",
     re.IGNORECASE,
 )

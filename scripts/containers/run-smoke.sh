@@ -215,13 +215,24 @@ collect_failure_diagnostics() {
       || { diagnostics_error "container-smoke diagnostics escaped the repository"; exit 1; }
 
     local service raw sanitized
-    for service in postgres redis ai-service core-api web; do
+    for service in postgres redis ai-service core-api core-api-migrate web; do
       raw="$RUNTIME_DIR/${service}.raw.log"
       sanitized="${service}.log"
       if ! compose logs --no-color --tail 250 "$service" >"$raw" 2>/dev/null; then
         printf '%s\n' "Raw logs were unavailable for $service." >"$raw"
       fi
       sanitize_file "$raw" "$sanitized" "Sanitization failed; raw logs were not preserved."
+    done
+
+    local migration_run
+    for migration_run in first second; do
+      raw="$RUNTIME_DIR/core-api-migrate-${migration_run}.raw.log"
+      if [[ -f "$raw" ]]; then
+        sanitize_file \
+          "$raw" \
+          "core-api-migrate-${migration_run}.log" \
+          "Sanitization failed; raw migration logs were not preserved."
+      fi
     done
 
     local raw_status="$RUNTIME_DIR/compose-status.raw.txt"
@@ -301,7 +312,7 @@ compose config --quiet
 
 SMOKE_TOUCHED=true
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose up --detach
+compose up --detach postgres
 
 container_id() {
   compose ps --quiet "$1"
@@ -358,6 +369,103 @@ wait_for_url() {
 }
 
 wait_for_health postgres
+
+history_absent="$(
+  compose exec -T postgres psql \
+    --username offertrack_container_smoke \
+    --dbname offertrack_container_smoke \
+    --tuples-only --no-align \
+    --command "select to_regclass('public.flyway_schema_history') is null;" \
+    | tr -d '\r[:space:]'
+)"
+[[ "$history_absent" == "t" ]] \
+  || fail "Flyway history existed before the migration-only container ran"
+
+run_migration_container() {
+  local run_name="$1"
+  local raw_log="$RUNTIME_DIR/core-api-migrate-${run_name}.raw.log"
+  if ! compose --profile migration run --rm --no-deps core-api-migrate >"$raw_log" 2>&1; then
+    fail "Core migration container $run_name run failed"
+  fi
+  if [[ -n "$(compose --profile migration ps --all --quiet core-api-migrate)" ]]; then
+    fail "Core migration container remained after the $run_name one-shot run"
+  fi
+}
+
+capture_migration_state() {
+  local history_file="$1"
+  local schema_file="$2"
+  compose exec -T postgres psql \
+    --username offertrack_container_smoke \
+    --dbname offertrack_container_smoke \
+    --tuples-only --no-align \
+    --field-separator '|' \
+    --command \
+      'select installed_rank, version, description, type, script, coalesce(checksum::text, '"'"''"'"'), success from flyway_schema_history order by installed_rank;' \
+    | tr -d '\r' >"$history_file"
+  compose exec -T postgres psql \
+    --username offertrack_container_smoke \
+    --dbname offertrack_container_smoke \
+    --tuples-only --no-align \
+    --field-separator '|' \
+    --command \
+      "select table_name, 'table' from information_schema.tables where table_schema = 'public' and table_name in ('users', 'job_applications', 'application_interviews') order by table_name;" \
+    | tr -d '\r' >"$schema_file"
+}
+
+FIRST_HISTORY="$RUNTIME_DIR/flyway-history-first.txt"
+SECOND_HISTORY="$RUNTIME_DIR/flyway-history-second.txt"
+FIRST_SCHEMA="$RUNTIME_DIR/schema-first.txt"
+SECOND_SCHEMA="$RUNTIME_DIR/schema-second.txt"
+
+run_migration_container first
+capture_migration_state "$FIRST_HISTORY" "$FIRST_SCHEMA"
+migration_summary="$(
+  compose exec -T postgres psql \
+    --username offertrack_container_smoke \
+    --dbname offertrack_container_smoke \
+    --tuples-only --no-align \
+    --command 'select count(*) filter (where success), count(*) filter (where not success) from flyway_schema_history;' \
+    | tr -d '\r[:space:]'
+)"
+if [[ ! "$migration_summary" =~ ^([0-9]+)\|0$ ]]; then
+  fail "First migration run did not produce successful immutable Flyway state"
+fi
+MIGRATION_ROW_COUNT="${BASH_REMATCH[1]}"
+if (( MIGRATION_ROW_COUNT < 1 )); then
+  fail "First migration run did not produce successful immutable Flyway state"
+fi
+for representative_table in users job_applications application_interviews; do
+  grep -Fxq "${representative_table}|table" "$FIRST_SCHEMA" \
+    || fail "First migration run did not create representative table $representative_table"
+done
+echo "Core migration container first run exited with code 0."
+
+run_migration_container second
+capture_migration_state "$SECOND_HISTORY" "$SECOND_SCHEMA"
+migration_summary_after_second="$(
+  compose exec -T postgres psql \
+    --username offertrack_container_smoke \
+    --dbname offertrack_container_smoke \
+    --tuples-only --no-align \
+    --command 'select count(*) filter (where success), count(*) filter (where not success) from flyway_schema_history;' \
+    | tr -d '\r[:space:]'
+)"
+[[ "$migration_summary_after_second" == "$migration_summary" ]] \
+  || fail "Flyway success and failure counts changed during the second migration run"
+cmp --silent "$FIRST_HISTORY" "$SECOND_HISTORY" \
+  || fail "Flyway immutable history changed during the second migration run"
+cmp --silent "$FIRST_SCHEMA" "$SECOND_SCHEMA" \
+  || fail "Representative schema state changed during the second migration run"
+FIRST_HISTORY_SHA256="$(sha256sum "$FIRST_HISTORY" | awk '{print $1}')"
+SECOND_HISTORY_SHA256="$(sha256sum "$SECOND_HISTORY" | awk '{print $1}')"
+FIRST_SCHEMA_SHA256="$(sha256sum "$FIRST_SCHEMA" | awk '{print $1}')"
+SECOND_SCHEMA_SHA256="$(sha256sum "$SECOND_SCHEMA" | awk '{print $1}')"
+echo "Core migration container second run exited with code 0 and unchanged PostgreSQL state."
+echo "Flyway immutable history rows=$MIGRATION_ROW_COUNT first_sha256=$FIRST_HISTORY_SHA256 second_sha256=$SECOND_HISTORY_SHA256."
+echo "Representative schema first_sha256=$FIRST_SCHEMA_SHA256 second_sha256=$SECOND_SCHEMA_SHA256."
+
+compose up --detach
 wait_for_health redis
 wait_for_health ai-service
 wait_for_url "Core API readiness" "http://127.0.0.1:18081/actuator/health/readiness"

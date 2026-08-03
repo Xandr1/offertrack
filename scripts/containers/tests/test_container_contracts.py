@@ -165,6 +165,7 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("include: readinessState,db,redis", smoke)
         self.assertIn("show-components: always", smoke)
         self.assertIn("show-details: never", smoke)
+        self.assertIn("enabled: ${SPRING_FLYWAY_ENABLED:true}", application)
 
     def test_ai_copies_only_an_isolated_virtual_environment(self) -> None:
         dockerfile = read("apps/ai-service/Dockerfile")
@@ -342,8 +343,8 @@ class ComposeContractTest(unittest.TestCase):
         compose = read("compose.container-smoke.yml")
         self.assertIn(f"image: {POSTGRES_IMAGE}", compose)
         self.assertIn(f"image: {REDIS_IMAGE}", compose)
-        self.assertEqual(5, compose.count("platform: linux/amd64"))
-        self.assertEqual(3, compose.count("pull_policy: never"))
+        self.assertEqual(6, compose.count("platform: linux/amd64"))
+        self.assertEqual(4, compose.count("pull_policy: never"))
         for image in ("web", "core-api", "ai-service"):
             self.assertIn(
                 f"image: offertrack/{image}:${{OFFERTRACK_IMAGE_TAG:?OFFERTRACK_IMAGE_TAG is required}}",
@@ -353,7 +354,7 @@ class ComposeContractTest(unittest.TestCase):
     def test_smoke_literal_ports_and_hardening(self) -> None:
         compose = read("compose.container-smoke.yml")
         expected_ports = (
-            "127.0.0.1:55433:5432",
+            "127.0.0.1:15433:5432",
             "127.0.0.1:56380:6379",
             "127.0.0.1:13001:13001",
             "127.0.0.1:18001:18001",
@@ -361,11 +362,11 @@ class ComposeContractTest(unittest.TestCase):
         )
         for port in expected_ports:
             self.assertIn(port, compose)
-        self.assertEqual(3, compose.count('read_only: true'))
-        self.assertEqual(3, compose.count('cap_drop: ["ALL"]'))
-        self.assertEqual(3, compose.count('security_opt: ["no-new-privileges:true"]'))
-        self.assertEqual(3, compose.count("stop_grace_period: 15s"))
-        self.assertEqual(3, compose.count("size=64m,mode=1777"))
+        self.assertEqual(4, compose.count('read_only: true'))
+        self.assertEqual(4, compose.count('cap_drop: ["ALL"]'))
+        self.assertEqual(4, compose.count('security_opt: ["no-new-privileges:true"]'))
+        self.assertEqual(4, compose.count("stop_grace_period: 15s"))
+        self.assertEqual(4, compose.count("size=64m,mode=1777"))
         self.assertIn(
             "/app/apps/web/.next/cache:rw,nosuid,nodev,size=128m,mode=0750,uid=1000,gid=1000",
             compose,
@@ -404,6 +405,7 @@ class ComposeContractTest(unittest.TestCase):
 
         for expected in (
             "SPRING_PROFILES_ACTIVE: container-smoke",
+            "OFFERTRACK_RUN_MODE: server",
             'PORT: "18081"',
             'SERVER_PORT: "18081"',
             "DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke",
@@ -413,12 +415,57 @@ class ComposeContractTest(unittest.TestCase):
             "APP_WEB_URL: http://127.0.0.1:13001",
             "CORS_ALLOWED_ORIGINS: http://127.0.0.1:13001",
             "AI_SERVICE_BASE_URL: http://ai-service:18001",
+            "AI_SERVICE_AUTH_MODE: internal-key",
+            'AI_SERVICE_AUDIENCE: ""',
             'AI_DRAFT_CACHE_ENABLED: "false"',
             'RATE_LIMIT_FAIL_OPEN: "false"',
             "SERVER_FORWARD_HEADERS_STRATEGY: none",
             "SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 10s",
         ):
             self.assertIn(expected, core)
+
+    def test_migration_service_uses_exact_core_image_and_database_only_environment(
+        self,
+    ) -> None:
+        compose = read("compose.container-smoke.yml")
+        migration = service_block(compose, "core-api-migrate")
+        environment = migration[
+            migration.index("    environment:") : migration.index("    tmpfs:")
+        ]
+        environment_names = re.findall(r"(?m)^      ([A-Z0-9_]+):", environment)
+
+        self.assertIn('profiles: ["migration"]', migration)
+        self.assertIn(
+            "image: offertrack/core-api:${OFFERTRACK_IMAGE_TAG:?OFFERTRACK_IMAGE_TAG is required}",
+            migration,
+        )
+        self.assertEqual(
+            [
+                "OFFERTRACK_RUN_MODE",
+                "DATABASE_URL",
+                "DB_USER",
+                "DB_PASSWORD",
+            ],
+            environment_names,
+        )
+        self.assertIn("OFFERTRACK_RUN_MODE: migrate", environment)
+        self.assertIn(
+            "DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke",
+            environment,
+        )
+        self.assertNotIn("ports:", migration)
+        self.assertNotIn("REDIS_", migration)
+        self.assertNotIn("SMTP_", migration)
+        self.assertNotIn("JWT_", migration)
+        self.assertNotIn("AI_SERVICE_", migration)
+        for expected in (
+            'user: "10001:10001"',
+            "read_only: true",
+            'cap_drop: ["ALL"]',
+            'security_opt: ["no-new-privileges:true"]',
+            "size=64m,mode=1777,uid=10001,gid=10001",
+        ):
+            self.assertIn(expected, migration)
 
     def test_infrastructure_and_web_health_checks_are_bounded(self) -> None:
         compose = read("compose.container-smoke.yml")
@@ -529,6 +576,48 @@ class SmokeAndE2EContractTest(unittest.TestCase):
         self.assertIn('--max-time "$request_timeout"', script)
         self.assertNotIn("find /", script)
 
+    def test_smoke_proves_migration_idempotency_from_postgresql_state(self) -> None:
+        script = read("scripts/containers/run-smoke.sh")
+        absent_index = script.index("history_absent=")
+        first_index = script.index("run_migration_container first")
+        first_snapshot_index = script.index(
+            'capture_migration_state "$FIRST_HISTORY" "$FIRST_SCHEMA"'
+        )
+        second_index = script.index("run_migration_container second")
+        second_snapshot_index = script.index(
+            'capture_migration_state "$SECOND_HISTORY" "$SECOND_SCHEMA"'
+        )
+        history_compare_index = script.index(
+            'cmp --silent "$FIRST_HISTORY" "$SECOND_HISTORY"'
+        )
+        full_smoke_index = script.index("compose up --detach", second_index)
+
+        self.assertLess(absent_index, first_index)
+        self.assertLess(first_index, first_snapshot_index)
+        self.assertLess(first_snapshot_index, second_index)
+        self.assertLess(second_index, second_snapshot_index)
+        self.assertLess(second_snapshot_index, history_compare_index)
+        self.assertLess(history_compare_index, full_smoke_index)
+        self.assertIn(
+            "installed_rank, version, description, type, script", script
+        )
+        self.assertIn("coalesce(checksum::text", script)
+        self.assertIn(
+            'cmp --silent "$FIRST_SCHEMA" "$SECOND_SCHEMA"', script
+        )
+        self.assertIn(
+            "compose --profile migration run --rm --no-deps core-api-migrate",
+            script,
+        )
+        self.assertIn(
+            "compose --profile migration ps --all --quiet core-api-migrate",
+            script,
+        )
+        self.assertNotRegex(
+            script,
+            r"grep[^\n]*(?:core-api-migrate-(?:first|second)|raw_log)",
+        )
+
     def test_e2e_standalone_assets_and_process_scoped_port_are_exact(self) -> None:
         script = read("scripts/e2e/run-e2e.sh")
         self.assertIn(
@@ -547,6 +636,32 @@ class SmokeAndE2EContractTest(unittest.TestCase):
 
 
 class CIContractTest(unittest.TestCase):
+    def test_container_setup_pins_match_canonical_frontend_and_ai_jobs(self) -> None:
+        workflow = read(".github/workflows/ci.yml")
+        frontend = workflow[
+            workflow.index("  frontend:") : workflow.index("\n  backend:")
+        ]
+        ai = workflow[
+            workflow.index("  ai-service:") : workflow.index("\n  container-smoke:")
+        ]
+        container = workflow[
+            workflow.index("  container-smoke:") : workflow.index("\n  e2e:")
+        ]
+
+        node_pin = re.search(r"actions/setup-node@[^\n]+", frontend)
+        container_node_pin = re.search(r"actions/setup-node@[^\n]+", container)
+        python_pin = re.search(r"actions/setup-python@[^\n]+", ai)
+        container_python_pin = re.search(r"actions/setup-python@[^\n]+", container)
+
+        self.assertIsNotNone(node_pin)
+        self.assertIsNotNone(container_node_pin)
+        self.assertIsNotNone(python_pin)
+        self.assertIsNotNone(container_python_pin)
+        self.assertEqual(node_pin.group(0), container_node_pin.group(0))
+        self.assertEqual(python_pin.group(0), container_python_pin.group(0))
+        self.assertIn("node-version: 24", container)
+        self.assertIn('python-version: "3.11"', container)
+
     def test_ai_job_checks_committed_locks_without_regenerating_them(self) -> None:
         workflow = read(".github/workflows/ci.yml")
         job = workflow[workflow.index("  ai-service:") : workflow.index("\n  container-smoke:")]

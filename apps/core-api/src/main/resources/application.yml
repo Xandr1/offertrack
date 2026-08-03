@@ -11,7 +11,7 @@ spring:
     password: ${DB_PASSWORD:offertrack}
 
   flyway:
-    enabled: true
+    enabled: ${SPRING_FLYWAY_ENABLED:true}
 
   jooq:
     sql-dialect: POSTGRES
@@ -85,6 +85,8 @@ app:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
     internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:local-dev-ai-service-key}
+    auth-mode: ${AI_SERVICE_AUTH_MODE:internal-key}
+    audience: ${AI_SERVICE_AUDIENCE:}
   ai-draft-cache:
     enabled: ${AI_DRAFT_CACHE_ENABLED:true}
     ttl: ${AI_DRAFT_CACHE_TTL:24h}
@@ -188,6 +190,8 @@ app:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:}
     internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:}
+    auth-mode: ${AI_SERVICE_AUTH_MODE:}
+    audience: ${AI_SERVICE_AUDIENCE:}
   rate-limit:
     key-secret: ${RATE_LIMIT_KEY_SECRET:}
     fail-open: ${RATE_LIMIT_FAIL_OPEN:false}

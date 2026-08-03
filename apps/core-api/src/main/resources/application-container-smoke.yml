@@ -6,3 +6,8 @@ management:
       group:
         readiness:
           include: readinessState,db,redis
+
+app:
+  ai-service:
+    auth-mode: internal-key
+    audience:

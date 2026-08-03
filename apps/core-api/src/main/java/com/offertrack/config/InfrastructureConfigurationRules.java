@@ -4,10 +4,8 @@ import static com.offertrack.config.ConfigurationRuleSupport.invalid;
 import static com.offertrack.config.ConfigurationRuleSupport.requireCredential;
 import static com.offertrack.config.ConfigurationRuleSupport.requirePort;
 import static com.offertrack.config.ConfigurationRuleSupport.requirePositiveDuration;
-import static com.offertrack.config.ConfigurationRuleSupport.requirePositivePort;
 import static com.offertrack.config.ConfigurationRuleSupport.requireText;
 
-import java.net.URI;
 import java.util.Locale;
 import java.util.Set;
 import org.springframework.util.StringUtils;
@@ -28,19 +26,18 @@ final class InfrastructureConfigurationRules {
     validateGoogle(configuration);
   }
 
-  private static void validateDatabase(ProtectedConfigurationSnapshot configuration) {
-    URI databaseUri =
-        HostValidation.parseJdbcPostgresUrl(configuration.databaseUrl(), "spring.datasource.url");
-    HostValidation.requireNonLoopbackHost(databaseUri.getHost(), "spring.datasource.url");
-    requirePositivePort(databaseUri.getPort(), "spring.datasource.url");
-    requireCredential(
-        configuration.databaseUsername(), "spring.datasource.username", 4, "offertrack");
-    requireCredential(
-        configuration.databasePassword(),
-        "spring.datasource.password",
-        12,
-        "offertrack",
-        "password");
+  static void validateDatabase(ProtectedConfigurationSnapshot configuration) {
+    try {
+      DatabaseConfigurationValidator.validate(
+          new DatabaseConfiguration(
+              configuration.databaseUrl(),
+              configuration.databaseUsername(),
+              configuration.databasePassword()),
+          DatabaseConfigurationValidator.Policy.PROTECTED,
+          DatabaseConfigurationValidator.PropertyNames.springDatasource());
+    } catch (DatabaseConfigurationValidationException exception) {
+      throw ConfigurationRuleSupport.invalidException(exception.property());
+    }
   }
 
   private static void validateRedis(ProtectedConfigurationSnapshot configuration) {

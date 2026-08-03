@@ -1,8 +1,12 @@
 package com.offertrack.config;
 
 import static com.offertrack.config.ConfigurationRuleSupport.invalid;
+import static com.offertrack.config.ConfigurationRuleSupport.invalidException;
 import static com.offertrack.config.ConfigurationRuleSupport.requireText;
 
+import com.offertrack.applications.AiServiceAuthMode;
+import com.offertrack.applications.AiServiceConfigurationException;
+import com.offertrack.applications.AiServiceEndpointNormalizer;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Set;
@@ -28,17 +32,40 @@ final class WebSecurityConfigurationRules {
       invalid("app.web.url");
     }
 
-    URI aiUri =
-        HostValidation.parseHttpUrl(
-            configuration.aiServiceBaseUrl(), "app.ai-service.base-url", false);
-    HostValidation.requireNonLoopbackHost(aiUri.getHost(), "app.ai-service.base-url");
-    if (aiUri.getRawQuery() != null || aiUri.getRawFragment() != null) {
-      invalid("app.ai-service.base-url");
-    }
+    validateAiService(configuration);
 
     requireText(configuration.corsAllowedOrigins(), "app.cors.allowed-origins");
     Arrays.stream(configuration.corsAllowedOrigins().split(",", -1))
         .forEach(WebSecurityConfigurationRules::validateCorsOrigin);
+  }
+
+  private static void validateAiService(ProtectedConfigurationSnapshot configuration) {
+    AiServiceAuthMode authMode;
+    try {
+      authMode = AiServiceAuthMode.fromConfiguration(configuration.aiServiceAuthMode());
+    } catch (AiServiceConfigurationException exception) {
+      throw invalidException(exception.property());
+    }
+    if (authMode != AiServiceAuthMode.GOOGLE_ID_TOKEN) {
+      invalid("app.ai-service.auth-mode");
+    }
+
+    try {
+      AiServiceEndpointNormalizer.NormalizedEndpoint baseEndpoint =
+          AiServiceEndpointNormalizer.normalizeRoot(
+              configuration.aiServiceBaseUrl(), "app.ai-service.base-url");
+      AiServiceEndpointNormalizer.NormalizedEndpoint audienceEndpoint =
+          AiServiceEndpointNormalizer.normalizeRoot(
+              configuration.aiServiceAudience(), "app.ai-service.audience");
+      HostValidation.requireProtectedServiceHost(baseEndpoint.host(), "app.ai-service.base-url");
+      HostValidation.requireProtectedServiceHost(
+          audienceEndpoint.host(), "app.ai-service.audience");
+      if (!baseEndpoint.canonicalValue().equals(audienceEndpoint.canonicalValue())) {
+        invalid("app.ai-service.audience");
+      }
+    } catch (AiServiceConfigurationException exception) {
+      throw invalidException(exception.property());
+    }
   }
 
   private static void validateCorsOrigin(String origin) {

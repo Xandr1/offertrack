@@ -33,6 +33,8 @@ public record ProtectedConfigurationSnapshot(
     String accessCookieSameSite,
     String aiServiceBaseUrl,
     String aiServiceInternalApiKey,
+    String aiServiceAuthMode,
+    String aiServiceAudience,
     String forwardHeadersStrategy,
     List<RateLimitPolicyValue> rateLimitPolicies) {
   private static final List<String> RATE_LIMIT_POLICY_NAMES =
@@ -81,6 +83,8 @@ public record ProtectedConfigurationSnapshot(
         environment.getProperty("app.auth.cookie.same-site"),
         environment.getProperty("app.ai-service.base-url"),
         environment.getProperty("app.ai-service.internal-api-key"),
+        environment.getProperty("app.ai-service.auth-mode"),
+        environment.getProperty("app.ai-service.audience"),
         environment.getProperty("server.forward-headers-strategy"),
         RATE_LIMIT_POLICY_NAMES.stream()
             .map(

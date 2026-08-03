@@ -44,6 +44,7 @@ printf '%s\n' \
   'upstream=https://uri-user:uri-password@example.test/private' \
   'callback=https://example.test/callback?password=query-password&client_secret=query-secret&email=query@example.test' \
   'X-Internal-API-Key: disposable-internal-header-key' \
+  'X-Serverless-Authorization: Bearer disposable-google-identity-token' \
   'AI_SERVICE_INTERNAL_API_KEY=disposable-ai-service-key' \
   '{"Authorization":"Bearer disposable-json-auth","Cookie":"access_token=disposable-json-cookie"}' \
   '{"Set-Cookie":"access_token=disposable-json-set-cookie; HttpOnly"}' \
@@ -80,6 +81,7 @@ for sensitive_value in \
   'query-secret' \
   'query@example.test' \
   'disposable-internal-header-key' \
+  'disposable-google-identity-token' \
   'disposable-ai-service-key' \
   'disposable-json-auth' \
   'disposable-json-cookie' \

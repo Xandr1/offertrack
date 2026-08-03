@@ -118,10 +118,10 @@ class ProtectedConfigurationRulesTest {
   @Test
   void rejectsIpv4MappedIpv6LoopbackHosts() {
     MockEnvironment dottedMappedAddress = validEnvironment();
-    dottedMappedAddress.withProperty("app.ai-service.base-url", "http://[::ffff:127.0.0.1]:8000");
+    dottedMappedAddress.withProperty("app.ai-service.base-url", "https://[::ffff:127.0.0.1]:8000");
     MockEnvironment expandedMappedAddress = validEnvironment();
     expandedMappedAddress.withProperty(
-        "app.ai-service.base-url", "http://[0:0:0:0:0:ffff:7f00:1]:8000");
+        "app.ai-service.base-url", "https://[0:0:0:0:0:ffff:7f00:1]:8000");
 
     assertThatThrownBy(
             () ->
@@ -140,9 +140,9 @@ class ProtectedConfigurationRulesTest {
     MockEnvironment rootedLocalhost = validEnvironment();
     rootedLocalhost.withProperty("app.web.url", "https://app.localhost.");
     MockEnvironment compressedLoopback = validEnvironment();
-    compressedLoopback.withProperty("app.ai-service.base-url", "http://[0::1]:8000");
+    compressedLoopback.withProperty("app.ai-service.base-url", "https://[0::1]:8000");
     MockEnvironment compressedUnspecified = validEnvironment();
-    compressedUnspecified.withProperty("app.ai-service.base-url", "http://[0::]:8000");
+    compressedUnspecified.withProperty("app.ai-service.base-url", "https://[0::]:8000");
 
     assertThatThrownBy(
             () ->
@@ -462,9 +462,11 @@ class ProtectedConfigurationRulesTest {
             .withProperty("app.auth.cookie.domain", ".example.com")
             .withProperty("app.auth.cookie.secure", "true")
             .withProperty("app.auth.cookie.same-site", "None")
-            .withProperty("app.ai-service.base-url", "http://ai-service.internal:8000")
+            .withProperty("app.ai-service.base-url", "https://ai-service.example.com")
             .withProperty(
                 "app.ai-service.internal-api-key", "ai-service-internal-key-which-is-long-enough")
+            .withProperty("app.ai-service.auth-mode", "google-id-token")
+            .withProperty("app.ai-service.audience", "https://ai-service.example.com")
             .withProperty("server.forward-headers-strategy", "none");
 
     for (String policy :

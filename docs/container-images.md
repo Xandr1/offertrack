@@ -83,7 +83,7 @@ The images have these non-root defaults:
 | Image | User | Bind and port defaults | PID 1 |
 | --- | --- | --- | --- |
 | Web | `1000:1000` | `HOSTNAME=0.0.0.0`, `PORT=3000` | `node server.js` |
-| Core | `10001:10001` | `server.port=${PORT:${SERVER_PORT:8080}}`, with `SERVER_PORT=8080` | `java -jar /app/app.jar` |
+| Core | `10001:10001` | `server.port=${PORT:${SERVER_PORT:8080}}`, with `SERVER_PORT=8080` in server mode | `java -jar /app/app.jar` |
 | AI | `10001:10001` | `HOST=0.0.0.0`, `PORT=8000` | Python launching `uvicorn app.main:app` |
 
 Web also defaults to `NODE_ENV=production` and disables Next telemetry. Its
@@ -92,10 +92,26 @@ standalone root is `/app`, with runtime assets at
 is `/app/apps/web`. The runtime stage does not contain the builder dependency
 store.
 
-Core enables graceful shutdown. A shutdown phase defaults to 10 seconds via
+The same Core image supports `OFFERTRACK_RUN_MODE=server` (the default) and the
+one-shot `OFFERTRACK_RUN_MODE=migrate` path. The entrypoint and non-root user do
+not change between modes. Core server mode enables graceful shutdown. A shutdown
+phase defaults to 10 seconds via
 `SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE`; `PORT` overrides
 `SERVER_PORT`, which overrides port 8080. The E2E profile uses the same fallback
 shape with 18080 as its final default.
+
+Local and smoke containers set `AI_SERVICE_AUTH_MODE=internal-key` with an empty
+`AI_SERVICE_AUDIENCE`. A future protected Cloud Run container will use
+`AI_SERVICE_AUTH_MODE=google-id-token` and matching root HTTPS values for
+`AI_SERVICE_BASE_URL` and `AI_SERVICE_AUDIENCE`. ADC supplies the Google
+identity at request time, while `AI_SERVICE_INTERNAL_API_KEY` remains required.
+No static GCP key file belongs in the image or runtime configuration. Cloud Run
+IAM remains part of the later infrastructure milestone.
+
+Migration mode accepts only `OFFERTRACK_RUN_MODE=migrate`, `DATABASE_URL`,
+`DB_USER`, and `DB_PASSWORD`. It runs embedded Flyway migrations and exits,
+without starting Spring or an HTTP listener. `SPRING_FLYWAY_ENABLED` controls
+only automatic server-mode migration; direct migration mode ignores it.
 
 AI installs production dependencies into `/opt/venv` and copies only that
 virtual environment and application code into its runtime stage. The builder's
@@ -129,7 +145,7 @@ The deterministic smoke endpoints are:
 | Web | 13001 | `http://127.0.0.1:13001` |
 | Core | 18081 | `http://127.0.0.1:18081` |
 | AI | 18001 | `http://127.0.0.1:18001` |
-| PostgreSQL | 5432 | `127.0.0.1:55433` |
+| PostgreSQL | 5432 | `127.0.0.1:15433` |
 | Redis | 6379 | `127.0.0.1:56380` |
 
 The Compose file contains fixed smoke-only database credentials, cryptographic
@@ -140,7 +156,17 @@ capabilities are dropped, `no-new-privileges` is enabled, and bounded tmpfs
 mounts provide `/tmp` plus the writable Next.js cache.
 
 The suite waits for infrastructure and application readiness, verifies Flyway,
-and seeds one dedicated verified user. It then performs bounded CORS, CSRF and
+and seeds one dedicated verified user. Before starting the application services,
+it starts a fresh PostgreSQL container, confirms that Flyway history is absent,
+and runs the exact Core image in migration mode twice. The first run verifies
+representative schema objects and captures ordered immutable
+`flyway_schema_history` fields; the second must exit successfully with byte-for-byte
+identical history and schema snapshots. Migration logs are retained only as
+sanitized failure diagnostics and are not parsed to establish idempotency. The
+one-shot container has no published port and must be removed before the normal
+smoke services start.
+
+The full suite then performs bounded CORS, CSRF and
 login, Core-to-AI SSRF, PostgreSQL create/restart/read persistence, health,
 non-root, PID 1, runtime-content, and SIGTERM checks. The Core readiness view
 that exposes database and Redis components exists only in the
@@ -196,8 +222,10 @@ service continues to use `SERVER_PORT=18080`.
 - This checkpoint creates no GCP resources, Terraform, registry, Cloud Run,
   Cloud SQL, managed Redis, Secret Manager integration, deployment identity,
   custom domain, or production environment.
-- There is no separate migration job, image publishing, signing, provenance,
-  or multi-platform publishing. Local output is limited to `linux/amd64`.
+- The Core image now provides the one-shot migration runtime contract, but no
+  scheduled Cloud Run job or other migration infrastructure is created. There
+  is still no image publishing, signing, provenance, or multi-platform
+  publishing. Local output is limited to `linux/amd64`.
 - SSRF DNS-rebinding defenses and refresh-token/server-side session work remain
   deferred under their existing ADRs.
 
