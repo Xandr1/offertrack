@@ -15,7 +15,8 @@ public final class DatabaseConfigurationValidator {
   private static final String JDBC_PREFIX = "jdbc:";
   private static final String POSTGRESQL_PREFIX = "jdbc:postgresql://";
   private static final Pattern IPV4_CANDIDATE = Pattern.compile("[0-9.]+");
-  private static final Set<String> URL_CREDENTIAL_PROPERTIES = Set.of("user", "password");
+  private static final Set<String> URL_CREDENTIAL_PROPERTIES =
+      Set.of("user", "password", "sslpassword");
 
   private DatabaseConfigurationValidator() {}
 

@@ -21,7 +21,9 @@ class MigrationConfigurationResolverTest {
                 "DB_USER",
                 "test",
                 "DB_PASSWORD",
-                "test"));
+                "test"),
+            Map.of(),
+            new String[0]);
 
     assertThat(configuration.url()).isEqualTo("jdbc:postgresql://127.0.0.1/offertrack");
   }
@@ -40,7 +42,7 @@ class MigrationConfigurationResolverTest {
             "DB_PASSWORD",
             "production-database-password");
 
-    assertThatThrownBy(() -> resolver.resolve(environment))
+    assertThatThrownBy(() -> resolver.resolve(environment, Map.of(), new String[0]))
         .isInstanceOf(CoreStartupException.class)
         .hasMessageContaining("DATABASE_URL");
   }
@@ -57,8 +59,77 @@ class MigrationConfigurationResolverTest {
                 "DB_USER",
                 "production_user",
                 "DB_PASSWORD",
-                "production-database-password"));
+                "production-database-password"),
+            Map.of(),
+            new String[0]);
 
     assertThat(configuration.username()).isEqualTo("production_user");
+  }
+
+  @Test
+  void rejectsJvmActiveProfileSourceInsteadOfSilentlyUsingStandardPolicy() {
+    assertThatThrownBy(
+            () ->
+                resolver.resolve(
+                    localConfiguration(),
+                    Map.of("spring.profiles.active", "production"),
+                    new String[0]))
+        .isInstanceOf(CoreStartupException.class)
+        .hasMessageContaining("UNSUPPORTED_PROFILE_SOURCE")
+        .hasMessageContaining("spring.profiles.active")
+        .hasMessageContaining("SPRING_PROFILES_ACTIVE")
+        .hasMessageNotContaining("local-password");
+  }
+
+  @Test
+  void rejectsCliActiveProfileSourceInsteadOfSilentlyUsingStandardPolicy() {
+    assertThatThrownBy(
+            () ->
+                resolver.resolve(
+                    localConfiguration(),
+                    Map.of(),
+                    new String[] {"--spring.profiles.active=production"}))
+        .isInstanceOf(CoreStartupException.class)
+        .hasMessageContaining("UNSUPPORTED_PROFILE_SOURCE")
+        .hasMessageContaining("spring.profiles.active")
+        .hasMessageContaining("SPRING_PROFILES_ACTIVE");
+  }
+
+  @Test
+  void conflictingSupportedAndUnsupportedProfileSourcesFailSafely() {
+    Map<String, String> environment = new java.util.HashMap<>(localConfiguration());
+    environment.put("SPRING_PROFILES_ACTIVE", "production");
+
+    assertThatThrownBy(
+            () ->
+                resolver.resolve(
+                    environment, Map.of("spring.profiles.default", "development"), new String[0]))
+        .isInstanceOf(CoreStartupException.class)
+        .hasMessageContaining("UNSUPPORTED_PROFILE_SOURCE")
+        .hasMessageContaining("spring.profiles.default")
+        .hasMessageContaining("SPRING_PROFILES_DEFAULT");
+  }
+
+  @Test
+  void rejectsCliDefaultProfileSourceWithoutParsingOtherSpringArguments() {
+    assertThatThrownBy(
+            () ->
+                resolver.resolve(
+                    localConfiguration(),
+                    Map.of(),
+                    new String[] {"--unrelated=value", "--spring.profiles.default", "production"}))
+        .isInstanceOf(CoreStartupException.class)
+        .hasMessageContaining("spring.profiles.default")
+        .hasMessageContaining("SPRING_PROFILES_DEFAULT");
+  }
+
+  private static Map<String, String> localConfiguration() {
+    return Map.of(
+        "DATABASE_URL",
+        "jdbc:postgresql://127.0.0.1/offertrack",
+        "DB_USER",
+        "test",
+        "DB_PASSWORD",
+        "local-password");
   }
 }

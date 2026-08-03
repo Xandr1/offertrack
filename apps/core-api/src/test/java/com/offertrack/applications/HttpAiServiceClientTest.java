@@ -252,7 +252,7 @@ class HttpAiServiceClientTest {
   }
 
   @Test
-  void tokenAcquisitionFailureSendsNoRequestAndDoesNotLeakProviderError(CapturedOutput output)
+  void expectedTokenAcquisitionFailureSendsNoRequestAndLogsOnlySafeDetails(CapturedOutput output)
       throws Exception {
     AtomicInteger requests = new AtomicInteger();
     startServer(
@@ -266,7 +266,7 @@ class HttpAiServiceClientTest {
             AiServiceAuthMode.GOOGLE_ID_TOKEN,
             "https://ai-service.example.com",
             audience -> {
-              throw new IllegalStateException("raw-provider-error-with-secret");
+              throw new AiServiceIdentityTokenException();
             });
 
     assertThatThrownBy(() -> client.parseJob(request()))
@@ -275,8 +275,32 @@ class HttpAiServiceClientTest {
     assertThat(output)
         .contains("request_id=safe-request-id")
         .contains("error_category=IDENTITY_TOKEN_ACQUISITION_FAILED")
-        .doesNotContain("raw-provider-error-with-secret")
-        .doesNotContain("ai-service.example.com");
+        .doesNotContain("AI service identity token is unavailable")
+        .doesNotContain("ai-service.example.com")
+        .doesNotContain(INTERNAL_API_KEY)
+        .doesNotContain("deterministic-google-token");
+  }
+
+  @Test
+  void unexpectedTokenProviderProgrammingFailureIsNotSwallowed() throws Exception {
+    AtomicInteger requests = new AtomicInteger();
+    startServer(
+        exchange -> {
+          requests.incrementAndGet();
+          sendJson(exchange, 200, successBody());
+        });
+    IllegalStateException programmingFailure =
+        new IllegalStateException("broken-custom-token-provider");
+    HttpAiServiceClient client =
+        client(
+            AiServiceAuthMode.GOOGLE_ID_TOKEN,
+            "https://ai-service.example.com",
+            audience -> {
+              throw programmingFailure;
+            });
+
+    assertThatThrownBy(() -> client.parseJob(request())).isSameAs(programmingFailure);
+    assertThat(requests).hasValue(0);
   }
 
   private HttpAiServiceClient client() {

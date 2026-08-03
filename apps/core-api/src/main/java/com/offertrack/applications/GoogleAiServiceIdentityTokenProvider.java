@@ -2,28 +2,27 @@ package com.offertrack.applications;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.IdToken;
 import com.google.auth.oauth2.IdTokenCredentials;
 import com.google.auth.oauth2.IdTokenProvider;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Supplier;
 
 final class GoogleAiServiceIdentityTokenProvider implements AiServiceIdentityTokenProvider {
   private final Object applicationDefaultCredentialsLock = new Object();
   private final ConcurrentMap<String, CachedAudienceCredentials> credentialsByAudience =
       new ConcurrentHashMap<>();
-  private final Supplier<IdTokenProvider> applicationDefaultCredentialsLoader;
+  private final ApplicationDefaultCredentialsLoader applicationDefaultCredentialsLoader;
 
   private volatile IdTokenProvider applicationDefaultCredentials;
 
   GoogleAiServiceIdentityTokenProvider() {
-    this(GoogleAiServiceIdentityTokenProvider::loadAdcIdentityTokenProvider);
+    this(GoogleCredentials::getApplicationDefault);
   }
 
   GoogleAiServiceIdentityTokenProvider(
-      Supplier<IdTokenProvider> applicationDefaultCredentialsLoader) {
+      ApplicationDefaultCredentialsLoader applicationDefaultCredentialsLoader) {
     this.applicationDefaultCredentialsLoader = applicationDefaultCredentialsLoader;
   }
 
@@ -33,15 +32,9 @@ final class GoogleAiServiceIdentityTokenProvider implements AiServiceIdentityTok
       throw new AiServiceIdentityTokenException();
     }
 
-    try {
-      return credentialsByAudience
-          .computeIfAbsent(audience, this::createAudienceCredentials)
-          .getToken();
-    } catch (AiServiceIdentityTokenException exception) {
-      throw exception;
-    } catch (RuntimeException exception) {
-      throw new AiServiceIdentityTokenException();
-    }
+    return credentialsByAudience
+        .computeIfAbsent(audience, this::createAudienceCredentials)
+        .getToken();
   }
 
   private CachedAudienceCredentials createAudienceCredentials(String audience) {
@@ -49,7 +42,6 @@ final class GoogleAiServiceIdentityTokenProvider implements AiServiceIdentityTok
         IdTokenCredentials.newBuilder()
             .setIdTokenProvider(loadApplicationDefaultCredentials())
             .setTargetAudience(audience)
-            .setOptions(List.of(IdTokenProvider.Option.FORMAT_FULL))
             .build();
     return new CachedAudienceCredentials(credentials);
   }
@@ -66,25 +58,34 @@ final class GoogleAiServiceIdentityTokenProvider implements AiServiceIdentityTok
         return current;
       }
 
-      current = applicationDefaultCredentialsLoader.get();
-      if (current == null) {
+      GoogleCredentials credentials;
+      try {
+        credentials = applicationDefaultCredentialsLoader.load();
+      } catch (IOException exception) {
         throw new AiServiceIdentityTokenException();
       }
+      if (!(credentials instanceof IdTokenProvider idTokenProvider)) {
+        throw new AiServiceIdentityTokenException();
+      }
+      current = validatingProvider(idTokenProvider);
       applicationDefaultCredentials = current;
       return current;
     }
   }
 
-  private static IdTokenProvider loadAdcIdentityTokenProvider() {
-    try {
-      GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
-      if (credentials instanceof IdTokenProvider idTokenProvider) {
-        return idTokenProvider;
+  private static IdTokenProvider validatingProvider(IdTokenProvider provider) {
+    return (audience, options) -> {
+      IdToken token = provider.idTokenWithAudience(audience, options);
+      if (token == null || token.getTokenValue() == null || token.getTokenValue().isBlank()) {
+        throw new AiServiceIdentityTokenException();
       }
-      throw new AiServiceIdentityTokenException();
-    } catch (IOException exception) {
-      throw new AiServiceIdentityTokenException();
-    }
+      return token;
+    };
+  }
+
+  @FunctionalInterface
+  interface ApplicationDefaultCredentialsLoader {
+    GoogleCredentials load() throws IOException;
   }
 
   private static final class CachedAudienceCredentials {

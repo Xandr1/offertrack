@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: offertrack_container_smoke
       POSTGRES_PASSWORD: container-smoke-postgres-password-not-for-production
     ports:
-      - "127.0.0.1:15433:5432"
+      - "127.0.0.1:55433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

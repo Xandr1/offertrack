@@ -157,7 +157,7 @@ public class HttpAiServiceClient implements AiServiceClient {
         throw new AiServiceIdentityTokenException();
       }
       return token;
-    } catch (RuntimeException exception) {
+    } catch (AiServiceIdentityTokenException exception) {
       log.warn(
           "ai_service_identity_failed request_id={} error_category=IDENTITY_TOKEN_ACQUISITION_FAILED",
           requestId);

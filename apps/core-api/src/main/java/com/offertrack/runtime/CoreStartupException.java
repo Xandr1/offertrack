@@ -20,6 +20,7 @@ public final class CoreStartupException extends RuntimeException {
 
   public enum Category {
     INVALID_RUNTIME_MODE,
-    INVALID_DATABASE_CONFIGURATION
+    INVALID_DATABASE_CONFIGURATION,
+    UNSUPPORTED_PROFILE_SOURCE
   }
 }

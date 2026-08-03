@@ -48,6 +48,11 @@ class DatabaseConfigurationValidatorTest {
         "jdbc:postgresql://database.example.com:5432/one/two",
         "jdbc:postgresql://database.example.com:5432/offertrack?password=secret",
         "jdbc:postgresql://database.example.com:5432/offertrack?u%73er=secret",
+        "jdbc:postgresql://database.example.com:5432/offertrack?sslpassword=secret",
+        "jdbc:postgresql://database.example.com:5432/offertrack?SSLPassword=secret",
+        "jdbc:postgresql://database.example.com:5432/offertrack?ssl%70assword=secret",
+        "jdbc:postgresql://database.example.com:5432/offertrack?sslmode=require&sslpassword=secret",
+        "jdbc:postgresql://database.example.com:5432/offertrack?sslmode=require;sslpassword=secret",
         "jdbc:postgresql://database.example.com:/offertrack",
         " jdbc:postgresql://database.example.com:5432/offertrack"
       })

@@ -107,6 +107,13 @@ non-loopback host, explicit valid port, minimum credential lengths, and known
 placeholder rejection. The same pure validator enforces those decisions for
 protected server startup and migration mode.
 
+Migration mode accepts profile selection only through
+`SPRING_PROFILES_ACTIVE` and `SPRING_PROFILES_DEFAULT`. Supplying
+`spring.profiles.active` or `spring.profiles.default` as a JVM system property
+or command-line option fails startup and directs the caller to the corresponding
+environment variable. This prevents pre-Spring migration startup from silently
+using the standard database policy when a protected profile was intended.
+
 Migration mode is selected before the regular Spring application is created.
 It does not initialize an HTTP listener, Redis, rate limiting, Spring Security,
 Google OAuth, SMTP, JWT configuration, AI clients, controllers, or web filters.

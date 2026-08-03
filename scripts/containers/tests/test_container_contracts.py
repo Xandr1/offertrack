@@ -354,7 +354,7 @@ class ComposeContractTest(unittest.TestCase):
     def test_smoke_literal_ports_and_hardening(self) -> None:
         compose = read("compose.container-smoke.yml")
         expected_ports = (
-            "127.0.0.1:15433:5432",
+            "127.0.0.1:55433:5432",
             "127.0.0.1:56380:6379",
             "127.0.0.1:13001:13001",
             "127.0.0.1:18001:18001",
@@ -598,6 +598,18 @@ class SmokeAndE2EContractTest(unittest.TestCase):
         self.assertLess(second_index, second_snapshot_index)
         self.assertLess(second_snapshot_index, history_compare_index)
         self.assertLess(history_compare_index, full_smoke_index)
+        helper = script[
+            script.index("postgres_psql() {") : script.index(
+                "\nhistory_absent=", script.index("postgres_psql() {")
+            )
+        ]
+        self.assertIn('PGPASSWORD="$POSTGRES_PASSWORD"', helper)
+        self.assertIn("--host 127.0.0.1", helper)
+        self.assertIn('--username "$POSTGRES_USER"', helper)
+        self.assertIn('--dbname "$POSTGRES_DB"', helper)
+        self.assertNotIn("compose exec -T postgres psql", script)
+        self.assertEqual(1, len(re.findall(r"\bpsql\b", script)))
+        self.assertEqual(7, script.count("postgres_psql \\"))
         self.assertIn(
             "installed_rank, version, description, type, script", script
         )

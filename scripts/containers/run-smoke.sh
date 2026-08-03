@@ -370,10 +370,19 @@ wait_for_url() {
 
 wait_for_health postgres
 
+postgres_psql() {
+  compose exec -T postgres sh -c '
+    export PGPASSWORD="$POSTGRES_PASSWORD"
+    exec psql \
+      --host 127.0.0.1 \
+      --username "$POSTGRES_USER" \
+      --dbname "$POSTGRES_DB" \
+      "$@"
+  ' sh "$@"
+}
+
 history_absent="$(
-  compose exec -T postgres psql \
-    --username offertrack_container_smoke \
-    --dbname offertrack_container_smoke \
+  postgres_psql \
     --tuples-only --no-align \
     --command "select to_regclass('public.flyway_schema_history') is null;" \
     | tr -d '\r[:space:]'
@@ -395,17 +404,13 @@ run_migration_container() {
 capture_migration_state() {
   local history_file="$1"
   local schema_file="$2"
-  compose exec -T postgres psql \
-    --username offertrack_container_smoke \
-    --dbname offertrack_container_smoke \
+  postgres_psql \
     --tuples-only --no-align \
     --field-separator '|' \
     --command \
       'select installed_rank, version, description, type, script, coalesce(checksum::text, '"'"''"'"'), success from flyway_schema_history order by installed_rank;' \
     | tr -d '\r' >"$history_file"
-  compose exec -T postgres psql \
-    --username offertrack_container_smoke \
-    --dbname offertrack_container_smoke \
+  postgres_psql \
     --tuples-only --no-align \
     --field-separator '|' \
     --command \
@@ -421,9 +426,7 @@ SECOND_SCHEMA="$RUNTIME_DIR/schema-second.txt"
 run_migration_container first
 capture_migration_state "$FIRST_HISTORY" "$FIRST_SCHEMA"
 migration_summary="$(
-  compose exec -T postgres psql \
-    --username offertrack_container_smoke \
-    --dbname offertrack_container_smoke \
+  postgres_psql \
     --tuples-only --no-align \
     --command 'select count(*) filter (where success), count(*) filter (where not success) from flyway_schema_history;' \
     | tr -d '\r[:space:]'
@@ -444,9 +447,7 @@ echo "Core migration container first run exited with code 0."
 run_migration_container second
 capture_migration_state "$SECOND_HISTORY" "$SECOND_SCHEMA"
 migration_summary_after_second="$(
-  compose exec -T postgres psql \
-    --username offertrack_container_smoke \
-    --dbname offertrack_container_smoke \
+  postgres_psql \
     --tuples-only --no-align \
     --command 'select count(*) filter (where success), count(*) filter (where not success) from flyway_schema_history;' \
     | tr -d '\r[:space:]'
@@ -497,9 +498,7 @@ verify_ai_and_core_health initial
   --expected-api-url http://127.0.0.1:18081
 
 migration_summary="$(
-  compose exec -T postgres psql \
-    --username offertrack_container_smoke \
-    --dbname offertrack_container_smoke \
+  postgres_psql \
     --tuples-only --no-align \
     --command 'select count(*) filter (where success), count(*) filter (where not success) from flyway_schema_history;' \
     | tr -d '\r[:space:]'
@@ -511,9 +510,7 @@ if (( BASH_REMATCH[1] < 1 )); then
   fail "Flyway history did not contain successful migrations with zero failures"
 fi
 
-compose exec -T postgres psql \
-  --username offertrack_container_smoke \
-  --dbname offertrack_container_smoke \
+postgres_psql \
   --set ON_ERROR_STOP=1 \
   <"$SEED_FILE" >/dev/null
 

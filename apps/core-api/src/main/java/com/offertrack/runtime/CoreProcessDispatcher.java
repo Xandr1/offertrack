@@ -30,7 +30,7 @@ public final class CoreProcessDispatcher {
     }
 
     DatabaseConfiguration databaseConfiguration =
-        migrationConfigurationResolver.resolve(environment);
+        migrationConfigurationResolver.resolve(environment, System.getProperties(), arguments);
     return CoreProcessResult.migrationCompleted(migrationRunner.run(databaseConfiguration));
   }
 

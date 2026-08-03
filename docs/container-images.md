@@ -145,7 +145,7 @@ The deterministic smoke endpoints are:
 | Web | 13001 | `http://127.0.0.1:13001` |
 | Core | 18081 | `http://127.0.0.1:18081` |
 | AI | 18001 | `http://127.0.0.1:18001` |
-| PostgreSQL | 5432 | `127.0.0.1:15433` |
+| PostgreSQL | 5432 | `127.0.0.1:55433` |
 | Redis | 6379 | `127.0.0.1:56380` |
 
 The Compose file contains fixed smoke-only database credentials, cryptographic

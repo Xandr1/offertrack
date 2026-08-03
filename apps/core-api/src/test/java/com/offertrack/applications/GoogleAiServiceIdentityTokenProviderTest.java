@@ -1,12 +1,18 @@
 package com.offertrack.applications;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.IdToken;
 import com.google.auth.oauth2.IdTokenProvider;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -19,15 +25,14 @@ class GoogleAiServiceIdentityTokenProviderTest {
   void loadsCredentialsLazilyAndCachesOneTokenCredentialPerExactAudience() {
     AtomicInteger loaderCalls = new AtomicInteger();
     AtomicInteger tokenCalls = new AtomicInteger();
-    AtomicReference<List<IdTokenProvider.Option>> requestedOptions = new AtomicReference<>();
     AtomicReference<String> requestedAudience = new AtomicReference<>();
-    IdTokenProvider fakeCredentials =
-        (audience, options) -> {
-          tokenCalls.incrementAndGet();
-          requestedAudience.set(audience);
-          requestedOptions.set(options);
-          return token();
-        };
+    GoogleCredentials fakeCredentials =
+        new FakeGoogleCredentials(
+            (audience, options) -> {
+              tokenCalls.incrementAndGet();
+              requestedAudience.set(audience);
+              return token();
+            });
     GoogleAiServiceIdentityTokenProvider provider =
         new GoogleAiServiceIdentityTokenProvider(
             () -> {
@@ -44,7 +49,6 @@ class GoogleAiServiceIdentityTokenProviderTest {
     assertThat(loaderCalls).hasValue(1);
     assertThat(tokenCalls).hasValue(2);
     assertThat(requestedAudience).hasValue("https://ai-service.example.com");
-    assertThat(requestedOptions.get()).containsExactly(IdTokenProvider.Option.FORMAT_FULL);
   }
 
   @Test
@@ -53,10 +57,11 @@ class GoogleAiServiceIdentityTokenProviderTest {
     GoogleAiServiceIdentityTokenProvider provider =
         new GoogleAiServiceIdentityTokenProvider(
             () ->
-                (audience, options) -> {
-                  tokenCalls.incrementAndGet();
-                  return token();
-                });
+                new FakeGoogleCredentials(
+                    (audience, options) -> {
+                      tokenCalls.incrementAndGet();
+                      return token();
+                    }));
     List<Callable<String>> requests =
         java.util.stream.IntStream.range(0, 32)
             .mapToObj(
@@ -70,6 +75,85 @@ class GoogleAiServiceIdentityTokenProviderTest {
     }
 
     assertThat(tokenCalls).hasValue(1);
+  }
+
+  @Test
+  void adcLoadingFailureBecomesExpectedIdentityFailureWithoutSensitiveCause() {
+    GoogleAiServiceIdentityTokenProvider provider =
+        new GoogleAiServiceIdentityTokenProvider(
+            () -> {
+              throw new IOException("adc-provider-secret");
+            });
+
+    assertThatThrownBy(() -> provider.getToken("https://ai-service.example.com"))
+        .isExactlyInstanceOf(AiServiceIdentityTokenException.class)
+        .hasMessageNotContaining("adc-provider-secret")
+        .hasNoCause();
+  }
+
+  @Test
+  void adcCredentialsWithoutIdTokenSupportBecomeExpectedIdentityFailure() {
+    GoogleCredentials accessTokenOnlyCredentials =
+        GoogleCredentials.create(
+            new AccessToken("access-token-that-must-not-leak", new Date(4_102_444_800_000L)));
+    GoogleAiServiceIdentityTokenProvider provider =
+        new GoogleAiServiceIdentityTokenProvider(() -> accessTokenOnlyCredentials);
+
+    assertThatThrownBy(() -> provider.getToken("https://ai-service.example.com"))
+        .isExactlyInstanceOf(AiServiceIdentityTokenException.class)
+        .hasMessageNotContaining("access-token-that-must-not-leak");
+  }
+
+  @Test
+  void tokenRefreshIoFailureBecomesExpectedIdentityFailure() {
+    GoogleAiServiceIdentityTokenProvider provider =
+        providerWithTokenSource(
+            (audience, options) -> {
+              throw new IOException("refresh-provider-secret");
+            });
+
+    assertThatThrownBy(() -> provider.getToken("https://ai-service.example.com"))
+        .isExactlyInstanceOf(AiServiceIdentityTokenException.class)
+        .hasMessageNotContaining("refresh-provider-secret")
+        .hasNoCause();
+  }
+
+  @Test
+  void nullTokenBecomesExpectedIdentityFailure() {
+    GoogleAiServiceIdentityTokenProvider provider =
+        providerWithTokenSource((audience, options) -> null);
+
+    assertThatThrownBy(() -> provider.getToken("https://ai-service.example.com"))
+        .isExactlyInstanceOf(AiServiceIdentityTokenException.class);
+  }
+
+  @Test
+  void blankTokenBecomesExpectedIdentityFailure() {
+    IdToken blankToken = mock(IdToken.class);
+    when(blankToken.getTokenValue()).thenReturn(" ");
+    GoogleAiServiceIdentityTokenProvider provider =
+        providerWithTokenSource((audience, options) -> blankToken);
+
+    assertThatThrownBy(() -> provider.getToken("https://ai-service.example.com"))
+        .isExactlyInstanceOf(AiServiceIdentityTokenException.class);
+  }
+
+  @Test
+  void unexpectedProgrammingFailureIsNotConvertedToCredentialFailure() {
+    NullPointerException programmingFailure = new NullPointerException("broken-token-provider");
+    GoogleAiServiceIdentityTokenProvider provider =
+        providerWithTokenSource(
+            (audience, options) -> {
+              throw programmingFailure;
+            });
+
+    assertThatThrownBy(() -> provider.getToken("https://ai-service.example.com"))
+        .isSameAs(programmingFailure);
+  }
+
+  private static GoogleAiServiceIdentityTokenProvider providerWithTokenSource(
+      IdTokenProvider tokenProvider) {
+    return new GoogleAiServiceIdentityTokenProvider(() -> new FakeGoogleCredentials(tokenProvider));
   }
 
   private static IdToken token() throws IOException {
@@ -87,5 +171,20 @@ class GoogleAiServiceIdentityTokenProviderTest {
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static final class FakeGoogleCredentials extends GoogleCredentials
+      implements IdTokenProvider {
+    private final IdTokenProvider tokenProvider;
+
+    private FakeGoogleCredentials(IdTokenProvider tokenProvider) {
+      this.tokenProvider = tokenProvider;
+    }
+
+    @Override
+    public IdToken idTokenWithAudience(String targetAudience, List<Option> options)
+        throws IOException {
+      return tokenProvider.idTokenWithAudience(targetAudience, options);
+    }
   }
 }
