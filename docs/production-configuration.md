@@ -16,7 +16,8 @@ Protected Spring startup requires safe explicit values for:
 - Browser topology: `APP_WEB_URL`, `CORS_ALLOWED_ORIGINS`,
   `AUTH_COOKIE_NAME`, `AUTH_COOKIE_PATH`, optional `AUTH_COOKIE_DOMAIN`,
   `AUTH_COOKIE_SECURE`, and `AUTH_COOKIE_SAME_SITE`
-- AI client: `AI_SERVICE_BASE_URL`, `AI_SERVICE_INTERNAL_API_KEY`
+- AI client: `AI_SERVICE_BASE_URL`, `AI_SERVICE_INTERNAL_API_KEY`,
+  `AI_SERVICE_AUTH_MODE`, and `AI_SERVICE_AUDIENCE`
 - Mail: `SMTP_HOST`, `SMTP_PORT`, optional `SMTP_USERNAME` and
   `SMTP_PASSWORD`, plus `MAIL_FROM`
 - Rate limiting: `RATE_LIMIT_KEY_SECRET` and `RATE_LIMIT_FAIL_OPEN`
@@ -35,6 +36,87 @@ Protected validation applies these exact UTF-8 byte minimums:
 Known local/default placeholders are rejected. These checks validate byte
 length and known unsafe values; they do not estimate cryptographic entropy.
 Never commit a real environment file or secret.
+
+## Core-to-AI authentication
+
+Local, test, and E2E environments use:
+
+```dotenv
+AI_SERVICE_AUTH_MODE=internal-key
+AI_SERVICE_AUDIENCE=
+```
+
+They continue to send `X-Internal-Api-Key` and `X-Request-Id` and do not load
+Google Application Default Credentials (ADC). Protected `stage`, `staging`,
+`prod`, and `production` profiles instead require:
+
+```dotenv
+AI_SERVICE_AUTH_MODE=google-id-token
+AI_SERVICE_BASE_URL=https://<ai-service>.run.app
+AI_SERVICE_AUDIENCE=https://<ai-service>.run.app
+AI_SERVICE_INTERNAL_API_KEY=<independent-32-byte-secret>
+```
+
+In Google mode, the Core API obtains an ID token lazily from ADC for the exact
+configured audience and adds it as
+`X-Serverless-Authorization: Bearer <google-id-token>`. The internal API key and
+request ID remain required and are sent on the same request. Token acquisition
+fails closed before the HTTP request; logs contain only a request ID and safe
+error category.
+
+The base URL and audience must both be absolute HTTPS roots with no credentials,
+query, fragment, or path other than empty or `/`. Comparison lowercases the
+scheme and host, treats an empty path and `/` equally, and treats explicit port
+443 as the HTTPS default. Their normalized values must match, but the exact
+validated `AI_SERVICE_AUDIENCE` string is passed to Google Auth. Protected
+configuration also rejects loopback, unspecified, `localhost`, `.local`,
+`.localdomain`, and single-label hosts.
+
+ADC is expected to come from the eventual Cloud Run workload identity. No
+service-account JSON file, private key, or other static GCP credential is
+expected. Cloud Run service IAM and invocation permissions are deliberately
+deferred to the infrastructure milestone; this repository does not implement
+them yet.
+
+## Core runtime and migrations
+
+`OFFERTRACK_RUN_MODE` accepts exactly `server` or `migrate`. Omission defaults
+to `server`; an explicit blank or any other value fails before Spring starts.
+Normal server behavior is unchanged. Server-mode automatic Flyway startup can
+be controlled with `SPRING_FLYWAY_ENABLED` and remains enabled by default.
+
+Use the normal Core production image as a one-shot migration process:
+
+```dotenv
+OFFERTRACK_RUN_MODE=migrate
+DATABASE_URL=jdbc:postgresql://database.example.com:5432/offertrack
+DB_USER=offertrack_migrator
+DB_PASSWORD=<database-password>
+```
+
+Migration mode resolves only those three database settings, validates them
+before connecting, runs the existing `classpath:db/migration` Flyway migrations,
+and exits. It ignores `SPRING_FLYWAY_ENABLED`. Success or an already-current
+schema exits with code 0; invalid settings, connection errors, Flyway validation
+errors, and migration errors exit nonzero.
+
+The database URL must be a credential-free PostgreSQL JDBC URL with a database
+name; user and password stay in their dedicated environment variables.
+Protected profiles additionally retain the server startup rules for a
+non-loopback host, explicit valid port, minimum credential lengths, and known
+placeholder rejection. The same pure validator enforces those decisions for
+protected server startup and migration mode.
+
+Migration mode accepts profile selection only through
+`SPRING_PROFILES_ACTIVE` and `SPRING_PROFILES_DEFAULT`. Supplying
+`spring.profiles.active` or `spring.profiles.default` as a JVM system property
+or command-line option fails startup and directs the caller to the corresponding
+environment variable. This prevents pre-Spring migration startup from silently
+using the standard database policy when a protected profile was intended.
+
+Migration mode is selected before the regular Spring application is created.
+It does not initialize an HTTP listener, Redis, rate limiting, Spring Security,
+Google OAuth, SMTP, JWT configuration, AI clients, controllers, or web filters.
 
 Keep `SERVER_FORWARD_HEADERS_STRATEGY=none` unless the API is behind a trusted
 ingress that strips client-supplied forwarded headers and supplies its own.

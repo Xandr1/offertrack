@@ -8,6 +8,7 @@ import java.net.SocketTimeoutException;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,20 +27,47 @@ public class HttpAiServiceClient implements AiServiceClient {
   private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
   private static final String INTERNAL_API_KEY_HEADER = "X-Internal-Api-Key";
   private static final String REQUEST_ID_HEADER = "X-Request-Id";
+  private static final String SERVERLESS_AUTHORIZATION_HEADER = "X-Serverless-Authorization";
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper;
   private final String internalApiKey;
+  private final AiServiceAuthMode authMode;
+  private final String audience;
+  private final AiServiceIdentityTokenProvider identityTokenProvider;
 
   @Autowired
-  public HttpAiServiceClient(AiServiceProperties properties, ObjectMapper objectMapper) {
-    this(createRestClient(properties.getBaseUrl()), objectMapper, properties.getInternalApiKey());
+  public HttpAiServiceClient(
+      AiServiceProperties properties,
+      ObjectMapper objectMapper,
+      ObjectProvider<AiServiceIdentityTokenProvider> identityTokenProvider) {
+    ValidatedAiServiceConfiguration configuration =
+        ValidatedAiServiceConfiguration.from(properties);
+    this.restClient = createRestClient(configuration.baseUrl());
+    this.objectMapper = objectMapper;
+    this.internalApiKey = configuration.internalApiKey();
+    this.authMode = configuration.authMode();
+    this.audience = configuration.audience();
+    this.identityTokenProvider = identityTokenProvider.getIfAvailable();
   }
 
   HttpAiServiceClient(RestClient restClient, ObjectMapper objectMapper, String internalApiKey) {
+    this(restClient, objectMapper, internalApiKey, AiServiceAuthMode.INTERNAL_KEY, "", null);
+  }
+
+  HttpAiServiceClient(
+      RestClient restClient,
+      ObjectMapper objectMapper,
+      String internalApiKey,
+      AiServiceAuthMode authMode,
+      String audience,
+      AiServiceIdentityTokenProvider identityTokenProvider) {
     this.restClient = restClient;
     this.objectMapper = objectMapper;
     this.internalApiKey = internalApiKey == null ? "" : internalApiKey.trim();
+    this.authMode = authMode;
+    this.audience = audience;
+    this.identityTokenProvider = identityTokenProvider;
   }
 
   @Override
@@ -53,17 +81,22 @@ public class HttpAiServiceClient implements AiServiceClient {
       throw new AiServiceUnavailableException();
     }
 
+    String identityToken = acquireIdentityToken(requestId);
+
     try {
-      ApplicationDraftResponse response =
+      RestClient.RequestBodySpec requestSpec =
           restClient
               .post()
               .uri("/parse-job")
               .contentType(MediaType.APPLICATION_JSON)
               .header(INTERNAL_API_KEY_HEADER, internalApiKey)
-              .header(REQUEST_ID_HEADER, requestId)
-              .body(request)
-              .retrieve()
-              .body(ApplicationDraftResponse.class);
+              .header(REQUEST_ID_HEADER, requestId);
+      if (identityToken != null) {
+        requestSpec.header(SERVERLESS_AUTHORIZATION_HEADER, "Bearer " + identityToken);
+      }
+
+      ApplicationDraftResponse response =
+          requestSpec.body(request).retrieve().body(ApplicationDraftResponse.class);
 
       if (response == null) {
         throw new AiServiceExtractionException();
@@ -107,6 +140,28 @@ public class HttpAiServiceClient implements AiServiceClient {
           "ai_service_draft_failed request_id={} source_type=url error_code=AI_SERVICE_EXTRACTION_FAILED",
           requestId);
       throw new AiServiceExtractionException();
+    }
+  }
+
+  private String acquireIdentityToken(String requestId) {
+    if (authMode == AiServiceAuthMode.INTERNAL_KEY) {
+      return null;
+    }
+
+    try {
+      if (identityTokenProvider == null) {
+        throw new AiServiceIdentityTokenException();
+      }
+      String token = identityTokenProvider.getToken(audience);
+      if (token == null || token.isBlank()) {
+        throw new AiServiceIdentityTokenException();
+      }
+      return token;
+    } catch (AiServiceIdentityTokenException exception) {
+      log.warn(
+          "ai_service_identity_failed request_id={} error_category=IDENTITY_TOKEN_ACQUISITION_FAILED",
+          requestId);
+      throw new AiServiceUnavailableException();
     }
   }
 

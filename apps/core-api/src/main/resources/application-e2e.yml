@@ -41,6 +41,8 @@ app:
   ai-service:
     base-url: http://127.0.0.1:8000
     internal-api-key: e2e-ai-service-key-with-at-least-thirty-two-bytes
+    auth-mode: internal-key
+    audience:
   rate-limit:
     key-secret: e2e-rate-limit-key-secret-with-at-least-thirty-two-bytes
     fail-open: false

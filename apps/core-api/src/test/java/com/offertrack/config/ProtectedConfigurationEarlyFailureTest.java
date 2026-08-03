@@ -58,8 +58,10 @@ class ProtectedConfigurationEarlyFailureTest {
       "--app.auth.cookie.path=/",
       "--app.auth.cookie.secure=true",
       "--app.auth.cookie.same-site=None",
-      "--app.ai-service.base-url=http://ai-service.internal:8000",
+      "--app.ai-service.base-url=https://ai-service.example.com",
       "--app.ai-service.internal-api-key=ai-service-internal-key-which-is-long-enough",
+      "--app.ai-service.auth-mode=google-id-token",
+      "--app.ai-service.audience=https://ai-service.example.com",
       "--server.forward-headers-strategy=none"
     };
   }

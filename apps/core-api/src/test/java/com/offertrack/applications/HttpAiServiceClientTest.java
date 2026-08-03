@@ -15,15 +15,20 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+@ExtendWith(OutputCaptureExtension.class)
 class HttpAiServiceClientTest {
   private static final String INTERNAL_API_KEY = "test-internal-key";
 
@@ -184,19 +189,118 @@ class HttpAiServiceClientTest {
   void sendsInternalApiKeyAndRequestIdHeaders() throws Exception {
     AtomicReference<String> internalApiKeyHeader = new AtomicReference<>();
     AtomicReference<String> requestIdHeader = new AtomicReference<>();
+    AtomicReference<String> serverlessAuthorizationHeader = new AtomicReference<>();
+    AtomicInteger tokenProviderCalls = new AtomicInteger();
     startServer(
         exchange -> {
           internalApiKeyHeader.set(exchange.getRequestHeaders().getFirst("X-Internal-Api-Key"));
           requestIdHeader.set(exchange.getRequestHeaders().getFirst("X-Request-Id"));
+          serverlessAuthorizationHeader.set(
+              exchange.getRequestHeaders().getFirst("X-Serverless-Authorization"));
           sendJson(exchange, 200, successBody());
         });
 
     MDC.put(RequestIdFilter.MDC_KEY, "incoming-correlation-id");
-    var response = client().parseJob(request());
+    HttpAiServiceClient client =
+        client(
+            AiServiceAuthMode.INTERNAL_KEY,
+            "",
+            audience -> {
+              tokenProviderCalls.incrementAndGet();
+              return "must-not-be-used";
+            });
+    var response = client.parseJob(request());
 
     assertThat(response.companyName()).isEqualTo("Acme");
     assertThat(internalApiKeyHeader).hasValue(INTERNAL_API_KEY);
     assertThat(requestIdHeader).hasValue("incoming-correlation-id");
+    assertThat(serverlessAuthorizationHeader).hasValue(null);
+    assertThat(tokenProviderCalls).hasValue(0);
+  }
+
+  @Test
+  void googleModeRequestsExactAudienceAndSendsBothAuthenticationHeaders() throws Exception {
+    String audience = "https://ai-service.example.com/";
+    AtomicReference<String> requestedAudience = new AtomicReference<>();
+    AtomicReference<String> internalApiKeyHeader = new AtomicReference<>();
+    AtomicReference<String> serverlessAuthorizationHeader = new AtomicReference<>();
+    AtomicReference<String> requestIdHeader = new AtomicReference<>();
+    startServer(
+        exchange -> {
+          internalApiKeyHeader.set(exchange.getRequestHeaders().getFirst("X-Internal-Api-Key"));
+          serverlessAuthorizationHeader.set(
+              exchange.getRequestHeaders().getFirst("X-Serverless-Authorization"));
+          requestIdHeader.set(exchange.getRequestHeaders().getFirst("X-Request-Id"));
+          sendJson(exchange, 200, successBody());
+        });
+
+    HttpAiServiceClient client =
+        client(
+            AiServiceAuthMode.GOOGLE_ID_TOKEN,
+            audience,
+            requested -> {
+              requestedAudience.set(requested);
+              return "deterministic-google-token";
+            });
+
+    MDC.put(RequestIdFilter.MDC_KEY, "google-mode-request-id");
+    assertThat(client.parseJob(request()).companyName()).isEqualTo("Acme");
+    assertThat(requestedAudience).hasValue(audience);
+    assertThat(internalApiKeyHeader).hasValue(INTERNAL_API_KEY);
+    assertThat(serverlessAuthorizationHeader).hasValue("Bearer deterministic-google-token");
+    assertThat(requestIdHeader).hasValue("google-mode-request-id");
+  }
+
+  @Test
+  void expectedTokenAcquisitionFailureSendsNoRequestAndLogsOnlySafeDetails(CapturedOutput output)
+      throws Exception {
+    AtomicInteger requests = new AtomicInteger();
+    startServer(
+        exchange -> {
+          requests.incrementAndGet();
+          sendJson(exchange, 200, successBody());
+        });
+    MDC.put(RequestIdFilter.MDC_KEY, "safe-request-id");
+    HttpAiServiceClient client =
+        client(
+            AiServiceAuthMode.GOOGLE_ID_TOKEN,
+            "https://ai-service.example.com",
+            audience -> {
+              throw new AiServiceIdentityTokenException();
+            });
+
+    assertThatThrownBy(() -> client.parseJob(request()))
+        .isInstanceOf(AiServiceUnavailableException.class);
+    assertThat(requests).hasValue(0);
+    assertThat(output)
+        .contains("request_id=safe-request-id")
+        .contains("error_category=IDENTITY_TOKEN_ACQUISITION_FAILED")
+        .doesNotContain("AI service identity token is unavailable")
+        .doesNotContain("ai-service.example.com")
+        .doesNotContain(INTERNAL_API_KEY)
+        .doesNotContain("deterministic-google-token");
+  }
+
+  @Test
+  void unexpectedTokenProviderProgrammingFailureIsNotSwallowed() throws Exception {
+    AtomicInteger requests = new AtomicInteger();
+    startServer(
+        exchange -> {
+          requests.incrementAndGet();
+          sendJson(exchange, 200, successBody());
+        });
+    IllegalStateException programmingFailure =
+        new IllegalStateException("broken-custom-token-provider");
+    HttpAiServiceClient client =
+        client(
+            AiServiceAuthMode.GOOGLE_ID_TOKEN,
+            "https://ai-service.example.com",
+            audience -> {
+              throw programmingFailure;
+            });
+
+    assertThatThrownBy(() -> client.parseJob(request())).isSameAs(programmingFailure);
+    assertThat(requests).hasValue(0);
   }
 
   private HttpAiServiceClient client() {
@@ -208,6 +312,19 @@ class HttpAiServiceClientTest {
         restClient("http://127.0.0.1:" + server.getAddress().getPort(), readTimeout),
         objectMapper,
         INTERNAL_API_KEY);
+  }
+
+  private HttpAiServiceClient client(
+      AiServiceAuthMode authMode,
+      String audience,
+      AiServiceIdentityTokenProvider identityTokenProvider) {
+    return new HttpAiServiceClient(
+        restClient("http://127.0.0.1:" + server.getAddress().getPort(), Duration.ofSeconds(2)),
+        objectMapper,
+        INTERNAL_API_KEY,
+        authMode,
+        audience,
+        identityTokenProvider);
   }
 
   private static RestClient restClient(String baseUrl, Duration readTimeout) {
