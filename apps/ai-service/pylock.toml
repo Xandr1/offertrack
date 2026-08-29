@@ -68,17 +68,6 @@ url = "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330
 sha256 = "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360"
 
 [[packages]]
-name = "colorama"
-version = "0.4.6"
-
-[[packages.wheels]]
-name = "colorama-0.4.6-py2.py3-none-any.whl"
-url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl"
-
-[packages.wheels.hashes]
-sha256 = "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"
-
-[[packages]]
 name = "distro"
 version = "1.9.0"
 
@@ -127,11 +116,11 @@ name = "httptools"
 version = "0.8.0"
 
 [[packages.wheels]]
-name = "httptools-0.8.0-cp314-cp314-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/60/bd/07b13c93ffd9bec9546e0d43f8e19378dd696dbd278511406bc07371ef1f/httptools-0.8.0-cp314-cp314-win_amd64.whl"
+name = "httptools-0.8.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/cc/d4/13025f1a56e615dcb331e0bbe2d9a1143212b58c263385fc5d2e558f5bac/httptools-0.8.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "19d1ee275bb59ba2643ba9a3a1e51cc0c788caf2b8df506368e03f56fdd08527"
+sha256 = "57278e6fa0424c42a8a3e454828ab4f0aff27b40cddf9679579b98c6dce6a376"
 
 [[packages]]
 name = "httpx"
@@ -160,11 +149,11 @@ name = "jiter"
 version = "0.16.0"
 
 [[packages.wheels]]
-name = "jiter-0.16.0-cp314-cp314-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/5e/e6/4758a14304b4523a6f5adb2419340086aa3593bd4327c2b25b5948a90548/jiter-0.16.0-cp314-cp314-win_amd64.whl"
+name = "jiter-0.16.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/40/cd/0fcc3f7d39183674d5bfa9ec640faaeb506c60be7c8f94625dfba366e37c/jiter-0.16.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "cbd18dd5e2df96b580487b5745adf57ef64ad89ba2d9662fc3c19386acce7db8"
+sha256 = "8597d23c87f59294f83bcb6229b9ed1fccee13dbba967b46930d2f1759466fee"
 
 [[packages]]
 name = "openai"
@@ -193,11 +182,11 @@ name = "pydantic-core"
 version = "2.46.5"
 
 [[packages.wheels]]
-name = "pydantic_core-2.46.5-cp314-cp314-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/f7/3c/60674207246bc0a4009d2391b7c7251c7159f279c8d2ab8aae8ef46f3dee/pydantic_core-2.46.5-cp314-cp314-win_amd64.whl"
+name = "pydantic_core-2.46.5-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/cf/bc/3fa2d76b83162820a17da7f645b28d1cba99fc8e1e5fc6517067ec450fa1/pydantic_core-2.46.5-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "fa10ef4112775900e7a0661068635eb67b2ab824fbde764de6e0e21982a93db0"
+sha256 = "49776eab08766a08dfff7012f8b422dcd7e25e43b316eedf0477c24fcfa84b7c"
 
 [[packages]]
 name = "python-dotenv"
@@ -215,11 +204,11 @@ name = "pyyaml"
 version = "6.0.3"
 
 [[packages.wheels]]
-name = "pyyaml-6.0.3-cp314-cp314-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/23/20/bb6982b26a40bb43951265ba29d4c246ef0ff59c9fdcdf0ed04e0687de4d/pyyaml-6.0.3-cp314-cp314-win_amd64.whl"
+name = "pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/71/60/917329f640924b18ff085ab889a11c763e0b573da888e8404ff486657602/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "4a2e8cebe2ff6ab7d1050ecd59c25d4c8bd7e6f400f5f82b96557ac0abafd0ac"
+sha256 = "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d"
 
 [[packages]]
 name = "sniffio"
@@ -299,23 +288,34 @@ url = "https://files.pythonhosted.org/packages/f1/79/4a20b54ab0491485ccd8c077db2
 sha256 = "f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1"
 
 [[packages]]
+name = "uvloop"
+version = "0.22.1"
+
+[[packages.wheels]]
+name = "uvloop-0.22.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/74/4f/256aca690709e9b008b7108bc85fba619a2bc37c6d80743d18abad16ee09/uvloop-0.22.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+
+[packages.wheels.hashes]
+sha256 = "56a2d1fae65fd82197cb8c53c367310b3eabe1bbb9fb5a04d28e3e3520e4f702"
+
+[[packages]]
 name = "watchfiles"
 version = "1.2.0"
 
 [[packages.wheels]]
-name = "watchfiles-1.2.0-cp314-cp314-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/92/45/190ce6db8dcb4536682cf75d3889ff1a27182a58cb519d343cb6d9ea63d8/watchfiles-1.2.0-cp314-cp314-win_amd64.whl"
+name = "watchfiles-1.2.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/ee/5a/73e2959af1b97fd5d556f9a8bdba017be23ceeef731869d5eaa0a753d5a3/watchfiles-1.2.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "71283b39fd17e5408eb123bd37aeecfd9d54c81fc184421943208aadb879d103"
+sha256 = "a711b51aec4370d0dcda5b6c09463206f133a5759341d7744b953a7b62e1100e"
 
 [[packages]]
 name = "websockets"
 version = "17.1"
 
 [[packages.wheels]]
-name = "websockets-17.1-cp314-cp314-win_amd64.whl"
-url = "https://files.pythonhosted.org/packages/d0/0f/9e7ac63c5d7cb642952200814f584318e65146df008b7d375d5d9c6b2c97/websockets-17.1-cp314-cp314-win_amd64.whl"
+name = "websockets-17.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
+url = "https://files.pythonhosted.org/packages/5c/9a/00ae2e147eaa086fe8bdddd36f57216ce72b9a9dfc0b17c717005ebdacaf/websockets-17.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"
 
 [packages.wheels.hashes]
-sha256 = "2a4dc6ef83f4559e0d05f313a375cb38f63c986096a9da99fe94fdd779d313e5"
+sha256 = "0c84bdef916556cbe1d5a43b423398be4dd3cba6522b463e53d848578b920695"
