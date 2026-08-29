@@ -17,3 +17,18 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# Terraform local state and generated artifacts
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+*.tfplan.*
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/terraform/staging/*.local.tfvars
+infra/terraform/staging/*.local.tfvars.json
