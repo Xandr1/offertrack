@@ -33,6 +33,7 @@
 		<!-- Temporary security baselines until Spring Boot manages these fixed patch releases. -->
 		<jackson-bom.version>2.21.5</jackson-bom.version>
 		<logback.version>1.5.35</logback.version>
+		<log4j2.version>2.25.5</log4j2.version>
 		<netty.version>4.1.136.Final</netty.version>
 		<commons-lang3.version>3.18.0</commons-lang3.version>
 		<postgresql.version>42.7.13</postgresql.version>

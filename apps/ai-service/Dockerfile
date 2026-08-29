@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM python:3.11.15-slim-trixie@sha256:00af38ae2ed311628970782e8a2d7f014d8909dbc63cb97bc0a158187f4db045 AS dependencies
+FROM python:3.11.15-slim-trixie@sha256:78b39ef14d8e2b4d71f8dc304f1328c37df95fe0ef99477c2ae6bd3d03784553 AS dependencies
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -19,7 +19,7 @@ RUN sha256sum --check pylock.toml.sha256 \
     && /opt/venv/bin/python -m pip uninstall --yes setuptools wheel \
     && /opt/venv/bin/python -m pip uninstall --yes pip
 
-FROM python:3.11.15-slim-trixie@sha256:00af38ae2ed311628970782e8a2d7f014d8909dbc63cb97bc0a158187f4db045 AS runtime
+FROM python:3.11.15-slim-trixie@sha256:78b39ef14d8e2b4d71f8dc304f1328c37df95fe0ef99477c2ae6bd3d03784553 AS runtime
 
 ENV HOST=0.0.0.0 \
     PATH="/opt/venv/bin:${PATH}" \
@@ -28,7 +28,22 @@ ENV HOST=0.0.0.0 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/opt/venv
 
-RUN python -m pip uninstall --yes setuptools wheel \
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
+        bsdutils=1:2.41.5-0+deb13u1 \
+        libblkid1=2.41.5-0+deb13u1 \
+        liblastlog2-2=2.41.5-0+deb13u1 \
+        libmount1=2.41.5-0+deb13u1 \
+        libsmartcols1=2.41.5-0+deb13u1 \
+        libssl3t64=3.5.7-1~deb13u2 \
+        libuuid1=2.41.5-0+deb13u1 \
+        login=1:4.16.0-2+really2.41.5-0+deb13u1 \
+        mount=2.41.5-0+deb13u1 \
+        openssl=3.5.7-1~deb13u2 \
+        openssl-provider-legacy=3.5.7-1~deb13u2 \
+        util-linux=2.41.5-0+deb13u1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip uninstall --yes setuptools wheel \
     && python -m pip uninstall --yes pip \
     && groupadd --system --gid 10001 offertrack \
     && useradd --system --uid 10001 --gid offertrack --no-create-home \
