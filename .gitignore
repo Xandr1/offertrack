@@ -18,6 +18,10 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 
+# Maven local Docker settings / local-only config overrides
+**/.m2link/
+**/.m2/
+
 # Terraform local state and generated artifacts
 .terraform/
 *.tfstate
