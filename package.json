@@ -12,7 +12,7 @@
     "test": "bash scripts/test.sh",
     "test:web": "pnpm.cmd --dir apps/web run lint && pnpm.cmd --dir apps/web run typecheck && pnpm.cmd --dir apps/web run test",
     "test:api": "bash -c 'cd apps/core-api && ./mvnw.cmd test'",
-    "test:ai-service": "bash -c 'cd apps/ai-service && sha256sum --check pylock.test.toml.sha256 && python -m pip install --upgrade \"pip==26.1.2\" && python -m pip install --requirement pylock.test.toml && python -m ruff check . && python -m ruff format --check . && python -m pyright && python -m pytest'",
+    "test:ai-service": "bash -c 'cd apps/ai-service && python -m pip install --upgrade \"pip==26.1.2\" && if uname -s | grep -qiE \"^(MINGW|MSYS|CYGWIN)\"; then python -m pip install --editable \".[test]\"; else sha256sum --check pylock.test.toml.sha256 && python -m pip install --requirement pylock.test.toml; fi && python -m ruff check . && python -m ruff format --check . && python -m pyright && python -m pytest'",
     "e2e": "bash scripts/e2e/run-e2e.sh",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",

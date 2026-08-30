@@ -83,6 +83,16 @@ def create_app(
     async def health() -> HealthResponse:
         return HealthResponse()
 
+    @app.get("/internal/health", response_model=HealthResponse)
+    async def internal_health(
+        x_internal_api_key: str | None = Header(default=None, alias="X-Internal-Api-Key"),
+    ) -> HealthResponse | JSONResponse:
+        auth_error = _authenticate(resolved_settings, x_internal_api_key)
+        if auth_error is not None:
+            status_code, code, message = auth_error
+            return _error_response(status_code, code, message)
+        return HealthResponse()
+
     @app.post("/parse-job", response_model=DraftResponse)
     async def parse_job(
         request: ParseJobRequest,

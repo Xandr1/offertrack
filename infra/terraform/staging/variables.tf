@@ -85,3 +85,120 @@ variable "redis_memory_size_gb" {
     error_message = "redis_memory_size_gb must be a positive integer."
   }
 }
+
+variable "enable_cloud_run_runtime" {
+  description = "Creates the Cloud Run services/job after foundation, secret versions, DB roles, and seed image digests are ready."
+  type        = bool
+  default     = false
+}
+
+variable "initial_images" {
+  description = "Initial immutable Artifact Registry image digests used when Terraform first creates the Cloud Run resources. Subsequent image-only deployments are managed by the staging workflow."
+  type = object({
+    ai       = string
+    core_api = string
+    web      = string
+  })
+  default  = null
+  nullable = true
+
+  validation {
+    condition = (
+      var.initial_images == null || (
+        can(regex("^europe-central2-docker\\.pkg\\.dev/offertrack-staging/offertrack/ai-service@sha256:[0-9a-f]{64}$", var.initial_images.ai)) &&
+        can(regex("^europe-central2-docker\\.pkg\\.dev/offertrack-staging/offertrack/core-api@sha256:[0-9a-f]{64}$", var.initial_images.core_api)) &&
+        can(regex("^europe-central2-docker\\.pkg\\.dev/offertrack-staging/offertrack/web@sha256:[0-9a-f]{64}$", var.initial_images.web))
+      )
+    )
+    error_message = "initial_images must contain exact staging Artifact Registry image digest references for ai-service, core-api, and web."
+  }
+
+  validation {
+    condition     = !var.enable_cloud_run_runtime || var.initial_images != null
+    error_message = "initial_images is required when enable_cloud_run_runtime is true."
+  }
+}
+
+variable "secret_versions" {
+  description = "Pinned numeric Secret Manager versions used by Cloud Run. Values are version identifiers only, never secret data."
+  type = object({
+    ai_internal_key      = string
+    db_app_password      = string
+    db_migrator_password = string
+    google_client_secret = string
+    jwt_secret           = string
+    oauth_cookie_secret  = string
+    openai_api_key       = string
+    rate_limit_key       = string
+    smtp_password        = string
+  })
+  default = {
+    ai_internal_key      = "1"
+    db_app_password      = "1"
+    db_migrator_password = "1"
+    google_client_secret = "1"
+    jwt_secret           = "1"
+    oauth_cookie_secret  = "1"
+    openai_api_key       = "1"
+    rate_limit_key       = "1"
+    smtp_password        = "1"
+  }
+
+  validation {
+    condition = alltrue([
+      for version in values(var.secret_versions) : can(regex("^[1-9][0-9]*$", version))
+    ])
+    error_message = "Every secret_versions value must be a pinned positive numeric Secret Manager version."
+  }
+}
+
+variable "google_oauth_client_id" {
+  description = "Public Google OAuth client ID for the staging Core service."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.google_oauth_client_id)) >= 16 && !strcontains(lower(var.google_oauth_client_id), "change-me")
+    error_message = "google_oauth_client_id must be an explicit non-placeholder client ID."
+  }
+}
+
+variable "smtp_host" {
+  description = "Non-secret SMTP hostname used by staging Core."
+  type        = string
+
+  validation {
+    condition     = can(regex("^(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\\.(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$", trimspace(var.smtp_host)))
+    error_message = "smtp_host must be an explicit non-loopback fully qualified hostname."
+  }
+}
+
+variable "smtp_port" {
+  description = "SMTP TCP port used by staging Core."
+  type        = number
+  default     = 587
+
+  validation {
+    condition     = var.smtp_port >= 1 && var.smtp_port <= 65535 && floor(var.smtp_port) == var.smtp_port
+    error_message = "smtp_port must be an integer TCP port."
+  }
+}
+
+variable "smtp_username" {
+  description = "Non-secret SMTP username used by staging Core."
+  type        = string
+
+  validation {
+    condition     = length(trimspace(var.smtp_username)) > 0
+    error_message = "smtp_username must not be empty because the runtime references an SMTP password secret."
+  }
+}
+
+variable "mail_from" {
+  description = "From address used for staging transactional email."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^[:space:]@]+@[^[:space:]@]+$", trimspace(var.mail_from)))
+    error_message = "mail_from must be an explicit email address."
+  }
+}

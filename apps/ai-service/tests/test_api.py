@@ -76,6 +76,24 @@ def test_health_does_not_require_internal_api_key() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_internal_health_requires_the_internal_api_key() -> None:
+    client = _client(
+        b"<html><body>Acme Backend Engineer remote role.</body></html>",
+        _successful_extractor(),
+    )
+
+    missing = client.get("/internal/health")
+    invalid = client.get("/internal/health", headers={"X-Internal-Api-Key": "wrong-key"})
+    valid = client.get("/internal/health", headers={"X-Internal-Api-Key": TEST_INTERNAL_API_KEY})
+
+    assert missing.status_code == 401
+    assert missing.json()["code"] == "MISSING_INTERNAL_API_KEY"
+    assert invalid.status_code == 403
+    assert invalid.json()["code"] == "INVALID_INTERNAL_API_KEY"
+    assert valid.status_code == 200
+    assert valid.json() == {"status": "ok"}
+
+
 def test_rejects_untrusted_host() -> None:
     client = _client(
         b"<html><body>Acme Backend Engineer remote role.</body></html>",

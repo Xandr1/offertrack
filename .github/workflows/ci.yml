@@ -46,6 +46,15 @@ jobs:
       - name: Validate configuration
         run: terraform validate -no-color
 
+      - name: Validate staging deployment contracts
+        working-directory: ${{ github.workspace }}
+        run: |
+          bash -n scripts/staging/provision-database-users.sh scripts/staging/smoke.sh
+          python -m unittest discover \
+            --start-directory scripts/staging/tests \
+            --pattern 'test_*.py' \
+            --verbose
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

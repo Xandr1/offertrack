@@ -22,6 +22,8 @@ spring:
       port: ${REDIS_PORT:6379}
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
       timeout: ${REDIS_TIMEOUT:1s}
+      ssl:
+        enabled: ${REDIS_TLS_ENABLED:false}
 
   mail:
     host: ${SMTP_HOST:localhost}
@@ -145,6 +147,15 @@ spring:
       port: ${REDIS_PORT:}
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:}
       timeout: ${REDIS_TIMEOUT:}
+      ssl:
+        enabled: ${REDIS_TLS_ENABLED:}
+        bundle: offertrack-redis
+  ssl:
+    bundle:
+      pem:
+        offertrack-redis:
+          truststore:
+            certificate: ${REDIS_TLS_CA_CERTIFICATES:}
   mail:
     host: ${SMTP_HOST:}
     port: ${SMTP_PORT:}
@@ -167,6 +178,8 @@ management:
       group:
         readiness:
           include: readinessState,db,redis
+        dependencies:
+          include: db,redis,aiService
 
 app:
   jwt:
