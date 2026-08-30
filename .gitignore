@@ -12,6 +12,7 @@ test-results/
 osv-maven-dependencies.json
 osv-results*.json
 *.log
+gha-creds-*.json
 __pycache__/
 *.py[cod]
 .pytest_cache/

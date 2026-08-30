@@ -3,6 +3,9 @@ package com.offertrack.config;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
@@ -11,6 +14,71 @@ class ProtectedConfigurationRulesTest {
   void acceptsCompleteProtectedConfiguration() {
     assertThatCode(() -> ProtectedConfigurationRules.validate(validConfiguration()))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  void acceptsTheFullActiveRedisCaSet() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty(
+        RedisTlsTrustMaterialValidator.PROPERTY,
+        redisCaCertificate() + "\n" + redisOtherCaCertificate());
+
+    assertThatCode(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void rejectsDisabledRedisTlsInProtectedProfiles() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.data.redis.ssl.enabled", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.data.redis.ssl.enabled");
+  }
+
+  @Test
+  void rejectsMissingRedisTrustMaterial() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty(RedisTlsTrustMaterialValidator.PROPERTY, "");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY);
+  }
+
+  @Test
+  void rejectsInvalidRedisTrustMaterialWithoutLeakingIt() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty(
+        RedisTlsTrustMaterialValidator.PROPERTY, "invalid-certificate-secret-marker");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY)
+        .hasMessageNotContaining("secret-marker");
+  }
+
+  @Test
+  void rejectsAValidEndEntityCertificateAsRedisTrustMaterial() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty(
+        RedisTlsTrustMaterialValidator.PROPERTY, resource("/redis/tls/server.crt"));
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY);
   }
 
   @Test
@@ -66,6 +134,24 @@ class ProtectedConfigurationRulesTest {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("app.rate-limit.key-secret")
         .hasMessageNotContaining(jwtSecret());
+  }
+
+  @Test
+  void rejectsMissingOrReusedDependencyHealthSecret() {
+    MockEnvironment missing = validEnvironment();
+    missing.withProperty("app.management.dependency-health-key", "");
+    MockEnvironment reused = validEnvironment();
+    reused.withProperty(
+        "app.management.dependency-health-key", "ai-service-internal-key-which-is-long-enough");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(ProtectedConfigurationSnapshot.from(missing)))
+        .hasMessageContaining("app.management.dependency-health-key");
+    assertThatThrownBy(
+            () -> ProtectedConfigurationRules.validate(ProtectedConfigurationSnapshot.from(reused)))
+        .hasMessageContaining("app.management.dependency-health-key")
+        .hasMessageNotContaining("ai-service-internal-key");
   }
 
   @Test
@@ -334,6 +420,58 @@ class ProtectedConfigurationRulesTest {
   }
 
   @Test
+  void rejectsAnonymousSmtpWithTlsDisabled() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.username", "");
+    environment.withProperty("spring.mail.password", "");
+    environment.withProperty("spring.mail.properties.mail.smtp.starttls.enable", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.starttls.enable");
+  }
+
+  @Test
+  void rejectsAnonymousSmtpWhenStarttlsIsNotRequired() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.username", "");
+    environment.withProperty("spring.mail.password", "");
+    environment.withProperty("spring.mail.properties.mail.smtp.starttls.required", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.starttls.required");
+  }
+
+  @Test
+  void rejectsAuthenticatedSmtpWithoutRequiredStarttls() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.properties.mail.smtp.starttls.required", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.starttls.required");
+  }
+
+  @Test
+  void rejectsAuthenticatedSmtpWithInvalidTimeout() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.properties.mail.smtp.timeout", "0ms");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.timeout");
+  }
+
+  @Test
   void allowsRateLimitCountsAboveTcpPortRange() {
     MockEnvironment environment = validEnvironment();
     environment.withProperty("app.rate-limit.ai-user-day.max-attempts", "1000000");
@@ -437,10 +575,18 @@ class ProtectedConfigurationRulesTest {
             .withProperty("spring.data.redis.port", "6379")
             .withProperty("spring.data.redis.connect-timeout", "2s")
             .withProperty("spring.data.redis.timeout", "2s")
+            .withProperty("spring.data.redis.ssl.enabled", "true")
+            .withProperty("spring.data.redis.ssl.bundle", "offertrack-redis")
+            .withProperty(RedisTlsTrustMaterialValidator.PROPERTY, redisCaCertificate())
             .withProperty("spring.mail.host", "smtp.example.com")
             .withProperty("spring.mail.port", "587")
             .withProperty("spring.mail.username", "smtp-user")
             .withProperty("spring.mail.password", "smtp-password")
+            .withProperty("spring.mail.properties.mail.smtp.starttls.enable", "true")
+            .withProperty("spring.mail.properties.mail.smtp.starttls.required", "true")
+            .withProperty("spring.mail.properties.mail.smtp.connectiontimeout", "5s")
+            .withProperty("spring.mail.properties.mail.smtp.timeout", "10s")
+            .withProperty("spring.mail.properties.mail.smtp.writetimeout", "10s")
             .withProperty("app.mail.from", "no-reply@example.com")
             .withProperty(
                 "spring.security.oauth2.client.registration.google.client-id", "google-client-id")
@@ -454,6 +600,9 @@ class ProtectedConfigurationRulesTest {
                 "oauth-cookie-signing-secret-which-is-long-enough")
             .withProperty(
                 "app.rate-limit.key-secret", "rate-limit-hmac-secret-which-is-long-enough")
+            .withProperty(
+                "app.management.dependency-health-key",
+                "dependency-health-key-which-is-long-enough-and-distinct")
             .withProperty("app.rate-limit.fail-open", "false")
             .withProperty("app.web.url", "https://app.example.com")
             .withProperty("app.cors.allowed-origins", "https://app.example.com")
@@ -493,5 +642,24 @@ class ProtectedConfigurationRulesTest {
 
   private static String jwtSecret() {
     return "jwt-signing-secret-which-is-at-least-thirty-two-bytes";
+  }
+
+  static String redisCaCertificate() {
+    return resource("/redis/tls/ca.crt");
+  }
+
+  static String redisOtherCaCertificate() {
+    return resource("/redis/tls/other-ca.crt");
+  }
+
+  private static String resource(String name) {
+    try (InputStream input = ProtectedConfigurationRulesTest.class.getResourceAsStream(name)) {
+      if (input == null) {
+        throw new IllegalStateException("Missing test resource " + name);
+      }
+      return new String(input.readAllBytes(), StandardCharsets.US_ASCII).trim();
+    } catch (IOException exception) {
+      throw new IllegalStateException("Could not read test resource " + name, exception);
+    }
   }
 }

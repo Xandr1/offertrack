@@ -1,0 +1,389 @@
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  PROJECT_ID: offertrack-staging
+  PROJECT_NUMBER: "765846644391"
+  REGION: europe-central2
+  REPOSITORY: offertrack
+  AI_SERVICE: offertrack-stg-ai
+  CORE_SERVICE: offertrack-stg-core
+  MIGRATION_JOB: offertrack-stg-migrate
+  WEB_SERVICE: offertrack-stg-web
+  OFFERTRACK_CODEGEN_PROJECT_NAME: offertrack-codegen-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  deploy:
+    name: Immutable staging rollout
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      vars.STAGING_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout the CI-approved commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Verify trusted deployment scope
+        shell: bash
+        env:
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$APPROVED_SHA" ]]
+          printf '%s\n' "DEPLOY_SHA=$APPROVED_SHA" >> "$GITHUB_ENV"
+          printf '%s\n' "REVISION_SUFFIX=g${APPROVED_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Setup Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v3.6.1
+
+      - name: Authenticate to Google Cloud with WIF
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: offertrack-staging
+          workload_identity_provider: projects/765846644391/locations/global/workloadIdentityPools/offertrack-github/providers/github
+          service_account: offertrack-stg-deployer@offertrack-staging.iam.gserviceaccount.com
+
+      - name: Setup Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        with:
+          project_id: offertrack-staging
+          version: ">= 516.0.0"
+
+      - name: Configure Artifact Registry authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Prepare isolated build scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_root="${RUNNER_TEMP%/}/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          resolved_runner_temp="$(realpath -m -- "$RUNNER_TEMP")"
+          resolved_temp="$(realpath -m -- "$temp_root")"
+          [[ "$resolved_runner_temp" != "/" ]]
+          [[ "$resolved_temp" == "$resolved_runner_temp/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" ]]
+          mkdir -p -- "$resolved_temp"
+          chmod +x apps/core-api/mvnw scripts/containers/build-images.sh scripts/staging/smoke.sh
+          printf '%s\n' "OFFERTRACK_CONTAINER_TEMP_ROOT=$resolved_temp" >> "$GITHUB_ENV"
+
+      # The completed CI workflow for DEPLOY_SHA already ran frontend, Core,
+      # AI, production-container smoke, Trivy, and Terraform validation. This
+      # build deliberately reuses the same production image path after that
+      # exact-commit gate instead of maintaining a second image definition.
+      - name: Build production Core and AI images
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/containers/build-images.sh \
+            --components core-api,ai-service \
+            --tag "$DEPLOY_SHA"
+
+      - name: Publish immutable Core and AI images
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
+
+          publish_image() {
+            local component="$1"
+            local source_ref="offertrack/${component}:$DEPLOY_SHA"
+            local tagged_ref="${registry}/${component}:$DEPLOY_SHA"
+            local digest_ref
+
+            docker tag "$source_ref" "$tagged_ref"
+            if gcloud artifacts docker images describe "$tagged_ref" \
+              --project "$PROJECT_ID" --format='none' >/dev/null 2>&1; then
+              echo "Reusing the existing immutable $component tag for this commit." >&2
+            else
+              docker push "$tagged_ref" >&2
+            fi
+
+            digest_ref="$(gcloud artifacts docker images describe "$tagged_ref" \
+              --project "$PROJECT_ID" \
+              --format='value(image_summary.fully_qualified_digest)')"
+            [[ "$digest_ref" == "${registry}/${component}@sha256:"* ]]
+            [[ "${digest_ref##*@sha256:}" =~ ^[0-9a-f]{64}$ ]]
+            printf '%s' "$digest_ref"
+          }
+
+          core_image="$(publish_image core-api)"
+          ai_image="$(publish_image ai-service)"
+          printf '%s\n' "CORE_IMAGE=$core_image" >> "$GITHUB_ENV"
+          printf '%s\n' "AI_IMAGE=$ai_image" >> "$GITHUB_ENV"
+
+      - name: Deploy and verify the AI candidate revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_revision="${AI_SERVICE}-${REVISION_SUFFIX}"
+          canonical_url="https://${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          candidate_url="https://candidate---${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+
+          gcloud run services update "$AI_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$AI_IMAGE" \
+            --revision-suffix "$REVISION_SUFFIX" \
+            --no-traffic \
+            --tag candidate \
+            --quiet
+
+          ready_revision="$(gcloud run services describe "$AI_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          [[ "$ready_revision" == "$expected_revision" ]]
+
+          id_token="$(gcloud auth print-identity-token --audiences "$canonical_url" --include-email)"
+          [[ -n "$id_token" ]]
+          response="$(mktemp "${RUNNER_TEMP%/}/offertrack-ai-health.XXXXXX")"
+          trap 'rm -f -- "$response"; unset id_token' EXIT
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --header "Authorization: Bearer $id_token" \
+            --output "$response" \
+            "$candidate_url/health"
+          jq -e '.status == "ok"' "$response" >/dev/null
+          unset id_token
+          rm -f -- "$response"
+          trap - EXIT
+
+          gcloud run services update-traffic "$AI_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --to-latest --clear-tags --quiet
+          actual_url="$(gcloud run services describe "$AI_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          [[ "$actual_url" == "$canonical_url" ]]
+          printf '%s\n' "AI_URL=$actual_url" "AI_REVISION=$expected_revision" >> "$GITHUB_ENV"
+
+      - name: Update and execute the migration job
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run jobs update "$MIGRATION_JOB" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$CORE_IMAGE" \
+            --quiet
+          gcloud run jobs execute "$MIGRATION_JOB" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --wait \
+            --quiet
+
+      - name: Deploy and verify the Core candidate revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_revision="${CORE_SERVICE}-${REVISION_SUFFIX}"
+          canonical_url="https://${CORE_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          candidate_url="https://candidate---${CORE_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          response="$(mktemp "${RUNNER_TEMP%/}/offertrack-core-health.XXXXXX")"
+          revision_config="$(mktemp "${RUNNER_TEMP%/}/offertrack-core-revision.XXXXXX")"
+          trap 'unset dependency_health_key; rm -f -- "$response" "$revision_config"' EXIT
+
+          gcloud run services update "$CORE_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$CORE_IMAGE" \
+            --revision-suffix "$REVISION_SUFFIX" \
+            --no-traffic \
+            --tag candidate \
+            --quiet
+          ready_revision="$(gcloud run services describe "$CORE_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          [[ "$ready_revision" == "$expected_revision" ]]
+
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --output "$response" \
+            "$candidate_url/actuator/health/readiness"
+          jq -e '.status == "UP"' "$response" >/dev/null
+
+          gcloud run revisions describe "$expected_revision" \
+            --project "$PROJECT_ID" --region "$REGION" --format=json > "$revision_config"
+          health_secret_name="$(jq -er \
+            '.spec.containers[0].env[] | select(.name == "DEPENDENCY_HEALTH_KEY") | .valueFrom.secretKeyRef.name' \
+            "$revision_config")"
+          health_secret_version="$(jq -er \
+            '.spec.containers[0].env[] | select(.name == "DEPENDENCY_HEALTH_KEY") | .valueFrom.secretKeyRef.key' \
+            "$revision_config")"
+          [[ "$health_secret_name" == "offertrack-stg-dependency-health-key" ]]
+          [[ "$health_secret_version" =~ ^[1-9][0-9]*$ ]]
+
+          set +x
+          dependency_health_key="$(gcloud secrets versions access "$health_secret_version" \
+            --secret "$health_secret_name" --project "$PROJECT_ID")"
+          [[ -n "$dependency_health_key" ]]
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --output "$response" \
+            --header "X-Dependency-Health-Key: $dependency_health_key" \
+            "$candidate_url/actuator/health/dependencies"
+          unset dependency_health_key
+          jq -e '.status == "UP"' "$response" >/dev/null
+
+          gcloud run services update-traffic "$CORE_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --to-latest --clear-tags --quiet
+          actual_url="$(gcloud run services describe "$CORE_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          [[ "$actual_url" == "$canonical_url" ]]
+          rm -f -- "$response" "$revision_config"
+          trap - EXIT
+          printf '%s\n' "CORE_URL=$actual_url" "CORE_REVISION=$expected_revision" >> "$GITHUB_ENV"
+
+      - name: Build the Web image with the resolved Core URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/containers/build-images.sh \
+            --components web \
+            --app-env staging \
+            --next-public-api-url "$CORE_URL" \
+            --tag "$DEPLOY_SHA"
+
+      - name: Publish immutable Web image
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
+          tagged_ref="${registry}/web:$DEPLOY_SHA"
+          docker tag "offertrack/web:$DEPLOY_SHA" "$tagged_ref"
+          if gcloud artifacts docker images describe "$tagged_ref" \
+            --project "$PROJECT_ID" --format='none' >/dev/null 2>&1; then
+            echo "Reusing the existing immutable Web tag for this commit."
+          else
+            docker push "$tagged_ref"
+          fi
+          web_image="$(gcloud artifacts docker images describe "$tagged_ref" \
+            --project "$PROJECT_ID" \
+            --format='value(image_summary.fully_qualified_digest)')"
+          [[ "$web_image" == "${registry}/web@sha256:"* ]]
+          [[ "${web_image##*@sha256:}" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s\n' "WEB_IMAGE=$web_image" >> "$GITHUB_ENV"
+
+      - name: Deploy and verify the Web candidate revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_revision="${WEB_SERVICE}-${REVISION_SUFFIX}"
+          canonical_url="https://${WEB_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          candidate_url="https://candidate---${WEB_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+
+          gcloud run services update "$WEB_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$WEB_IMAGE" \
+            --revision-suffix "$REVISION_SUFFIX" \
+            --no-traffic \
+            --tag candidate \
+            --quiet
+          ready_revision="$(gcloud run services describe "$WEB_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')"
+          [[ "$ready_revision" == "$expected_revision" ]]
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --output /dev/null \
+            "$candidate_url/login"
+
+          gcloud run services update-traffic "$WEB_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --to-latest --clear-tags --quiet
+          actual_url="$(gcloud run services describe "$WEB_SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          [[ "$actual_url" == "$canonical_url" ]]
+          printf '%s\n' "WEB_URL=$actual_url" "WEB_REVISION=$expected_revision" >> "$GITHUB_ENV"
+
+      - name: Run bounded staging smoke checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/staging/smoke.sh \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --commit "$DEPLOY_SHA" \
+            --ai-url "$AI_URL" \
+            --core-url "$CORE_URL" \
+            --web-url "$WEB_URL" \
+            --ai-image "$AI_IMAGE" \
+            --core-image "$CORE_IMAGE" \
+            --web-image "$WEB_IMAGE" \
+            --ai-revision "$AI_REVISION" \
+            --core-revision "$CORE_REVISION" \
+            --web-revision "$WEB_REVISION"
+
+      - name: Report immutable deployment identifiers
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## Staging deployment"
+            echo
+            echo "- Commit: \`$DEPLOY_SHA\`"
+            echo "- AI revision: \`$AI_REVISION\`"
+            echo "- Core revision: \`$CORE_REVISION\`"
+            echo "- Migration job: \`$MIGRATION_JOB\`"
+            echo "- Web revision: \`$WEB_REVISION\`"
+            echo "- AI image: \`$AI_IMAGE\`"
+            echo "- Core image: \`$CORE_IMAGE\`"
+            echo "- Web image: \`$WEB_IMAGE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report a failed rollout safely
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## Staging deployment failed"
+            echo
+            echo "The named failed step identifies the component and phase. No database rollback was attempted."
+            echo
+            echo "- Commit: \`${DEPLOY_SHA:-unavailable}\`"
+            echo "- Intended revision suffix: \`${REVISION_SUFFIX:-unavailable}\`"
+            echo "- AI revision: \`${AI_REVISION:-not promoted}\`"
+            echo "- Core revision: \`${CORE_REVISION:-not promoted}\`"
+            echo "- Web revision: \`${WEB_REVISION:-not promoted}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

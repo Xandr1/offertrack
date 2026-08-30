@@ -10,7 +10,9 @@ non-loopback HTTPS `NEXT_PUBLIC_API_URL`. `local` development may default to
 Protected Spring startup requires safe explicit values for:
 
 - Database: `DATABASE_URL`, `DB_USER`, `DB_PASSWORD`
-- Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_CONNECT_TIMEOUT`, `REDIS_TIMEOUT`
+- Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_CONNECT_TIMEOUT`, `REDIS_TIMEOUT`;
+  protected Cloud Run also requires `REDIS_TLS_ENABLED=true` and
+  `REDIS_TLS_CA_CERTIFICATES` containing the complete active server CA set
 - JWT/OAuth: `JWT_SECRET`, `JWT_ACCESS_TOKEN_TTL`, `OAUTH_COOKIE_SECRET`,
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - Browser topology: `APP_WEB_URL`, `CORS_ALLOWED_ORIGINS`,
@@ -36,6 +38,16 @@ Protected validation applies these exact UTF-8 byte minimums:
 Known local/default placeholders are rejected. These checks validate byte
 length and known unsafe values; they do not estimate cryptographic entropy.
 Never commit a real environment file or secret.
+
+### Redis TLS
+
+Local and test Redis remain plaintext unless `REDIS_TLS_ENABLED=true` is set.
+Protected profiles require TLS, select the fixed `offertrack-redis` Spring Boot
+SSL bundle, and reject missing, malformed, expired, or non-CA PEM trust
+material before startup. The bundle is attached only to Spring Data
+Redis/Lettuce; the process-wide JVM trust store is unchanged. Lettuce retains
+peer and hostname verification. Multiple concatenated PEM CAs are supported so
+Memorystore can publish an overlap set during certificate rotation.
 
 ## Core-to-AI authentication
 
@@ -72,11 +84,10 @@ validated `AI_SERVICE_AUDIENCE` string is passed to Google Auth. Protected
 configuration also rejects loopback, unspecified, `localhost`, `.local`,
 `.localdomain`, and single-label hosts.
 
-ADC is expected to come from the eventual Cloud Run workload identity. No
-service-account JSON file, private key, or other static GCP credential is
-expected. Cloud Run service IAM and invocation permissions are deliberately
-deferred to the infrastructure milestone; this repository does not implement
-them yet.
+ADC comes from the Core Cloud Run runtime identity. No service-account JSON
+file, private key, or other static GCP credential is used. Staging Cloud Run IAM
+grants only Core and the deployer invocation permission on AI; AI still requires
+the independent internal key at the application layer.
 
 ## Core runtime and migrations
 
@@ -120,6 +131,8 @@ Google OAuth, SMTP, JWT configuration, AI clients, controllers, or web filters.
 
 Keep `SERVER_FORWARD_HEADERS_STRATEGY=none` unless the API is behind a trusted
 ingress that strips client-supplied forwarded headers and supplies its own.
+Staging Cloud Run explicitly uses `framework` because the managed HTTPS proxy is
+that trusted ingress; local defaults remain unchanged.
 
 The FastAPI service uses the same `APP_ENV` concept (`local`, `test`, `staging`,
 or `production`) plus `OPENAI_API_KEY`, `OPENAI_MODEL`,
@@ -129,6 +142,22 @@ or `production`) plus `OPENAI_API_KEY`, `OPENAI_MODEL`,
 `AI_SERVICE_ALLOWED_HOSTS`, and `AI_SERVICE_DOCS_ENABLED`. Protected
 environments require explicit trusted hosts and disable docs unless deliberately
 enabled.
+
+The protected, detail-free actuator group
+`/actuator/health/dependencies` aggregates database, Redis, and authenticated AI
+health for deployment smoke checks. It requires the separate
+`app.management.dependency-health-key` value in `X-Dependency-Health-Key`; the
+AI internal API key is not accepted for this purpose. Protected startup requires
+the dependency-health key to be at least 32 UTF-8 bytes and distinct from the
+JWT, OAuth-cookie, rate-limit, and AI internal keys. Normal readiness includes
+only the database and Redis so a scaled-to-zero AI instance is not kept warm by
+platform probes. Health details remain disabled.
+
+Protected profiles require both `mail.smtp.starttls.enable=true` and
+`mail.smtp.starttls.required=true` for every SMTP connection, including an
+anonymous relay. SMTP username/password checks remain conditional: both may be
+absent, but providing only one fails startup. Local Mailpit defaults remain
+non-TLS unless explicitly configured.
 
 ## CSRF contract
 

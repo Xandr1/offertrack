@@ -252,6 +252,51 @@ class HttpAiServiceClientTest {
   }
 
   @Test
+  void authenticatedHealthCheckSendsBothAuthenticationMechanisms() throws Exception {
+    String audience = "https://ai-service.example.com";
+    AtomicReference<String> requestedAudience = new AtomicReference<>();
+    AtomicReference<String> internalApiKeyHeader = new AtomicReference<>();
+    AtomicReference<String> serverlessAuthorizationHeader = new AtomicReference<>();
+    startServer(
+        "/internal/health",
+        exchange -> {
+          internalApiKeyHeader.set(exchange.getRequestHeaders().getFirst("X-Internal-Api-Key"));
+          serverlessAuthorizationHeader.set(
+              exchange.getRequestHeaders().getFirst("X-Serverless-Authorization"));
+          sendJson(exchange, 200, "{\"status\":\"ok\"}");
+        });
+
+    HttpAiServiceClient client =
+        client(
+            AiServiceAuthMode.GOOGLE_ID_TOKEN,
+            audience,
+            requested -> {
+              requestedAudience.set(requested);
+              return "deterministic-google-token";
+            });
+
+    assertThat(client.isHealthy()).isTrue();
+    assertThat(requestedAudience).hasValue(audience);
+    assertThat(internalApiKeyHeader).hasValue(INTERNAL_API_KEY);
+    assertThat(serverlessAuthorizationHeader).hasValue("Bearer deterministic-google-token");
+  }
+
+  @Test
+  void healthCheckFailsClosedForAuthenticationOrConnectionFailure() throws Exception {
+    startServer("/internal/health", exchange -> send(exchange, 403, "Forbidden"));
+
+    assertThat(client().isHealthy()).isFalse();
+
+    int unusedPort = unusedPort();
+    HttpAiServiceClient unavailableClient =
+        new HttpAiServiceClient(
+            restClient("http://127.0.0.1:" + unusedPort, Duration.ofMillis(100)),
+            objectMapper,
+            INTERNAL_API_KEY);
+    assertThat(unavailableClient.isHealthy()).isFalse();
+  }
+
+  @Test
   void expectedTokenAcquisitionFailureSendsNoRequestAndLogsOnlySafeDetails(CapturedOutput output)
       throws Exception {
     AtomicInteger requests = new AtomicInteger();
@@ -336,8 +381,12 @@ class HttpAiServiceClientTest {
   }
 
   private void startServer(ExchangeHandler handler) throws IOException {
+    startServer("/parse-job", handler);
+  }
+
+  private void startServer(String path, ExchangeHandler handler) throws IOException {
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-    server.createContext("/parse-job", handler::handle);
+    server.createContext(path, handler::handle);
     serverExecutor = Executors.newSingleThreadExecutor();
     server.setExecutor(serverExecutor);
     server.start();

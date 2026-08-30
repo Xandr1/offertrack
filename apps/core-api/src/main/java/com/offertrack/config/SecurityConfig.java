@@ -28,6 +28,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
@@ -89,6 +90,9 @@ public class SecurityConfig {
                 csrf.csrfTokenRepository(csrfTokenRepository)
                     .csrfTokenRequestHandler(csrfRequestHandler)
                     .requireCsrfProtectionMatcher(new BrowserCsrfRequestMatcher(cookieProperties)))
+        .addFilterBefore(
+            new DependencyHealthAuthenticationFilter(environment),
+            UsernamePasswordAuthenticationFilter.class)
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .exceptionHandling(
@@ -115,6 +119,8 @@ public class SecurityConfig {
                         "/oauth2/authorization/**",
                         "/login/oauth2/code/**")
                     .permitAll()
+                    .requestMatchers(DependencyHealthAuthenticationFilter.PATH)
+                    .hasAuthority(DependencyHealthAuthenticationFilter.AUTHORITY)
                     .requestMatchers(
                         "/actuator/health",
                         "/actuator/health/liveness",

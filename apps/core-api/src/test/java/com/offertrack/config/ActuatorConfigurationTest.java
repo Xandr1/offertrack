@@ -35,6 +35,15 @@ class ActuatorConfigurationTest {
         .isEqualTo("readinessState,db,redis");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"prod", "production", "stage", "staging"})
+  void protectedDependencyCheckIncludesDatabaseRedisAndAuthenticatedAi(String profile) {
+    ConfigurableEnvironment environment = loadConfig(profile);
+
+    assertThat(environment.getProperty("management.endpoint.health.group.dependencies.include"))
+        .isEqualTo("db,redis,aiService");
+  }
+
   @Test
   void containerSmokeShowsReadinessComponentsWithoutDetails() {
     ConfigurableEnvironment environment = loadConfig("container-smoke");

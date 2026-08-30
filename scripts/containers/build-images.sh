@@ -12,9 +12,14 @@ ENV_VALIDATOR="$REPO_ROOT/scripts/containers/validate-web-build-env.mjs"
 APP_ENV_VALUE=""
 NEXT_PUBLIC_API_URL_VALUE=""
 IMAGE_TAG="local"
+COMPONENTS_VALUE="web,core-api,ai-service"
 APP_ENV_SEEN=false
 API_URL_SEEN=false
 TAG_SEEN=false
+COMPONENTS_SEEN=false
+BUILD_WEB=false
+BUILD_CORE=false
+BUILD_AI=false
 CODEGEN_STARTED=false
 CODEGEN_PROJECT=""
 CODEGEN_ENV_FILE=""
@@ -23,10 +28,13 @@ TEMP_PARENT=""
 
 usage() {
   cat <<'EOF'
-Usage: build-images.sh --app-env VALUE --next-public-api-url URL [--tag TAG]
+Usage: build-images.sh [--components LIST] [--app-env VALUE]
+                       [--next-public-api-url URL] [--tag TAG]
 
 Builds linux/amd64 production images and loads them into the local Docker image
-store. APP_ENV and NEXT_PUBLIC_API_URL are public Web build inputs, not secrets.
+store. LIST is a comma-separated selection of web, core-api, and ai-service;
+the default is all three. APP_ENV and NEXT_PUBLIC_API_URL are required only
+when Web is selected. They are public Web build inputs, not secrets.
 EOF
 }
 
@@ -66,6 +74,13 @@ while [[ $# -gt 0 ]]; do
       TAG_SEEN=true
       shift 2
       ;;
+    --components)
+      [[ "$COMPONENTS_SEEN" == false ]] || fail "--components may only be specified once"
+      require_value "$1" "${2:-}"
+      COMPONENTS_VALUE="$2"
+      COMPONENTS_SEEN=true
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -76,31 +91,62 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ "$APP_ENV_SEEN" == true ]] || fail "--app-env is required"
-[[ "$API_URL_SEEN" == true ]] || fail "--next-public-api-url is required"
-
 if [[ ${#IMAGE_TAG} -gt 128 || ! "$IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]]; then
   fail "--tag must be a valid Docker tag"
 fi
 
-command -v node >/dev/null 2>&1 || fail "Node.js is required for Web build-input validation"
-node "$ENV_VALIDATOR" "$APP_ENV_VALUE" "$NEXT_PUBLIC_API_URL_VALUE"
+IFS=',' read -r -a requested_components <<<"$COMPONENTS_VALUE"
+[[ ${#requested_components[@]} -gt 0 ]] || fail "--components must select at least one component"
+for component in "${requested_components[@]}"; do
+  case "$component" in
+    web)
+      [[ "$BUILD_WEB" == false ]] || fail "--components contains duplicate component: web"
+      BUILD_WEB=true
+      ;;
+    core-api)
+      [[ "$BUILD_CORE" == false ]] || fail "--components contains duplicate component: core-api"
+      BUILD_CORE=true
+      ;;
+    ai-service)
+      [[ "$BUILD_AI" == false ]] || fail "--components contains duplicate component: ai-service"
+      BUILD_AI=true
+      ;;
+    *) fail "unsupported component: $component" ;;
+  esac
+done
+[[ "$BUILD_WEB" == true || "$BUILD_CORE" == true || "$BUILD_AI" == true ]] \
+  || fail "--components must select at least one component"
 
-command -v java >/dev/null 2>&1 || fail "a Java 21 JDK is required to package Core API"
-command -v jar >/dev/null 2>&1 || fail "the Java 21 JDK jar tool is required"
-JAVA_SPEC_VERSION="$(
-  java -XshowSettings:properties -version 2>&1 \
-    | sed -n 's/^[[:space:]]*java\.specification\.version = //p' \
-    | head -n 1 \
-    | tr -d '\r'
-)"
-[[ "$JAVA_SPEC_VERSION" == "21" ]] || fail "Core API packaging requires Java 21"
+if [[ "$BUILD_WEB" == true ]]; then
+  [[ "$APP_ENV_SEEN" == true ]] || fail "--app-env is required when Web is selected"
+  [[ "$API_URL_SEEN" == true ]] || fail "--next-public-api-url is required when Web is selected"
+  command -v node >/dev/null 2>&1 || fail "Node.js is required for Web build-input validation"
+  node "$ENV_VALIDATOR" "$APP_ENV_VALUE" "$NEXT_PUBLIC_API_URL_VALUE"
+elif [[ "$APP_ENV_SEEN" == true || "$API_URL_SEEN" == true ]]; then
+  fail "Web build inputs may only be supplied when Web is selected"
+fi
+
+if [[ "$BUILD_CORE" == true ]]; then
+  command -v java >/dev/null 2>&1 || fail "a Java 21 JDK is required to package Core API"
+  command -v jar >/dev/null 2>&1 || fail "the Java 21 JDK jar tool is required"
+  JAVA_SPEC_VERSION="$(
+    java -XshowSettings:properties -version 2>&1 \
+      | sed -n 's/^[[:space:]]*java\.specification\.version = //p' \
+      | head -n 1 \
+      | tr -d '\r'
+  )"
+  [[ "$JAVA_SPEC_VERSION" == "21" ]] || fail "Core API packaging requires Java 21"
+fi
 
 # No Docker command is permitted above this point. Fast contract tests rely on
 # invalid inputs failing before Docker can be consulted.
 command -v docker >/dev/null 2>&1 || fail "Docker is required"
 docker buildx version >/dev/null
-docker compose version >/dev/null
+if [[ "$BUILD_CORE" == true ]]; then
+  docker compose version >/dev/null
+fi
+
+if [[ "$BUILD_CORE" == true ]]; then
 
 validate_project_name() {
   local value="$1"
@@ -277,23 +323,31 @@ CORE_CONTEXT="$CODEGEN_RUNTIME_DIR/core-runtime-context"
 mkdir -p "$CORE_CONTEXT"
 cp -- "$CORE_JAR" "$CORE_CONTEXT/app.jar"
 
+fi
+
 echo "Building linux/amd64 application images..."
-docker buildx build --platform linux/amd64 --load \
-  --file "$CORE_DOCKERFILE" \
-  --tag "offertrack/core-api:$IMAGE_TAG" \
-  "$CORE_CONTEXT"
+if [[ "$BUILD_CORE" == true ]]; then
+  docker buildx build --platform linux/amd64 --load \
+    --file "$CORE_DOCKERFILE" \
+    --tag "offertrack/core-api:$IMAGE_TAG" \
+    "$CORE_CONTEXT"
+fi
 
-docker buildx build --platform linux/amd64 --load \
-  --file "$AI_DOCKERFILE" \
-  --tag "offertrack/ai-service:$IMAGE_TAG" \
-  "$REPO_ROOT/apps/ai-service"
+if [[ "$BUILD_AI" == true ]]; then
+  docker buildx build --platform linux/amd64 --load \
+    --file "$AI_DOCKERFILE" \
+    --tag "offertrack/ai-service:$IMAGE_TAG" \
+    "$REPO_ROOT/apps/ai-service"
+fi
 
-docker buildx build --platform linux/amd64 --load \
-  --file "$WEB_DOCKERFILE" \
-  --build-arg "APP_ENV=$APP_ENV_VALUE" \
-  --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL_VALUE" \
-  --tag "offertrack/web:$IMAGE_TAG" \
-  "$REPO_ROOT"
+if [[ "$BUILD_WEB" == true ]]; then
+  docker buildx build --platform linux/amd64 --load \
+    --file "$WEB_DOCKERFILE" \
+    --build-arg "APP_ENV=$APP_ENV_VALUE" \
+    --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL_VALUE" \
+    --tag "offertrack/web:$IMAGE_TAG" \
+    "$REPO_ROOT"
+fi
 
 verify_image() {
   local image_ref="$1"
@@ -302,13 +356,18 @@ verify_image() {
   [[ "$platform" == "linux/amd64" ]] || fail "$image_ref has architecture $platform, expected linux/amd64"
 }
 
-verify_image "offertrack/web:$IMAGE_TAG"
-verify_image "offertrack/core-api:$IMAGE_TAG"
-verify_image "offertrack/ai-service:$IMAGE_TAG"
-
-if docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  "offertrack/web:$IMAGE_TAG" | grep -Eq '^(APP_ENV|NEXT_PUBLIC_API_URL)='; then
-  fail "Web final image environment contains a build-only variable"
+if [[ "$BUILD_WEB" == true ]]; then
+  verify_image "offertrack/web:$IMAGE_TAG"
+  if docker image inspect --format '{{range .Config.Env}}{{println .}}{{end}}' \
+    "offertrack/web:$IMAGE_TAG" | grep -Eq '^(APP_ENV|NEXT_PUBLIC_API_URL)='; then
+    fail "Web final image environment contains a build-only variable"
+  fi
+fi
+if [[ "$BUILD_CORE" == true ]]; then
+  verify_image "offertrack/core-api:$IMAGE_TAG"
+fi
+if [[ "$BUILD_AI" == true ]]; then
+  verify_image "offertrack/ai-service:$IMAGE_TAG"
 fi
 
-echo "Built and loaded linux/amd64 images with tag '$IMAGE_TAG'."
+echo "Built and loaded selected linux/amd64 images with tag '$IMAGE_TAG'."

@@ -143,6 +143,30 @@ public class HttpAiServiceClient implements AiServiceClient {
     }
   }
 
+  public boolean isHealthy() {
+    if (internalApiKey.isBlank()) {
+      return false;
+    }
+
+    String requestId = RequestIdFilter.currentRequestId();
+    try {
+      String identityToken = acquireIdentityToken(requestId);
+      RestClient.RequestHeadersSpec<?> requestSpec =
+          restClient
+              .get()
+              .uri("/internal/health")
+              .header(INTERNAL_API_KEY_HEADER, internalApiKey)
+              .header(REQUEST_ID_HEADER, requestId);
+      if (identityToken != null) {
+        requestSpec.header(SERVERLESS_AUTHORIZATION_HEADER, "Bearer " + identityToken);
+      }
+
+      return requestSpec.retrieve().toBodilessEntity().getStatusCode().is2xxSuccessful();
+    } catch (AiServiceUnavailableException | RestClientException exception) {
+      return false;
+    }
+  }
+
   private String acquireIdentityToken(String requestId) {
     if (authMode == AiServiceAuthMode.INTERNAL_KEY) {
       return null;

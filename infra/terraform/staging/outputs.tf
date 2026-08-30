@@ -24,7 +24,7 @@ output "artifact_registry_repository" {
 }
 
 output "artifact_registry_repository_url" {
-  description = "The Docker repository URL prefix for future image publication."
+  description = "The Docker repository URL prefix for staging image publication."
   value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.offertrack.repository_id}"
 }
 
@@ -44,7 +44,7 @@ output "cloud_sql_instance_name" {
 }
 
 output "cloud_sql_private_ip" {
-  description = "The private Cloud SQL endpoint for the future runtime checkpoint."
+  description = "The private Cloud SQL endpoint used by Core and the migration job."
   value       = google_sql_database_instance.postgres.private_ip_address
   sensitive   = true
 }
@@ -55,7 +55,7 @@ output "database_name" {
 }
 
 output "redis_host" {
-  description = "The private Memorystore endpoint for the future runtime checkpoint."
+  description = "The private TLS Memorystore endpoint used by Core."
   value       = google_redis_instance.staging.host
   sensitive   = true
 }
@@ -82,7 +82,7 @@ output "secret_resource_names" {
 }
 
 output "runtime_service_account_emails" {
-  description = "Runtime service account emails for future Cloud Run resources."
+  description = "Runtime service account emails used by the Cloud Run resources."
   value = {
     ai       = google_service_account.staging["ai"].email
     core     = google_service_account.staging["core"].email
@@ -97,11 +97,55 @@ output "infra_service_account_email" {
 }
 
 output "deployer_service_account_email" {
-  description = "The future deployer service account email; it currently has no project roles."
+  description = "The narrowly scoped staging application deployer service account email."
   value       = google_service_account.staging["deployer"].email
 }
 
 output "workload_identity_provider_resource_name" {
   description = "The GitHub Workload Identity provider resource name for future deployer authentication."
   value       = google_iam_workload_identity_pool_provider.github.name
+}
+
+output "ai_service_url" {
+  description = "Canonical deterministic URL used for the private AI service and its ID-token audience."
+  value       = local.ai_service_url
+}
+
+output "core_service_url" {
+  description = "Canonical deterministic public Core API URL compiled into the staging Web image."
+  value       = local.core_service_url
+}
+
+output "web_service_url" {
+  description = "Canonical deterministic public staging Web URL used by Core CORS and cookie configuration."
+  value       = local.web_service_url
+}
+
+output "cloud_run_reported_uris" {
+  description = "Cloud Run API-reported service URIs for operational verification against the configured canonical URLs."
+  value = {
+    ai   = try(google_cloud_run_v2_service.ai[0].uri, null)
+    core = try(google_cloud_run_v2_service.core[0].uri, null)
+    web  = try(google_cloud_run_v2_service.web[0].uri, null)
+  }
+}
+
+output "migration_job_name" {
+  description = "Name of the independently deployable one-shot Flyway migration job."
+  value       = try(google_cloud_run_v2_job.migrate[0].name, null)
+}
+
+output "cloud_run_resource_names" {
+  description = "Non-secret Cloud Run resource identifiers used by deployment automation."
+  value = {
+    ai_service   = try(google_cloud_run_v2_service.ai[0].id, null)
+    core_service = try(google_cloud_run_v2_service.core[0].id, null)
+    migration    = try(google_cloud_run_v2_job.migrate[0].id, null)
+    web_service  = try(google_cloud_run_v2_service.web[0].id, null)
+  }
+}
+
+output "terraform_seed_images" {
+  description = "Immutable image digests used to create the resources; later image-only revisions are intentionally ignored by Terraform."
+  value       = var.initial_images
 }

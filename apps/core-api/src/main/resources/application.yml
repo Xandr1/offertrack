@@ -22,12 +22,20 @@ spring:
       port: ${REDIS_PORT:6379}
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
       timeout: ${REDIS_TIMEOUT:1s}
+      ssl:
+        enabled: ${REDIS_TLS_ENABLED:false}
 
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+      mail.smtp.starttls.required: ${MAIL_SMTP_STARTTLS_REQUIRED:false}
+      mail.smtp.connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+      mail.smtp.timeout: ${MAIL_SMTP_READ_TIMEOUT:10000}
+      mail.smtp.writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:10000}
 
   security:
     oauth2:
@@ -64,6 +72,8 @@ management:
         include: health
 
 app:
+  management:
+    dependency-health-key: ${DEPENDENCY_HEALTH_KEY:}
   jwt:
     secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me}
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:48h}
@@ -145,6 +155,15 @@ spring:
       port: ${REDIS_PORT:}
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:}
       timeout: ${REDIS_TIMEOUT:}
+      ssl:
+        enabled: ${REDIS_TLS_ENABLED:}
+        bundle: offertrack-redis
+  ssl:
+    bundle:
+      pem:
+        offertrack-redis:
+          truststore:
+            certificate: ${REDIS_TLS_CA_CERTIFICATES:}
   mail:
     host: ${SMTP_HOST:}
     port: ${SMTP_PORT:}
@@ -167,8 +186,12 @@ management:
       group:
         readiness:
           include: readinessState,db,redis
+        dependencies:
+          include: db,redis,aiService
 
 app:
+  management:
+    dependency-health-key: ${DEPENDENCY_HEALTH_KEY:}
   jwt:
     secret: ${JWT_SECRET:}
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:}

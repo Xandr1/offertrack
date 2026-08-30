@@ -8,6 +8,7 @@ locals {
     "roles/iam.workloadIdentityPoolAdmin",
     "roles/redis.admin",
     "roles/resourcemanager.projectIamAdmin",
+    "roles/run.admin",
     "roles/servicenetworking.networksAdmin",
     "roles/serviceusage.serviceUsageAdmin",
   ])
@@ -29,6 +30,10 @@ locals {
       service_account = "core"
       secret          = "db_app_password"
     }
+    core_dependency_health_key = {
+      service_account = "core"
+      secret          = "dependency_health_key"
+    }
     core_google_client_secret = {
       service_account = "core"
       secret          = "google_client_secret"
@@ -49,9 +54,48 @@ locals {
       service_account = "core"
       secret          = "smtp_password"
     }
+    deployer_dependency_health_key = {
+      service_account = "deployer"
+      secret          = "dependency_health_key"
+    }
     migrator_db_password = {
       service_account = "migrator"
       secret          = "db_migrator_password"
+    }
+  }
+
+  runtime_service_account_user_grants = {
+    deployer_ai = {
+      actor   = "deployer"
+      runtime = "ai"
+    }
+    deployer_core = {
+      actor   = "deployer"
+      runtime = "core"
+    }
+    deployer_migrator = {
+      actor   = "deployer"
+      runtime = "migrator"
+    }
+    deployer_web = {
+      actor   = "deployer"
+      runtime = "web"
+    }
+    infra_ai = {
+      actor   = "infra"
+      runtime = "ai"
+    }
+    infra_core = {
+      actor   = "infra"
+      runtime = "core"
+    }
+    infra_migrator = {
+      actor   = "infra"
+      runtime = "migrator"
+    }
+    infra_web = {
+      actor   = "infra"
+      runtime = "web"
     }
   }
 }
@@ -105,4 +149,64 @@ resource "google_secret_manager_secret_iam_member" "runtime_access" {
   secret_id = google_secret_manager_secret.staging[each.value.secret].secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.staging[each.value.service_account].email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "deployer_writer" {
+  project    = var.project_id
+  location   = google_artifact_registry_repository.offertrack.location
+  repository = google_artifact_registry_repository.offertrack.repository_id
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.staging["deployer"].email}"
+}
+
+resource "google_service_account_iam_member" "runtime_service_account_user" {
+  for_each = local.runtime_service_account_user_grants
+
+  service_account_id = google_service_account.staging[each.value.runtime].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.staging[each.value.actor].email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "deployer_service_developer" {
+  for_each = var.enable_cloud_run_runtime ? {
+    ai   = google_cloud_run_v2_service.ai[0].name
+    core = google_cloud_run_v2_service.core[0].name
+    web  = google_cloud_run_v2_service.web[0].name
+  } : {}
+
+  project  = var.project_id
+  location = var.region
+  name     = each.value
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.staging["deployer"].email}"
+}
+
+resource "google_cloud_run_v2_job_iam_member" "deployer_job_developer" {
+  count = var.enable_cloud_run_runtime ? 1 : 0
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.migrate[0].name
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.staging["deployer"].email}"
+}
+
+resource "google_cloud_run_v2_job_iam_member" "deployer_job_executor" {
+  count = var.enable_cloud_run_runtime ? 1 : 0
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.migrate[0].name
+  role     = "roles/run.jobsExecutor"
+  member   = "serviceAccount:${google_service_account.staging["deployer"].email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "ai_invoker" {
+  for_each = var.enable_cloud_run_runtime ? toset(["core", "deployer"]) : toset([])
+
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.ai[0].name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.staging[each.value].email}"
 }

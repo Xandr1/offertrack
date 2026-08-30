@@ -42,9 +42,13 @@ offertrack/core-api:local
 offertrack/ai-service:local
 ```
 
-`--tag` defaults to `local`. `--app-env` is required and accepts exactly
+`--tag` defaults to `local`. `--components` accepts a comma-separated selection
+of `web`, `core-api`, and `ai-service` and defaults to all three. This lets the
+staging workflow publish Core and AI before Core's service URI is resolved, then
+build only Web with that exact URI. `--app-env` is required when Web is selected
+and accepts exactly
 `local`, `development`, `test`, `e2e`, `staging`, or `production`.
-`--next-public-api-url` is also required. The validator rejects credentials,
+`--next-public-api-url` is also required when Web is selected. The validator rejects credentials,
 queries, fragments, non-HTTP(S) schemes, and unsafe protected-environment
 hosts. Staging and production require HTTPS and a non-local, non-loopback,
 non-unspecified host. Invalid or duplicate arguments are rejected before any
@@ -101,12 +105,12 @@ phase defaults to 10 seconds via
 shape with 18080 as its final default.
 
 Local and smoke containers set `AI_SERVICE_AUTH_MODE=internal-key` with an empty
-`AI_SERVICE_AUDIENCE`. A future protected Cloud Run container will use
+`AI_SERVICE_AUDIENCE`. The protected Cloud Run Core container uses
 `AI_SERVICE_AUTH_MODE=google-id-token` and matching root HTTPS values for
 `AI_SERVICE_BASE_URL` and `AI_SERVICE_AUDIENCE`. ADC supplies the Google
 identity at request time, while `AI_SERVICE_INTERNAL_API_KEY` remains required.
-No static GCP key file belongs in the image or runtime configuration. Cloud Run
-IAM remains part of the later infrastructure milestone.
+No static GCP key file belongs in the image or runtime configuration. Staging
+Cloud Run IAM permits the Core identity to invoke only the AI service.
 
 Migration mode accepts only `OFFERTRACK_RUN_MODE=migrate`, `DATABASE_URL`,
 `DB_USER`, and `DB_PASSWORD`. It runs embedded Flyway migrations and exits,
@@ -219,13 +223,12 @@ service continues to use `SERVER_PORT=18080`.
 - The Web image embeds its public API URL. The smoke image is therefore
   smoke-specific and is not a future staging artifact.
 - No smoke request calls Google, OpenAI, or a real external job page.
-- This checkpoint creates no GCP resources, Terraform, registry, Cloud Run,
-  Cloud SQL, managed Redis, Secret Manager integration, deployment identity,
-  custom domain, or production environment.
-- The Core image now provides the one-shot migration runtime contract, but no
-  scheduled Cloud Run job or other migration infrastructure is created. There
-  is still no image publishing, signing, provenance, or multi-platform
-  publishing. Local output is limited to `linux/amd64`.
+- The staging Terraform root now defines Artifact Registry, Cloud Run, Cloud
+  SQL, managed Redis, Secret Manager integration, and the deployment identity;
+  production and custom-domain infrastructure remain outside this scope.
+- Staging publishes immutable Git-SHA tags and deploys resolved digests. Image
+  signing, generated provenance attestations, and multi-platform publishing
+  remain unimplemented; output is limited to `linux/amd64`.
 - SSRF DNS-rebinding defenses and refresh-token/server-side session work remain
   deferred under their existing ADRs.
 
