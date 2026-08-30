@@ -49,46 +49,46 @@ locals {
   }
 
   core_environment = {
-    AI_DRAFT_CACHE_ENABLED                      = "true"
-    AI_DRAFT_CACHE_TTL                          = "24h"
-    AI_SERVICE_AUDIENCE                         = local.ai_service_url
-    AI_SERVICE_AUTH_MODE                                      = "google-id-token"
-    AI_SERVICE_BASE_URL                                       = local.ai_service_url
-    APP_WEB_URL                                               = local.web_service_url
-    AUTH_COOKIE_DOMAIN                                        = ""
-    AUTH_COOKIE_NAME                                          = "access_token"
-    AUTH_COOKIE_PATH                                          = "/"
-    AUTH_COOKIE_SAME_SITE                                     = "None"
-    AUTH_COOKIE_SECURE                                        = "true"
-    CORS_ALLOWED_ORIGINS                                      = local.web_service_url
-    DATABASE_URL                                              = local.database_url
-    DB_USER                                                   = "offertrack_app"
-    GOOGLE_CLIENT_ID                                          = trimspace(coalesce(var.google_oauth_client_id, ""))
-    JWT_ACCESS_TOKEN_TTL                                      = "48h"
-    MAIL_FROM                                                 = trimspace(coalesce(var.mail_from, ""))
-    OFFERTRACK_RUN_MODE                                       = "server"
-    RATE_LIMIT_FAIL_OPEN                                      = "false"
-    REDIS_CONNECT_TIMEOUT                                     = "2s"
-    REDIS_HOST                                                = google_redis_instance.staging.host
-    REDIS_PORT                                                = tostring(google_redis_instance.staging.port)
-    REDIS_TIMEOUT                                             = "2s"
-    REDIS_TLS_CA_CERTIFICATES                                 = local.redis_tls_ca_certificates
-    REDIS_TLS_ENABLED                                         = "true"
-    SERVER_FORWARD_HEADERS_STRATEGY                           = "framework"
-    SMTP_HOST                                                 = trimspace(coalesce(var.smtp_host, ""))
-    SMTP_PORT                                                 = var.smtp_port == null ? "" : tostring(var.smtp_port)
-    SMTP_USERNAME                                             = trimspace(coalesce(var.smtp_username, ""))
-    SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE          = "true"
-    SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED        = "true"
-    SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT        = "5000"
-    SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT                  = "10000"
-    SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT             = "10000"
-    SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT               = "5000"
-    SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE                = "5"
-    SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE                     = "0"
-    SPRING_FLYWAY_ENABLED                                     = "false"
-    SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE               = "10s"
-    SPRING_PROFILES_ACTIVE                                    = "staging"
+    AI_DRAFT_CACHE_ENABLED                             = "true"
+    AI_DRAFT_CACHE_TTL                                 = "24h"
+    AI_SERVICE_AUDIENCE                                = local.ai_service_url
+    AI_SERVICE_AUTH_MODE                               = "google-id-token"
+    AI_SERVICE_BASE_URL                                = local.ai_service_url
+    APP_WEB_URL                                        = local.web_service_url
+    AUTH_COOKIE_DOMAIN                                 = ""
+    AUTH_COOKIE_NAME                                   = "access_token"
+    AUTH_COOKIE_PATH                                   = "/"
+    AUTH_COOKIE_SAME_SITE                              = "None"
+    AUTH_COOKIE_SECURE                                 = "true"
+    CORS_ALLOWED_ORIGINS                               = local.web_service_url
+    DATABASE_URL                                       = local.database_url
+    DB_USER                                            = "offertrack_app"
+    GOOGLE_CLIENT_ID                                   = trimspace(coalesce(var.google_oauth_client_id, ""))
+    JWT_ACCESS_TOKEN_TTL                               = "48h"
+    MAIL_FROM                                          = trimspace(coalesce(var.mail_from, ""))
+    OFFERTRACK_RUN_MODE                                = "server"
+    RATE_LIMIT_FAIL_OPEN                               = "false"
+    REDIS_CONNECT_TIMEOUT                              = "2s"
+    REDIS_HOST                                         = google_redis_instance.staging.host
+    REDIS_PORT                                         = tostring(google_redis_instance.staging.port)
+    REDIS_TIMEOUT                                      = "2s"
+    REDIS_TLS_CA_CERTIFICATES                          = local.redis_tls_ca_certificates
+    REDIS_TLS_ENABLED                                  = "true"
+    SERVER_FORWARD_HEADERS_STRATEGY                    = "framework"
+    SMTP_HOST                                          = trimspace(coalesce(var.smtp_host, ""))
+    SMTP_PORT                                          = var.smtp_port == null ? "" : tostring(var.smtp_port)
+    SMTP_USERNAME                                      = trimspace(coalesce(var.smtp_username, ""))
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE   = "true"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED = "true"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT = "5000"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT           = "10000"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT      = "10000"
+    SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT        = "5000"
+    SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE         = "5"
+    SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE              = "0"
+    SPRING_FLYWAY_ENABLED                              = "false"
+    SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE        = "10s"
+    SPRING_PROFILES_ACTIVE                             = "staging"
   }
 
   core_secret_environment = {
@@ -246,10 +246,10 @@ resource "google_cloud_run_v2_service" "ai" {
 resource "google_cloud_run_v2_service" "core" {
   count = var.enable_cloud_run_runtime ? 1 : 0
 
-  project             = var.project_id
-  name                = local.cloud_run_names.core_api
-  location            = var.region
-  deletion_protection = true
+  project              = var.project_id
+  name                 = local.cloud_run_names.core_api
+  location             = var.region
+  deletion_protection  = true
   ingress              = "INGRESS_TRAFFIC_ALL"
   invoker_iam_disabled = true
 
@@ -437,10 +437,10 @@ resource "google_cloud_run_v2_job" "migrate" {
 resource "google_cloud_run_v2_service" "web" {
   count = var.enable_cloud_run_runtime ? 1 : 0
 
-  project             = var.project_id
-  name                = local.cloud_run_names.web
-  location            = var.region
-  deletion_protection = true
+  project              = var.project_id
+  name                 = local.cloud_run_names.web
+  location             = var.region
+  deletion_protection  = true
   ingress              = "INGRESS_TRAFFIC_ALL"
   invoker_iam_disabled = true
 

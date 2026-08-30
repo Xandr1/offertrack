@@ -95,7 +95,7 @@ class CloudRunContractTest(unittest.TestCase):
     def test_redis_uses_the_complete_provider_ca_set(self) -> None:
         self.assertIn("google_redis_instance.staging.server_ca_certs", self.cloud_run)
         self.assertIn("REDIS_TLS_CA_CERTIFICATES", self.cloud_run)
-        self.assertIn('REDIS_TLS_ENABLED                           = "true"', self.cloud_run)
+        self.assertRegex(self.cloud_run, r'REDIS_TLS_ENABLED\s+=\s+"true"')
         self.assertNotIn("insecure", self.cloud_run.lower())
 
     def test_runtime_iam_is_resource_scoped(self) -> None:
