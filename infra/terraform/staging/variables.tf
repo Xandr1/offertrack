@@ -120,35 +120,32 @@ variable "initial_images" {
 }
 
 variable "secret_versions" {
-  description = "Pinned numeric Secret Manager versions used by Cloud Run. Values are version identifiers only, never secret data."
+  description = "Pinned numeric Secret Manager versions used by Cloud Run. Required only when the runtime is enabled; values are version identifiers, never secret data."
   type = object({
-    ai_internal_key      = string
-    db_app_password      = string
-    db_migrator_password = string
-    google_client_secret = string
-    jwt_secret           = string
-    oauth_cookie_secret  = string
-    openai_api_key       = string
-    rate_limit_key       = string
-    smtp_password        = string
+    ai_internal_key       = string
+    db_app_password       = string
+    db_migrator_password  = string
+    dependency_health_key = string
+    google_client_secret  = string
+    jwt_secret            = string
+    oauth_cookie_secret   = string
+    openai_api_key        = string
+    rate_limit_key        = string
+    smtp_password         = string
   })
-  default = {
-    ai_internal_key      = "1"
-    db_app_password      = "1"
-    db_migrator_password = "1"
-    google_client_secret = "1"
-    jwt_secret           = "1"
-    oauth_cookie_secret  = "1"
-    openai_api_key       = "1"
-    rate_limit_key       = "1"
-    smtp_password        = "1"
-  }
+  default  = null
+  nullable = true
 
   validation {
-    condition = alltrue([
+    condition = var.secret_versions == null ? true : alltrue([
       for version in values(var.secret_versions) : can(regex("^[1-9][0-9]*$", version))
     ])
     error_message = "Every secret_versions value must be a pinned positive numeric Secret Manager version."
+  }
+
+  validation {
+    condition     = !var.enable_cloud_run_runtime || var.secret_versions != null
+    error_message = "secret_versions is required when enable_cloud_run_runtime is true."
   }
 }
 

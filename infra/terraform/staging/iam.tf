@@ -26,13 +26,13 @@ locals {
       service_account = "core"
       secret          = "ai_internal_key"
     }
-    deployer_health_check_key = {
-      service_account = "deployer"
-      secret          = "ai_internal_key"
-    }
     core_db_app_password = {
       service_account = "core"
       secret          = "db_app_password"
+    }
+    core_dependency_health_key = {
+      service_account = "core"
+      secret          = "dependency_health_key"
     }
     core_google_client_secret = {
       service_account = "core"
@@ -53,6 +53,10 @@ locals {
     core_smtp_password = {
       service_account = "core"
       secret          = "smtp_password"
+    }
+    deployer_dependency_health_key = {
+      service_account = "deployer"
+      secret          = "dependency_health_key"
     }
     migrator_db_password = {
       service_account = "migrator"
@@ -206,4 +210,3 @@ resource "google_cloud_run_v2_service_iam_member" "ai_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.staging[each.value].email}"
 }
-

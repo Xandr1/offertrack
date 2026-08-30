@@ -30,6 +30,10 @@ final class SecretConfigurationRules {
         "app.ai-service.internal-api-key",
         MINIMUM_SECRET_BYTES,
         LOCAL_AI_KEY);
+    requireSecret(
+        configuration.dependencyHealthKey(),
+        "app.management.dependency-health-key",
+        MINIMUM_SECRET_BYTES);
     requirePositiveDuration(configuration.jwtAccessTokenTtl(), "app.jwt.access-token-ttl");
 
     if (configuration.jwtSecret().trim().equals(configuration.oauthCookieSecret().trim())) {
@@ -41,6 +45,13 @@ final class SecretConfigurationRules {
             .trim()
             .equals(configuration.oauthCookieSecret().trim())) {
       invalid("app.rate-limit.key-secret");
+    }
+    String dependencyHealthKey = configuration.dependencyHealthKey().trim();
+    if (dependencyHealthKey.equals(configuration.jwtSecret().trim())
+        || dependencyHealthKey.equals(configuration.oauthCookieSecret().trim())
+        || dependencyHealthKey.equals(configuration.rateLimitKeySecret().trim())
+        || dependencyHealthKey.equals(configuration.aiServiceInternalApiKey().trim())) {
+      invalid("app.management.dependency-health-key");
     }
   }
 }

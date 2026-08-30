@@ -20,6 +20,19 @@ locals {
     web      = "invalid.local/web@sha256:0000000000000000000000000000000000000000000000000000000000000000"
   } : var.initial_images
 
+  runtime_secret_versions = var.secret_versions == null ? {
+    ai_internal_key       = null
+    db_app_password       = null
+    db_migrator_password  = null
+    dependency_health_key = null
+    google_client_secret  = null
+    jwt_secret            = null
+    oauth_cookie_secret   = null
+    openai_api_key        = null
+    rate_limit_key        = null
+    smtp_password         = null
+  } : var.secret_versions
+
   database_url = "jdbc:postgresql://${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.offertrack.name}"
   redis_tls_ca_certificates = join("\n", [
     for server_ca in google_redis_instance.staging.server_ca_certs : trimspace(server_ca.cert)
@@ -40,11 +53,11 @@ locals {
   ai_secret_environment = {
     AI_SERVICE_INTERNAL_API_KEY = {
       secret  = "ai_internal_key"
-      version = var.secret_versions.ai_internal_key
+      version = local.runtime_secret_versions.ai_internal_key
     }
     OPENAI_API_KEY = {
       secret  = "openai_api_key"
-      version = var.secret_versions.openai_api_key
+      version = local.runtime_secret_versions.openai_api_key
     }
   }
 
@@ -94,31 +107,35 @@ locals {
   core_secret_environment = {
     AI_SERVICE_INTERNAL_API_KEY = {
       secret  = "ai_internal_key"
-      version = var.secret_versions.ai_internal_key
+      version = local.runtime_secret_versions.ai_internal_key
     }
     DB_PASSWORD = {
       secret  = "db_app_password"
-      version = var.secret_versions.db_app_password
+      version = local.runtime_secret_versions.db_app_password
+    }
+    DEPENDENCY_HEALTH_KEY = {
+      secret  = "dependency_health_key"
+      version = local.runtime_secret_versions.dependency_health_key
     }
     GOOGLE_CLIENT_SECRET = {
       secret  = "google_client_secret"
-      version = var.secret_versions.google_client_secret
+      version = local.runtime_secret_versions.google_client_secret
     }
     JWT_SECRET = {
       secret  = "jwt_secret"
-      version = var.secret_versions.jwt_secret
+      version = local.runtime_secret_versions.jwt_secret
     }
     OAUTH_COOKIE_SECRET = {
       secret  = "oauth_cookie_secret"
-      version = var.secret_versions.oauth_cookie_secret
+      version = local.runtime_secret_versions.oauth_cookie_secret
     }
     RATE_LIMIT_KEY_SECRET = {
       secret  = "rate_limit_key"
-      version = var.secret_versions.rate_limit_key
+      version = local.runtime_secret_versions.rate_limit_key
     }
     SMTP_PASSWORD = {
       secret  = "smtp_password"
-      version = var.secret_versions.smtp_password
+      version = local.runtime_secret_versions.smtp_password
     }
   }
 
@@ -416,7 +433,7 @@ resource "google_cloud_run_v2_job" "migrate" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.staging["db_migrator_password"].secret_id
-              version = var.secret_versions.db_migrator_password
+              version = local.runtime_secret_versions.db_migrator_password
             }
           }
         }

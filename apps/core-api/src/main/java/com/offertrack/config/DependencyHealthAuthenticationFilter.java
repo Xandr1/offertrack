@@ -11,16 +11,17 @@ import org.springframework.core.env.Environment;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 final class DependencyHealthAuthenticationFilter extends OncePerRequestFilter {
-  private static final String PATH = "/actuator/health/dependencies";
-  private static final String HEADER = "X-Internal-Api-Key";
+  static final String PATH = "/actuator/health/dependencies";
+  static final String HEADER = "X-Dependency-Health-Key";
 
   private final String expectedKey;
 
   DependencyHealthAuthenticationFilter(Environment environment) {
-    this.expectedKey = environment.getProperty("app.ai-service.internal-api-key", "");
+    this.expectedKey = environment.getProperty("app.management.dependency-health-key", "");
   }
 
   @Override
@@ -29,7 +30,8 @@ final class DependencyHealthAuthenticationFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     if (PATH.equals(request.getRequestURI())) {
       String suppliedKey = request.getHeader(HEADER);
-      if (suppliedKey != null
+      if (StringUtils.hasText(expectedKey)
+          && StringUtils.hasText(suppliedKey)
           && MessageDigest.isEqual(
               suppliedKey.getBytes(StandardCharsets.UTF_8),
               expectedKey.getBytes(StandardCharsets.UTF_8))) {

@@ -92,6 +92,7 @@ class ProtectedConfigurationEarlyFailureTest {
       "--app.jwt.access-token-ttl=48h",
       "--app.oauth.authorization-request-cookie-signing-secret=oauth-cookie-signing-secret-which-is-long-enough",
       "--app.rate-limit.key-secret=rate-limit-hmac-secret-which-is-long-enough",
+      "--app.management.dependency-health-key=dependency-health-key-which-is-long-enough-and-distinct",
       "--app.web.url=https://app.example.com",
       "--app.cors.allowed-origins=https://app.example.com",
       "--app.auth.cookie.name=access_token",

@@ -47,12 +47,17 @@ isolation remain authoritative. AI has no unauthenticated binding. Only the Core
 runtime and staging deployer can invoke it.
 
 The public liveness and readiness endpoints are intentionally lightweight. The
-detail-free `/actuator/health/dependencies` check requires the existing pinned
-AI internal key in `X-Internal-Api-Key`; staging smoke obtains that key through
-the deployer identity and never prints it or the health response details.
+detail-free `/actuator/health/dependencies` check requires the separately
+pinned `offertrack-stg-dependency-health-key` value in
+`X-Dependency-Health-Key`. Core and the deployer are its only accessors. The
+deployer cannot access the AI internal key. Deployment checks resolve the
+dependency-health version from the exact Core revision, keep the value in the
+single shell process that needs it, and never write it to `$GITHUB_ENV`, print
+it, or print health response details.
 
-Staging deployment is disabled until the repository/environment variable
-`STAGING_DEPLOY_ENABLED=true` is explicitly set. Keep it disabled until
+Staging deployment is disabled until the GitHub repository variable
+`STAGING_DEPLOY_ENABLED=true` is explicitly set. It is not an environment-level
+variable. Keep it disabled until
 foundation Terraform is applied, secret versions exist, database users are
 provisioned, seed images are published, and the Cloud Run services and
 migration job have been created successfully.
@@ -153,10 +158,13 @@ For a Memorystore CA rotation:
 Core retains the existing two-second connect/command timeouts and protected
 rate limiting remains fail closed.
 
-Protected SMTP authentication requires STARTTLS with both
-`mail.smtp.starttls.enable=true` and `mail.smtp.starttls.required=true`.
-Connection, read, and write timeouts are bounded. Local development retains
-its unauthenticated Mailpit-compatible defaults.
+Every protected SMTP runtime requires STARTTLS with both
+`mail.smtp.starttls.enable=true` and `mail.smtp.starttls.required=true`, whether
+SMTP authentication is used or the relay accepts anonymous clients. Username
+and password validation remains conditional: both may be absent, but a partial
+credential pair fails startup. Connection, read, and write timeouts are
+bounded. Local development retains its unauthenticated, non-TLS
+Mailpit-compatible defaults.
 
 ## Database roles and migrations
 
@@ -218,6 +226,7 @@ never versions or values:
 | `offertrack-stg-jwt-secret`            |                          32 UTF-8 bytes | Core                           |
 | `offertrack-stg-oauth-cookie-secret`   |             32 bytes, distinct from JWT | Core                           |
 | `offertrack-stg-rate-limit-key-secret` |       32 bytes, distinct from JWT/OAuth | Core                           |
+| `offertrack-stg-dependency-health-key` | 32 bytes, distinct from application keys | Core and deployer              |
 | `offertrack-stg-db-app-password`       |           operational policy: 32+ bytes | Core and DB bootstrap          |
 | `offertrack-stg-db-migrator-password`  | operational policy: 32+ bytes, distinct | migration job and DB bootstrap |
 | `offertrack-stg-google-client-secret`  |                          16 UTF-8 bytes | Core                           |
@@ -244,7 +253,10 @@ generator feeding stdin directly. Never use `echo`, workflow secrets, Terraform
 variables, `-var`, `.tfvars`, or command-line flags for secret data.
 
 Cloud Run references numeric versions from Terraform variable
-`secret_versions`; `latest` is intentionally not used. Rotation is:
+`secret_versions`; the variable has no hardcoded version default and `latest`
+is intentionally not used. It is the single non-secret source of truth for
+runtime pins. Deployment health checks read the dependency-health version from
+the exact Core revision instead of duplicating a version number. Rotation is:
 
 1. add a new Secret Manager version;
 2. for either database password, run the role reconciliation script with the
@@ -263,6 +275,12 @@ also needs the database role and Core revision coordinated. Secret environment
 values are resolved when an instance starts, so merely adding a version does
 nothing while numeric references remain unchanged.
 
+Dependency-health rotation requires updating its numeric `secret_versions`
+entry and applying Terraform so Core receives the new pin. The next deployment
+and smoke run automatically read that same pin from the Core revision; no
+workflow constant changes. Existing Core instances/revisions keep the old
+version until replaced or restarted under an updated template.
+
 Changing JWT or OAuth-cookie keys invalidates existing corresponding browser
 state. Changing the rate-limit key starts a fresh logical counter namespace.
 
@@ -272,16 +290,19 @@ Runtime access is narrowly scoped:
 
 | Identity | Grants                                                                                                                                              |
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core     | its seven secret containers; invoke only AI                                                                                                         |
+| Core     | its eight secret containers, including the dedicated dependency-health key; invoke only AI                                                            |
 | AI       | OpenAI and shared internal-key containers                                                                                                           |
 | Migrator | migration DB password container                                                                                                                     |
 | Web      | no secret access                                                                                                                                    |
-| Deployer | repository writer; developer on exactly three services and one job; job execution; AI invocation; `serviceAccountUser` on the four runtime accounts |
+| Deployer | dedicated dependency-health secret only; repository writer; developer on exactly three services and one job; job execution; AI invocation; `serviceAccountUser` on the four runtime accounts |
 
-The deployer has no project-wide Cloud Run role, Secret Manager access, Owner,
-Editor, service-account administration, or Terraform/state authority. Terraform
-uses the separate privileged `offertrack-stg-infra` account and receives
-`roles/run.admin` only because it owns the service/job definitions and IAM.
+The deployer has no project-wide Cloud Run or Secret Manager role, no access to
+the AI internal key or other runtime secrets, and no Owner, Editor,
+service-account administration, or Terraform/state authority. Its one Secret
+Manager accessor binding is resource-level on the dependency-health container.
+Terraform uses the separate privileged `offertrack-stg-infra` account and
+receives `roles/run.admin` only because it owns the service/job definitions and
+IAM.
 
 GitHub authenticates without a key through provider:
 
@@ -336,7 +357,9 @@ The order is fixed:
    promote it;
 5. update the migration job definition to the Core digest;
 6. execute the job once and wait for a successful result;
-7. create Core at zero traffic and require readiness plus dependency health;
+7. create Core at zero traffic, resolve the dedicated health-secret version
+   from that revision, and require readiness plus authenticated dependency
+   health without exporting the credential globally;
 8. promote Core and resolve its actual canonical URI;
 9. build Web with that exact URI, publish and resolve its digest;
 10. create Web at zero traffic, verify `/login`, then promote it; and
@@ -414,7 +437,7 @@ Before enabling the deployment workflow:
 3. Apply with `enable_cloud_run_runtime = false` using the approved infra
    identity. This creates or reconciles the foundation, deployer publication
    rights, secret containers, and database without Cloud Run resources.
-4. Add all nine secret versions through the non-logging process above.
+4. Add all ten secret versions through the non-logging process above.
 5. Run the database role bootstrap through an authorized private path.
 6. Build and publish seed Core/AI/Web images by full commit SHA. The Web seed
    uses the deterministic Core URL above. Record their digests.

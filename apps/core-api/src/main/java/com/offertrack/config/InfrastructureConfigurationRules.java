@@ -76,20 +76,21 @@ final class InfrastructureConfigurationRules {
     if (hasUsername != hasPassword) {
       invalid(hasUsername ? "spring.mail.password" : "spring.mail.username");
     }
+    requireBoolean(
+        configuration.smtpStarttlsEnabled(), "spring.mail.properties.mail.smtp.starttls.enable");
+    if (!Boolean.parseBoolean(configuration.smtpStarttlsEnabled().trim())) {
+      invalid("spring.mail.properties.mail.smtp.starttls.enable");
+    }
+    requireBoolean(
+        configuration.smtpStarttlsRequired(), "spring.mail.properties.mail.smtp.starttls.required");
+    if (!Boolean.parseBoolean(configuration.smtpStarttlsRequired().trim())) {
+      invalid("spring.mail.properties.mail.smtp.starttls.required");
+    }
     if (hasUsername) {
       requireCredential(
           configuration.smtpUsername(), "spring.mail.username", 1, "username", "changeme");
       requireCredential(
           configuration.smtpPassword(), "spring.mail.password", 12, "password", "changeme");
-      requireBoolean(
-          configuration.smtpStarttlsEnabled(), "spring.mail.properties.mail.smtp.starttls.enable");
-      requireBoolean(
-          configuration.smtpStarttlsRequired(),
-          "spring.mail.properties.mail.smtp.starttls.required");
-      if (!Boolean.parseBoolean(configuration.smtpStarttlsEnabled().trim())
-          || !Boolean.parseBoolean(configuration.smtpStarttlsRequired().trim())) {
-        invalid("spring.mail.properties.mail.smtp.starttls.required");
-      }
     }
     requirePositiveDuration(
         configuration.smtpConnectionTimeout(),

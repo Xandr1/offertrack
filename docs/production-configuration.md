@@ -145,8 +145,19 @@ enabled.
 
 The protected, detail-free actuator group
 `/actuator/health/dependencies` aggregates database, Redis, and authenticated AI
-health for deployment smoke checks. Normal readiness includes only the database
-and Redis so a scaled-to-zero AI instance is not kept warm by platform probes.
+health for deployment smoke checks. It requires the separate
+`app.management.dependency-health-key` value in `X-Dependency-Health-Key`; the
+AI internal API key is not accepted for this purpose. Protected startup requires
+the dependency-health key to be at least 32 UTF-8 bytes and distinct from the
+JWT, OAuth-cookie, rate-limit, and AI internal keys. Normal readiness includes
+only the database and Redis so a scaled-to-zero AI instance is not kept warm by
+platform probes. Health details remain disabled.
+
+Protected profiles require both `mail.smtp.starttls.enable=true` and
+`mail.smtp.starttls.required=true` for every SMTP connection, including an
+anonymous relay. SMTP username/password checks remain conditional: both may be
+absent, but providing only one fails startup. Local Mailpit defaults remain
+non-TLS unless explicitly configured.
 
 ## CSRF contract
 

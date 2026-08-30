@@ -137,6 +137,24 @@ class ProtectedConfigurationRulesTest {
   }
 
   @Test
+  void rejectsMissingOrReusedDependencyHealthSecret() {
+    MockEnvironment missing = validEnvironment();
+    missing.withProperty("app.management.dependency-health-key", "");
+    MockEnvironment reused = validEnvironment();
+    reused.withProperty(
+        "app.management.dependency-health-key", "ai-service-internal-key-which-is-long-enough");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(ProtectedConfigurationSnapshot.from(missing)))
+        .hasMessageContaining("app.management.dependency-health-key");
+    assertThatThrownBy(
+            () -> ProtectedConfigurationRules.validate(ProtectedConfigurationSnapshot.from(reused)))
+        .hasMessageContaining("app.management.dependency-health-key")
+        .hasMessageNotContaining("ai-service-internal-key");
+  }
+
+  @Test
   void rejectsLoopbackInfrastructureAndWebHosts() {
     MockEnvironment databaseEnvironment = validEnvironment();
     databaseEnvironment.withProperty(
@@ -402,6 +420,34 @@ class ProtectedConfigurationRulesTest {
   }
 
   @Test
+  void rejectsAnonymousSmtpWithTlsDisabled() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.username", "");
+    environment.withProperty("spring.mail.password", "");
+    environment.withProperty("spring.mail.properties.mail.smtp.starttls.enable", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.starttls.enable");
+  }
+
+  @Test
+  void rejectsAnonymousSmtpWhenStarttlsIsNotRequired() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.username", "");
+    environment.withProperty("spring.mail.password", "");
+    environment.withProperty("spring.mail.properties.mail.smtp.starttls.required", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.starttls.required");
+  }
+
+  @Test
   void rejectsAuthenticatedSmtpWithoutRequiredStarttls() {
     MockEnvironment environment = validEnvironment();
     environment.withProperty("spring.mail.properties.mail.smtp.starttls.required", "false");
@@ -554,6 +600,9 @@ class ProtectedConfigurationRulesTest {
                 "oauth-cookie-signing-secret-which-is-long-enough")
             .withProperty(
                 "app.rate-limit.key-secret", "rate-limit-hmac-secret-which-is-long-enough")
+            .withProperty(
+                "app.management.dependency-health-key",
+                "dependency-health-key-which-is-long-enough-and-distinct")
             .withProperty("app.rate-limit.fail-open", "false")
             .withProperty("app.web.url", "https://app.example.com")
             .withProperty("app.cors.allowed-origins", "https://app.example.com")

@@ -25,7 +25,6 @@ env:
   MIGRATION_JOB: offertrack-stg-migrate
   WEB_SERVICE: offertrack-stg-web
   OFFERTRACK_CODEGEN_PROJECT_NAME: offertrack-codegen-${{ github.run_id }}-${{ github.run_attempt }}
-  STAGING_DEPLOY_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
 
 jobs:
   deploy:
@@ -88,14 +87,6 @@ jobs:
         with:
           project_id: offertrack-staging
           version: ">= 516.0.0"
-
-      - name: Load dependency health check key
-        shell: bash
-        run: |
-          set -euo pipefail
-          health_key="$(gcloud secrets versions access 1 --secret offertrack-stg-ai-internal-key --project "$PROJECT_ID")"
-          [[ -n "$health_key" ]]
-          printf '%s\n' "CORE_DEPENDENCY_HEALTH_KEY=$health_key" >> "$GITHUB_ENV"
 
       - name: Configure Artifact Registry authentication
         shell: bash
@@ -228,7 +219,8 @@ jobs:
           canonical_url="https://${CORE_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
           candidate_url="https://candidate---${CORE_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
           response="$(mktemp "${RUNNER_TEMP%/}/offertrack-core-health.XXXXXX")"
-          trap 'rm -f -- "$response"' EXIT
+          revision_config="$(mktemp "${RUNNER_TEMP%/}/offertrack-core-revision.XXXXXX")"
+          trap 'unset dependency_health_key; rm -f -- "$response" "$revision_config"' EXIT
 
           gcloud run services update "$CORE_SERVICE" \
             --project "$PROJECT_ID" \
@@ -243,14 +235,34 @@ jobs:
             --format='value(status.latestReadyRevisionName)')"
           [[ "$ready_revision" == "$expected_revision" ]]
 
-          for endpoint in readiness dependencies; do
-            curl --fail --silent --show-error \
-              --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
-              --output "$response" \
-              --header "X-Internal-Api-Key: $CORE_DEPENDENCY_HEALTH_KEY" \
-              "$candidate_url/actuator/health/$endpoint"
-            jq -e '.status == "UP"' "$response" >/dev/null
-          done
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --output "$response" \
+            "$candidate_url/actuator/health/readiness"
+          jq -e '.status == "UP"' "$response" >/dev/null
+
+          gcloud run revisions describe "$expected_revision" \
+            --project "$PROJECT_ID" --region "$REGION" --format=json > "$revision_config"
+          health_secret_name="$(jq -er \
+            '.spec.containers[0].env[] | select(.name == "DEPENDENCY_HEALTH_KEY") | .valueFrom.secretKeyRef.name' \
+            "$revision_config")"
+          health_secret_version="$(jq -er \
+            '.spec.containers[0].env[] | select(.name == "DEPENDENCY_HEALTH_KEY") | .valueFrom.secretKeyRef.key' \
+            "$revision_config")"
+          [[ "$health_secret_name" == "offertrack-stg-dependency-health-key" ]]
+          [[ "$health_secret_version" =~ ^[1-9][0-9]*$ ]]
+
+          set +x
+          dependency_health_key="$(gcloud secrets versions access "$health_secret_version" \
+            --secret "$health_secret_name" --project "$PROJECT_ID")"
+          [[ -n "$dependency_health_key" ]]
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --output "$response" \
+            --header "X-Dependency-Health-Key: $dependency_health_key" \
+            "$candidate_url/actuator/health/dependencies"
+          unset dependency_health_key
+          jq -e '.status == "UP"' "$response" >/dev/null
 
           gcloud run services update-traffic "$CORE_SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" \
@@ -258,7 +270,7 @@ jobs:
           actual_url="$(gcloud run services describe "$CORE_SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           [[ "$actual_url" == "$canonical_url" ]]
-          rm -f -- "$response"
+          rm -f -- "$response" "$revision_config"
           trap - EXIT
           printf '%s\n' "CORE_URL=$actual_url" "CORE_REVISION=$expected_revision" >> "$GITHUB_ENV"
 
