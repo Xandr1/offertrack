@@ -42,12 +42,24 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest(controllers = {AuthController.class, SettingsController.class})
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, CookieService.class})
+@WebMvcTest(
+    controllers = {AuthController.class, SettingsController.class},
+    properties =
+        "app.management.dependency-health-key=dependency-health-key-which-is-long-enough-and-distinct")
+@Import({
+  SecurityConfig.class,
+  JwtAuthenticationFilter.class,
+  CookieService.class,
+  SecurityHardeningWebMvcTest.DependencyHealthController.class
+})
 class SecurityHardeningWebMvcTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
   private static final String ACCESS_TOKEN = "valid-access-token";
+  private static final String DEPENDENCY_HEALTH_KEY =
+      "dependency-health-key-which-is-long-enough-and-distinct";
   private static final String SETTINGS_JSON =
       """
       {
@@ -247,6 +259,45 @@ class SecurityHardeningWebMvcTest {
   }
 
   @Test
+  void allowsDependencyHealthWithTheDedicatedKey() throws Exception {
+    mockMvc
+        .perform(
+            get(DependencyHealthAuthenticationFilter.PATH)
+                .header(DependencyHealthAuthenticationFilter.HEADER, DEPENDENCY_HEALTH_KEY))
+        .andExpect(status().isOk())
+        .andExpect(content().string("UP"));
+  }
+
+  @Test
+  void rejectsDependencyHealthWithoutTheDedicatedKey() throws Exception {
+    mockMvc
+        .perform(get(DependencyHealthAuthenticationFilter.PATH))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void rejectsDependencyHealthWithTheWrongKey() throws Exception {
+    mockMvc
+        .perform(
+            get(DependencyHealthAuthenticationFilter.PATH)
+                .header(DependencyHealthAuthenticationFilter.HEADER, "wrong-health-key"))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void rejectsNormalUserAuthenticationWithoutTheDedicatedKey() throws Exception {
+    mockMvc
+        .perform(
+            get(DependencyHealthAuthenticationFilter.PATH)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN))
+        .andExpect(status().isForbidden());
+
+    mockMvc
+        .perform(get(DependencyHealthAuthenticationFilter.PATH).cookie(accessCookie()))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
   void validBoundAuthRequestsDelegateToEndpointRateLimitGuards() throws Exception {
     IssuedCsrf issued = issueCsrf();
     String remoteAddress = "203.0.113.42";
@@ -353,6 +404,14 @@ class SecurityHardeningWebMvcTest {
         .header("X-XSRF-TOKEN", issued.maskedToken())
         .contentType(MediaType.APPLICATION_JSON)
         .content(content);
+  }
+
+  @RestController
+  public static class DependencyHealthController {
+    @GetMapping(DependencyHealthAuthenticationFilter.PATH)
+    String dependencies() {
+      return "UP";
+    }
   }
 
   private record IssuedCsrf(String maskedToken, Cookie repositoryCookie) {}

@@ -119,6 +119,8 @@ public class SecurityConfig {
                         "/oauth2/authorization/**",
                         "/login/oauth2/code/**")
                     .permitAll()
+                    .requestMatchers(DependencyHealthAuthenticationFilter.PATH)
+                    .hasAuthority(DependencyHealthAuthenticationFilter.AUTHORITY)
                     .requestMatchers(
                         "/actuator/health",
                         "/actuator/health/liveness",

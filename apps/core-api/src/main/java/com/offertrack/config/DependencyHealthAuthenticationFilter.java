@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 final class DependencyHealthAuthenticationFilter extends OncePerRequestFilter {
   static final String PATH = "/actuator/health/dependencies";
   static final String HEADER = "X-Dependency-Health-Key";
+  static final String AUTHORITY = "DEPENDENCY_HEALTH";
 
   private final String expectedKey;
 
@@ -38,7 +39,7 @@ final class DependencyHealthAuthenticationFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext()
             .setAuthentication(
                 new UsernamePasswordAuthenticationToken(
-                    "dependency-health", null, AuthorityUtils.NO_AUTHORITIES));
+                    "dependency-health", null, AuthorityUtils.createAuthorityList(AUTHORITY)));
       }
     }
     filterChain.doFilter(request, response);

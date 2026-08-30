@@ -31,6 +31,9 @@ class DependencyHealthAuthenticationFilterTest {
         .isNotNull()
         .extracting("principal")
         .isEqualTo("dependency-health");
+    assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+        .extracting("authority")
+        .containsExactly(DependencyHealthAuthenticationFilter.AUTHORITY);
   }
 
   @Test
