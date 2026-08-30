@@ -16,6 +16,7 @@ WEB_IMAGE=""
 AI_REVISION=""
 CORE_REVISION=""
 WEB_REVISION=""
+CORE_DEPENDENCY_HEALTH_KEY="${CORE_DEPENDENCY_HEALTH_KEY:-}"
 
 usage() {
   cat <<'EOF'
@@ -93,6 +94,7 @@ cleanup() {
   local exit_code=$?
   trap - EXIT INT TERM
   unset AI_ID_TOKEN
+  unset CORE_DEPENDENCY_HEALTH_KEY
   case "$RUNTIME_DIR" in
     "${TMPDIR:-/tmp}"/offertrack-staging-smoke.*)
       rm -f -- "$RUNTIME_DIR"/*.json "$RUNTIME_DIR"/*.html
@@ -145,10 +147,13 @@ retry_curl "$CORE_URL/actuator/health/readiness" "$RUNTIME_DIR/core-readiness.js
 jq -e '.status == "UP"' "$RUNTIME_DIR/core-readiness.json" >/dev/null \
   || fail "Core readiness response was not UP"
 
+[[ -n "$CORE_DEPENDENCY_HEALTH_KEY" ]] || fail "dependency health key is required"
+
 # This group is deliberately detail-free. An UP result proves that Core reached
 # PostgreSQL and TLS Redis and authenticated to AI with both Cloud Run IAM and
 # the internal API key.
-retry_curl "$CORE_URL/actuator/health/dependencies" "$RUNTIME_DIR/core-dependencies.json"
+retry_curl "$CORE_URL/actuator/health/dependencies" "$RUNTIME_DIR/core-dependencies.json" \
+  --header "X-Internal-Api-Key: $CORE_DEPENDENCY_HEALTH_KEY"
 jq -e '.status == "UP"' "$RUNTIME_DIR/core-dependencies.json" >/dev/null \
   || fail "Core dependency health response was not UP"
 

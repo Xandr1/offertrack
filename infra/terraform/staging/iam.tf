@@ -26,6 +26,10 @@ locals {
       service_account = "core"
       secret          = "ai_internal_key"
     }
+    deployer_health_check_key = {
+      service_account = "deployer"
+      secret          = "ai_internal_key"
+    }
     core_db_app_password = {
       service_account = "core"
       secret          = "db_app_password"
@@ -203,15 +207,3 @@ resource "google_cloud_run_v2_service_iam_member" "ai_invoker" {
   member   = "serviceAccount:${google_service_account.staging[each.value].email}"
 }
 
-resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
-  for_each = var.enable_cloud_run_runtime ? {
-    core = google_cloud_run_v2_service.core[0].name
-    web  = google_cloud_run_v2_service.web[0].name
-  } : {}
-
-  project  = var.project_id
-  location = var.region
-  name     = each.value
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}

@@ -155,9 +155,11 @@ variable "secret_versions" {
 variable "google_oauth_client_id" {
   description = "Public Google OAuth client ID for the staging Core service."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = length(trimspace(var.google_oauth_client_id)) >= 16 && !strcontains(lower(var.google_oauth_client_id), "change-me")
+    condition     = !var.enable_cloud_run_runtime || (var.google_oauth_client_id != null && length(trimspace(var.google_oauth_client_id)) >= 16 && !strcontains(lower(var.google_oauth_client_id), "change-me"))
     error_message = "google_oauth_client_id must be an explicit non-placeholder client ID."
   }
 }
@@ -165,9 +167,11 @@ variable "google_oauth_client_id" {
 variable "smtp_host" {
   description = "Non-secret SMTP hostname used by staging Core."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\\.(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$", trimspace(var.smtp_host)))
+    condition     = !var.enable_cloud_run_runtime || (var.smtp_host != null && can(regex("^(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\\.(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))+$", trimspace(var.smtp_host))))
     error_message = "smtp_host must be an explicit non-loopback fully qualified hostname."
   }
 }
@@ -175,10 +179,11 @@ variable "smtp_host" {
 variable "smtp_port" {
   description = "SMTP TCP port used by staging Core."
   type        = number
-  default     = 587
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = var.smtp_port >= 1 && var.smtp_port <= 65535 && floor(var.smtp_port) == var.smtp_port
+    condition     = !var.enable_cloud_run_runtime || (var.smtp_port != null && var.smtp_port >= 1 && var.smtp_port <= 65535 && floor(var.smtp_port) == var.smtp_port)
     error_message = "smtp_port must be an integer TCP port."
   }
 }
@@ -186,9 +191,11 @@ variable "smtp_port" {
 variable "smtp_username" {
   description = "Non-secret SMTP username used by staging Core."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = length(trimspace(var.smtp_username)) > 0
+    condition     = !var.enable_cloud_run_runtime || (var.smtp_username != null && length(trimspace(var.smtp_username)) > 0)
     error_message = "smtp_username must not be empty because the runtime references an SMTP password secret."
   }
 }
@@ -196,9 +203,11 @@ variable "smtp_username" {
 variable "mail_from" {
   description = "From address used for staging transactional email."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^[^[:space:]@]+@[^[:space:]@]+$", trimspace(var.mail_from)))
+    condition     = !var.enable_cloud_run_runtime || (var.mail_from != null && can(regex("^[^[:space:]@]+@[^[:space:]@]+$", trimspace(var.mail_from))))
     error_message = "mail_from must be an explicit email address."
   }
 }

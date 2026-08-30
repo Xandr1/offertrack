@@ -12,14 +12,19 @@ def read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
 
-def resource_block(terraform: str, resource_type: str, name: str) -> str:
+def resource_block(terraform: str, resource_type: str, name: str, keyword: str = "resource") -> str:
+    declaration = (
+        rf'{keyword} "{re.escape(resource_type)}" "{re.escape(name)}"'
+        if keyword == "resource"
+        else rf'{keyword} "{re.escape(resource_type)}"'
+    )
     start_match = re.search(
-        rf'^resource "{re.escape(resource_type)}" "{re.escape(name)}" \{{$',
+        rf'^{declaration} \{{$',
         terraform,
         flags=re.MULTILINE,
     )
     if start_match is None:
-        raise AssertionError(f"Terraform resource {resource_type}.{name} is missing")
+        raise AssertionError(f"Terraform {keyword} {resource_type}.{name} is missing")
 
     depth = 0
     start = start_match.start()
@@ -63,6 +68,9 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertIn('egress = "PRIVATE_RANGES_ONLY"', migration)
         self.assertNotIn("vpc_access", ai)
         self.assertNotIn("vpc_access", web)
+        self.assertIn("invoker_iam_disabled = true", core)
+        self.assertIn("invoker_iam_disabled = true", web)
+        self.assertNotIn("invoker_iam_disabled", ai)
 
     def test_migration_job_has_only_database_runtime_configuration(self) -> None:
         migration = resource_block(self.cloud_run, "google_cloud_run_v2_job", "migrate")
@@ -91,18 +99,33 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertNotIn("insecure", self.cloud_run.lower())
 
     def test_runtime_iam_is_resource_scoped(self) -> None:
-        self.assertIn('role     = "roles/run.invoker"', self.iam)
-        self.assertIn('member   = "allUsers"', self.iam)
+        ai_invoker = resource_block(
+            self.iam, "google_cloud_run_v2_service_iam_member", "ai_invoker"
+        )
+        infra_roles = resource_block(
+            self.iam, "google_project_iam_member", "infra_project_roles"
+        )
+        self.assertIn('role     = "roles/run.invoker"', ai_invoker)
+        self.assertIn('"core"', ai_invoker)
+        self.assertIn('"deployer"', ai_invoker)
+        self.assertNotIn('member   = "allUsers"', self.iam)
         self.assertIn('role     = "roles/run.developer"', self.iam)
         self.assertIn('role     = "roles/run.jobsExecutor"', self.iam)
         self.assertIn('role               = "roles/iam.serviceAccountUser"', self.iam)
         for forbidden in (
             "roles/owner",
             "roles/editor",
-            "roles/secretmanager.secretAccessor\"\n  member",
             "roles/iam.serviceAccountAdmin",
         ):
-            self.assertNotIn(forbidden, self.iam.lower())
+            self.assertNotIn(forbidden, infra_roles)
+
+    def test_runtime_inputs_are_nullable_only_for_foundation(self) -> None:
+        variables = read("infra/terraform/staging/variables.tf")
+        for name in ("google_oauth_client_id", "smtp_host", "smtp_port", "smtp_username", "mail_from"):
+            block = resource_block(variables, name, name, keyword="variable")
+            self.assertIn("default     = null", block)
+            self.assertIn("nullable    = true", block)
+            self.assertIn("!var.enable_cloud_run_runtime", block)
 
 
 class DeploymentWorkflowContractTest(unittest.TestCase):
@@ -115,6 +138,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         self.assertIn("github.event.workflow_run.conclusion == 'success'", self.workflow)
         self.assertIn("github.event.workflow_run.event == 'push'", self.workflow)
         self.assertIn("github.event.workflow_run.head_branch == 'main'", self.workflow)
+        self.assertIn("vars.STAGING_DEPLOY_ENABLED == 'true'", self.workflow)
         self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", self.workflow)
         self.assertIn("workload_identity_provider:", self.workflow)
         self.assertNotIn("credentials_json:", self.workflow)
@@ -143,6 +167,8 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         self.assertIn("image_summary.fully_qualified_digest", self.workflow)
         self.assertNotRegex(self.workflow, r"(?i)/(?:web|core-api|ai-service):latest")
         self.assertIn("--next-public-api-url \"$CORE_URL\"", self.workflow)
+        self.assertIn("image_summary.fully_qualified_digest", self.workflow)
+        self.assertIn("CORE_DEPENDENCY_HEALTH_KEY", self.workflow)
 
 
 class DatabaseProvisioningContractTest(unittest.TestCase):

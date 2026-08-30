@@ -8,15 +8,15 @@ roles, execute a migration, publish an image, or deploy to Google Cloud.
 
 ## Authoritative environment
 
-| Setting | Value |
-| --- | --- |
-| Project ID | `offertrack-staging` |
-| Project number | `765846644391` |
-| Region | `europe-central2` |
-| Zone | `europe-central2-a` |
-| Terraform state bucket | `offertrack-staging-tfstate-2908` |
-| State prefix | `staging` |
-| Artifact Registry repository | `offertrack` |
+| Setting                      | Value                             |
+| ---------------------------- | --------------------------------- |
+| Project ID                   | `offertrack-staging`              |
+| Project number               | `765846644391`                    |
+| Region                       | `europe-central2`                 |
+| Zone                         | `europe-central2-a`               |
+| Terraform state bucket       | `offertrack-staging-tfstate-2908` |
+| State prefix                 | `staging`                         |
+| Artifact Registry repository | `offertrack`                      |
 
 The state bucket remains an external bootstrap resource. Terraform does not
 create, import, grant IAM on, or delete it.
@@ -39,11 +39,23 @@ offertrack-stg-migrate (one-shot job)
   └── private-range Direct VPC egress -> Cloud SQL private IP
 ```
 
-The Core and Web services are browser reachable through Cloud Run IAM's
-`allUsers` invoker binding. Public invocation does not bypass Spring Security:
+The Core and Web services are browser reachable because Terraform sets
+Cloud Run's `invoker_iam_disabled` service field. Public invocation does not
+bypass Spring Security:
 the existing JWT HttpOnly cookie, OAuth, CSRF, CORS, rate limiting, and user
 isolation remain authoritative. AI has no unauthenticated binding. Only the Core
 runtime and staging deployer can invoke it.
+
+The public liveness and readiness endpoints are intentionally lightweight. The
+detail-free `/actuator/health/dependencies` check requires the existing pinned
+AI internal key in `X-Internal-Api-Key`; staging smoke obtains that key through
+the deployer identity and never prints it or the health response details.
+
+Staging deployment is disabled until the repository/environment variable
+`STAGING_DEPLOY_ENABLED=true` is explicitly set. Keep it disabled until
+foundation Terraform is applied, secret versions exist, database users are
+provisioned, seed images are published, and the Cloud Run services and
+migration job have been created successfully.
 
 Core and the migration job use Direct VPC egress to
 `offertrack-staging-subnet`. Egress mode is `PRIVATE_RANGES_ONLY`, so traffic to
@@ -52,12 +64,12 @@ AI and Web have no VPC attachment.
 
 ## Cloud Run resources
 
-| Resource | Identity | Access | Scale and concurrency | Health/startup |
-| --- | --- | --- | --- | --- |
-| `offertrack-stg-ai` service | `offertrack-stg-ai` | IAM only | min 0, max 2, concurrency 4 | `/health` |
-| `offertrack-stg-core` service | `offertrack-stg-core` | public edge | min 0, max 2, concurrency 20 | actuator liveness/readiness |
-| `offertrack-stg-migrate` job | `offertrack-stg-migrator` | deployer execution only | one task, parallelism 1, zero retries | process exit status |
-| `offertrack-stg-web` service | `offertrack-stg-web` | public | min 0, max 2, concurrency 40 | `/login` |
+| Resource                      | Identity                  | Access                  | Scale and concurrency                 | Health/startup              |
+| ----------------------------- | ------------------------- | ----------------------- | ------------------------------------- | --------------------------- |
+| `offertrack-stg-ai` service   | `offertrack-stg-ai`       | IAM only                | min 0, max 2, concurrency 4           | `/health`                   |
+| `offertrack-stg-core` service | `offertrack-stg-core`     | public edge             | min 0, max 2, concurrency 20          | actuator liveness/readiness |
+| `offertrack-stg-migrate` job  | `offertrack-stg-migrator` | deployer execution only | one task, parallelism 1, zero retries | process exit status         |
+| `offertrack-stg-web` service  | `offertrack-stg-web`      | public                  | min 0, max 2, concurrency 40          | `/login`                    |
 
 All services use second-generation execution, one CPU, conservative staging
 memory, startup CPU boost, and bounded maximum instances. Scale-to-zero is
@@ -100,6 +112,13 @@ The deployment workflow owns only application revisions:
 - after candidate checks, it restores the Terraform-shaped `100% latest`
   traffic configuration and removes the temporary tag.
 
+The current staging trust model rebuilds production images during deployment
+from the exact CI-approved commit, then records and deploys the resulting
+immutable digests. Locked dependencies and deterministic production build
+inputs are retained, but the digest is not literally the CI-scanned artifact.
+Exact CI artifact promotion is intentionally deferred to a future production
+deployment workflow; production should promote the scanned artifact directly.
+
 Terraform ignores only the four container image fields. It does not ignore
 runtime configuration, IAM, networking, probes, resources, or scaling. This is
 the intentional source-of-truth boundary: normal image deployments do not
@@ -133,6 +152,11 @@ For a Memorystore CA rotation:
 
 Core retains the existing two-second connect/command timeouts and protected
 rate limiting remains fail closed.
+
+Protected SMTP authentication requires STARTTLS with both
+`mail.smtp.starttls.enable=true` and `mail.smtp.starttls.required=true`.
+Connection, read, and write timeouts are bounded. Local development retains
+its unauthenticated Mailpit-compatible defaults.
 
 ## Database roles and migrations
 
@@ -189,17 +213,17 @@ one workflow invocation creates one controlled attempt.
 Terraform owns these Secret Manager containers and exact accessor bindings, but
 never versions or values:
 
-| Secret | Minimum application contract | Consumers |
-| --- | ---: | --- |
-| `offertrack-stg-jwt-secret` | 32 UTF-8 bytes | Core |
-| `offertrack-stg-oauth-cookie-secret` | 32 bytes, distinct from JWT | Core |
-| `offertrack-stg-rate-limit-key-secret` | 32 bytes, distinct from JWT/OAuth | Core |
-| `offertrack-stg-db-app-password` | operational policy: 32+ bytes | Core and DB bootstrap |
-| `offertrack-stg-db-migrator-password` | operational policy: 32+ bytes, distinct | migration job and DB bootstrap |
-| `offertrack-stg-google-client-secret` | 16 UTF-8 bytes | Core |
-| `offertrack-stg-ai-internal-key` | 32 UTF-8 bytes | Core and AI |
-| `offertrack-stg-openai-api-key` | valid provider key | AI |
-| `offertrack-stg-smtp-password` | 12 UTF-8 bytes | Core |
+| Secret                                 |            Minimum application contract | Consumers                      |
+| -------------------------------------- | --------------------------------------: | ------------------------------ |
+| `offertrack-stg-jwt-secret`            |                          32 UTF-8 bytes | Core                           |
+| `offertrack-stg-oauth-cookie-secret`   |             32 bytes, distinct from JWT | Core                           |
+| `offertrack-stg-rate-limit-key-secret` |       32 bytes, distinct from JWT/OAuth | Core                           |
+| `offertrack-stg-db-app-password`       |           operational policy: 32+ bytes | Core and DB bootstrap          |
+| `offertrack-stg-db-migrator-password`  | operational policy: 32+ bytes, distinct | migration job and DB bootstrap |
+| `offertrack-stg-google-client-secret`  |                          16 UTF-8 bytes | Core                           |
+| `offertrack-stg-ai-internal-key`       |                          32 UTF-8 bytes | Core and AI                    |
+| `offertrack-stg-openai-api-key`        |                      valid provider key | AI                             |
+| `offertrack-stg-smtp-password`         |                          12 UTF-8 bytes | Core                           |
 
 Create a value without echoing it or passing it in an argument:
 
@@ -246,12 +270,12 @@ state. Changing the rate-limit key starts a fresh logical counter namespace.
 
 Runtime access is narrowly scoped:
 
-| Identity | Grants |
-| --- | --- |
-| Core | its seven secret containers; invoke only AI |
-| AI | OpenAI and shared internal-key containers |
-| Migrator | migration DB password container |
-| Web | no secret access |
+| Identity | Grants                                                                                                                                              |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core     | its seven secret containers; invoke only AI                                                                                                         |
+| AI       | OpenAI and shared internal-key containers                                                                                                           |
+| Migrator | migration DB password container                                                                                                                     |
+| Web      | no secret access                                                                                                                                    |
 | Deployer | repository writer; developer on exactly three services and one job; job execution; AI invocation; `serviceAccountUser` on the four runtime accounts |
 
 The deployer has no project-wide Cloud Run role, Secret Manager access, Owner,

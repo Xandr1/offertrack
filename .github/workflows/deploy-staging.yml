@@ -25,6 +25,7 @@ env:
   MIGRATION_JOB: offertrack-stg-migrate
   WEB_SERVICE: offertrack-stg-web
   OFFERTRACK_CODEGEN_PROJECT_NAME: offertrack-codegen-${{ github.run_id }}-${{ github.run_attempt }}
+  STAGING_DEPLOY_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
 
 jobs:
   deploy:
@@ -33,7 +34,8 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      vars.STAGING_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: staging
@@ -86,6 +88,14 @@ jobs:
         with:
           project_id: offertrack-staging
           version: ">= 516.0.0"
+
+      - name: Load dependency health check key
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_key="$(gcloud secrets versions access 1 --secret offertrack-stg-ai-internal-key --project "$PROJECT_ID")"
+          [[ -n "$health_key" ]]
+          printf '%s\n' "CORE_DEPENDENCY_HEALTH_KEY=$health_key" >> "$GITHUB_ENV"
 
       - name: Configure Artifact Registry authentication
         shell: bash
@@ -237,6 +247,7 @@ jobs:
             curl --fail --silent --show-error \
               --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
               --output "$response" \
+              --header "X-Internal-Api-Key: $CORE_DEPENDENCY_HEALTH_KEY" \
               "$candidate_url/actuator/health/$endpoint"
             jq -e '.status == "UP"' "$response" >/dev/null
           done

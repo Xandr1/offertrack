@@ -402,6 +402,30 @@ class ProtectedConfigurationRulesTest {
   }
 
   @Test
+  void rejectsAuthenticatedSmtpWithoutRequiredStarttls() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.properties.mail.smtp.starttls.required", "false");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.starttls.required");
+  }
+
+  @Test
+  void rejectsAuthenticatedSmtpWithInvalidTimeout() {
+    MockEnvironment environment = validEnvironment();
+    environment.withProperty("spring.mail.properties.mail.smtp.timeout", "0ms");
+
+    assertThatThrownBy(
+            () ->
+                ProtectedConfigurationRules.validate(
+                    ProtectedConfigurationSnapshot.from(environment)))
+        .hasMessageContaining("spring.mail.properties.mail.smtp.timeout");
+  }
+
+  @Test
   void allowsRateLimitCountsAboveTcpPortRange() {
     MockEnvironment environment = validEnvironment();
     environment.withProperty("app.rate-limit.ai-user-day.max-attempts", "1000000");
@@ -512,6 +536,11 @@ class ProtectedConfigurationRulesTest {
             .withProperty("spring.mail.port", "587")
             .withProperty("spring.mail.username", "smtp-user")
             .withProperty("spring.mail.password", "smtp-password")
+            .withProperty("spring.mail.properties.mail.smtp.starttls.enable", "true")
+            .withProperty("spring.mail.properties.mail.smtp.starttls.required", "true")
+            .withProperty("spring.mail.properties.mail.smtp.connectiontimeout", "5s")
+            .withProperty("spring.mail.properties.mail.smtp.timeout", "10s")
+            .withProperty("spring.mail.properties.mail.smtp.writetimeout", "10s")
             .withProperty("app.mail.from", "no-reply@example.com")
             .withProperty(
                 "spring.security.oauth2.client.registration.google.client-id", "google-client-id")

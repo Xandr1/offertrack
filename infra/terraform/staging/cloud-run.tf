@@ -63,9 +63,9 @@ locals {
     CORS_ALLOWED_ORIGINS                        = local.web_service_url
     DATABASE_URL                                = local.database_url
     DB_USER                                     = "offertrack_app"
-    GOOGLE_CLIENT_ID                            = trimspace(var.google_oauth_client_id)
+    GOOGLE_CLIENT_ID                            = trimspace(coalesce(var.google_oauth_client_id, ""))
     JWT_ACCESS_TOKEN_TTL                        = "48h"
-    MAIL_FROM                                   = trimspace(var.mail_from)
+    MAIL_FROM                                   = trimspace(coalesce(var.mail_from, ""))
     OFFERTRACK_RUN_MODE                         = "server"
     RATE_LIMIT_FAIL_OPEN                        = "false"
     REDIS_CONNECT_TIMEOUT                       = "2s"
@@ -75,9 +75,14 @@ locals {
     REDIS_TLS_CA_CERTIFICATES                   = local.redis_tls_ca_certificates
     REDIS_TLS_ENABLED                           = "true"
     SERVER_FORWARD_HEADERS_STRATEGY             = "framework"
-    SMTP_HOST                                   = trimspace(var.smtp_host)
-    SMTP_PORT                                   = tostring(var.smtp_port)
-    SMTP_USERNAME                               = trimspace(var.smtp_username)
+    SMTP_HOST                                   = trimspace(coalesce(var.smtp_host, ""))
+    SMTP_PORT                                   = var.smtp_port == null ? "" : tostring(var.smtp_port)
+    SMTP_USERNAME                               = trimspace(coalesce(var.smtp_username, ""))
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE = "true"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED = "true"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_CONNECTIONTIMEOUT = "5000"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_TIMEOUT           = "10000"
+    SPRING_MAIL_PROPERTIES_MAIL_SMTP_WRITETIMEOUT      = "10000"
     SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT = "5000"
     SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE  = "5"
     SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE       = "0"
@@ -246,6 +251,7 @@ resource "google_cloud_run_v2_service" "core" {
   location            = var.region
   deletion_protection = true
   ingress             = "INGRESS_TRAFFIC_ALL"
+  invoker_iam_disabled = true
 
   template {
     service_account                  = google_service_account.staging["core"].email
@@ -436,6 +442,7 @@ resource "google_cloud_run_v2_service" "web" {
   location            = var.region
   deletion_protection = true
   ingress             = "INGRESS_TRAFFIC_ALL"
+  invoker_iam_disabled = true
 
   template {
     service_account                  = google_service_account.staging["web"].email
