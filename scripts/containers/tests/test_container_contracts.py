@@ -16,12 +16,12 @@ NODE_IMAGE = (
     "sha256:d45d78e7929b46875bbd4e29bea672d5bc48186c6c3588306521c815e78352d6"
 )
 TEMURIN_IMAGE = (
-    "eclipse-temurin:21.0.11_10-jre-alpine-3.23@"
-    "sha256:426401268a42785be73823f6115ee0e721bdb59c12c779947b83fcead1a66645"
+    "eclipse-temurin:21.0.12_8-jre-alpine-3.23@"
+    "sha256:1c59e0666519c026978ef64b429dfb78518d013d51f5056530f0daa57f2a5bcb"
 )
 PYTHON_IMAGE = (
     "python:3.11.15-slim-trixie@"
-    "sha256:00af38ae2ed311628970782e8a2d7f014d8909dbc63cb97bc0a158187f4db045"
+    "sha256:78b39ef14d8e2b4d71f8dc304f1328c37df95fe0ef99477c2ae6bd3d03784553"
 )
 POSTGRES_IMAGE = (
     "postgres:16.14-bookworm@"
@@ -127,7 +127,10 @@ class ImageContractTest(unittest.TestCase):
         )
         self.assertIn("ENV SERVER_PORT=8080", dockerfile)
         for fixed_package in (
-            "libexpat=2.8.2-r0",
+            "libcrypto3=3.5.8-r0",
+            "libexpat=2.8.3-r0",
+            "libssl3=3.5.8-r0",
+            "openssl=3.5.8-r0",
             "p11-kit=0.26.2-r0",
             "p11-kit-trust=0.26.2-r0",
         ):
@@ -182,6 +185,22 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("CMD []", runtime)
         self.assertEqual(2, dockerfile.count("pip uninstall --yes setuptools wheel"))
         self.assertEqual(2, dockerfile.count("pip uninstall --yes pip"))
+        for fixed_package in (
+            "bsdutils=1:2.41.5-0+deb13u1",
+            "libblkid1=2.41.5-0+deb13u1",
+            "liblastlog2-2=2.41.5-0+deb13u1",
+            "libmount1=2.41.5-0+deb13u1",
+            "libsmartcols1=2.41.5-0+deb13u1",
+            "libssl3t64=3.5.7-1~deb13u2",
+            "libuuid1=2.41.5-0+deb13u1",
+            "login=1:4.16.0-2+really2.41.5-0+deb13u1",
+            "mount=2.41.5-0+deb13u1",
+            "openssl=3.5.7-1~deb13u2",
+            "openssl-provider-legacy=3.5.7-1~deb13u2",
+            "util-linux=2.41.5-0+deb13u1",
+        ):
+            self.assertIn(fixed_package, runtime)
+        self.assertIn("rm -rf /var/lib/apt/lists/*", runtime)
         entrypoint = read("apps/ai-service/docker-entrypoint.sh")
         self.assertIn(
             'exec /opt/venv/bin/python -m uvicorn app.main:app --host "$HOST" --port "$PORT"',

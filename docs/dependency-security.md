@@ -42,11 +42,12 @@ They are intentionally narrow and temporary:
 | Override | Advisory | Introduced by | Remove when |
 | --- | --- | --- | --- |
 | `@babel/core` 7.29.0 -> 7.29.6 | `GHSA-4x5r-pxfx-6jf8` | Next/styled-jsx peers and Jest/ts-jest | The supported upstream graph resolves 7.29.6 or later without the override. |
-| `brace-expansion` 1.1.14 -> 1.1.17 and 5.0.6 -> 5.0.8 | `GHSA-mh99-v99m-4gvg` | `minimatch` 3.x and 10.x | Both supported `minimatch` branches resolve their corresponding fixed `brace-expansion` release. |
+| `brace-expansion` 1.1.14 -> 1.1.18 and 5.0.6 -> 5.0.9 | `GHSA-mh99-v99m-4gvg`, `GHSA-rgw5-rvv9-x895` | `minimatch` 3.x and 10.x through ESLint and Jest | Both supported `minimatch` branches resolve their corresponding fixed `brace-expansion` release. |
 | `form-data` 4.0.5 -> 4.0.6 | `GHSA-hmw2-7cc7-3qxx` | `jest-environment-jsdom` -> `jsdom` | jsdom's supported graph resolves 4.0.6 or later. |
-| `js-yaml` 3.14.2 -> 3.15.0 | `GHSA-h67p-54hq-rp68` | Jest coverage -> `@istanbuljs/load-nyc-config` | The Jest coverage graph resolves a fixed 3.x release or removes it. |
-| `js-yaml` 4.1.1 -> 4.3.0 | `GHSA-h67p-54hq-rp68` | ESLint | The supported ESLint graph resolves 4.3.0 or later. |
-| `postcss` 8.4.31 and 8.5.15 -> 8.5.18 | `GHSA-qx2v-qp2m-jg93`, `GHSA-r28c-9q8g-f849` | Next 16.2.11 and Tailwind CSS | Both supported requesters resolve 8.5.18 or later. |
+| `js-yaml` 3.14.2 -> 3.15.1 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj` | Jest coverage -> `@istanbuljs/load-nyc-config` | The Jest coverage graph resolves a fixed 3.x release or removes it. |
+| `js-yaml` 4.1.1 -> 4.3.1 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj` | ESLint | The supported ESLint graph resolves 4.3.1 or later. |
+| `nanoid` 3.3.12 -> 3.3.18 | `GHSA-28wg-ghj8-5hjv`, `GHSA-2v37-7h3g-55p8` | PostCSS | The supported PostCSS graph resolves 3.3.18 or later without the override. |
+| `postcss` 8.4.31 and 8.5.15 -> 8.5.23 | `GHSA-qx2v-qp2m-jg93`, `GHSA-r28c-9q8g-f849`, `GHSA-fxqj-rqcc-2cmp` | Next 16.2.11 and Tailwind CSS | Both supported requesters resolve 8.5.23 or later. |
 | `sharp` -> 0.35.0 | `GHSA-f88m-g3jw-g9cj` | Next 16.2.11 | The supported Next graph resolves a fixed Sharp release without the override. |
 
 After regeneration, a frozen pnpm install resolved each fixed version. Frontend
@@ -58,10 +59,12 @@ checks and the blocking OSV scan pass without it.
 
 Spring Boot was updated from 3.5.14 to the latest compatible 3.5 patch,
 3.5.16. Exact fixed versions are temporarily managed for Jackson, Logback,
-Netty, Apache Commons Lang, PostgreSQL JDBC, Spring Security, Tomcat, and Apache
-Commons Compress. These dependencies enter through Spring Boot starters,
+Log4j, Netty, Apache Commons Lang, PostgreSQL JDBC, Spring Security, Tomcat, and
+Apache Commons Compress. These dependencies enter through Spring Boot starters,
 Lettuce/Netty, JJWT/Jackson, the PostgreSQL driver, and Testcontainers. In
-particular, Testcontainers 1.21.4 otherwise resolves Commons Compress 1.24.0.
+particular, Spring Boot 3.5.16 otherwise resolves Log4j 2.24.3 through
+`spring-boot-starter-logging`, and Testcontainers 1.21.4 otherwise resolves
+Commons Compress 1.24.0.
 
 Remove each temporary version property or management entry when a supported
 Spring Boot/Testcontainers baseline manages at least the fixed version, and only
