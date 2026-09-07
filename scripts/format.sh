@@ -13,8 +13,7 @@ echo "Formatting backend..."
 
 echo "Formatting frontend..."
 (
-  cd apps/web
-  pnpm.cmd lint --fix
+  pnpm --filter web run lint --fix
 )
 
 echo "Formatting AI service..."
