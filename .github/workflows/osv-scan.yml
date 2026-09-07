@@ -17,6 +17,7 @@ on:
       - apps/ai-service/pylock.toml.sha256
       - apps/ai-service/pylock.test.toml
       - apps/ai-service/pylock.test.toml.sha256
+      - scripts/osv/**
       - .github/dependabot.yml
       - .github/workflows/**
 
@@ -40,6 +41,19 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
+
+      - name: Verify pnpm lockfile splitter
+        shell: bash
+        run: bash scripts/osv/tests/test-split-pnpm-lockfile.sh
+
+      - name: Split pnpm lockfile for OSV
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_dir="${RUNNER_TEMP%/}/offertrack-osv-pnpm-lockfiles"
+          [[ -d "$RUNNER_TEMP" ]]
+          [[ ! -e "$output_dir" ]]
+          bash scripts/osv/split-pnpm-lockfile.sh pnpm-lock.yaml "$output_dir"
 
       - name: Resolve Maven dependency inventory
         working-directory: apps/core-api
@@ -83,7 +97,8 @@ jobs:
             --format=json
             --output-file=osv-results.json
             --config=osv-scanner.toml
-            --lockfile=pnpm-lock.yaml
+            --lockfile=pnpm-lock.yaml:${{ runner.temp }}/offertrack-osv-pnpm-lockfiles/environment/pnpm-lock.yaml
+            --lockfile=pnpm-lock.yaml:${{ runner.temp }}/offertrack-osv-pnpm-lockfiles/project/pnpm-lock.yaml
             --lockfile=osv-scanner:osv-maven-dependencies.json
             --lockfile=apps/ai-service/pylock.toml
             --lockfile=pylock.toml:apps/ai-service/pylock.test.toml

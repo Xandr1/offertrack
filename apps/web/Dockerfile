@@ -6,8 +6,8 @@ ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN npm install --global pnpm@10.34.0 \
-    && pnpm --version | grep -Fx '10.34.0'
+RUN npm install --global pnpm@12.3.4 \
+    && pnpm --version | grep -Fx '12.3.4'
 
 WORKDIR /workspace
 

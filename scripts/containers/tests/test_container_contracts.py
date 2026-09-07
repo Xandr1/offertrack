@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -10,6 +11,11 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+PACKAGE_MANAGER = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["packageManager"]
+PACKAGE_MANAGER_MATCH = re.fullmatch(r"pnpm@(.+)", PACKAGE_MANAGER)
+if PACKAGE_MANAGER_MATCH is None:
+    raise RuntimeError("Root packageManager must pin pnpm")
+PNPM_VERSION = PACKAGE_MANAGER_MATCH.group(1)
 
 NODE_IMAGE = (
     "node:24.18.0-bookworm-slim@"
@@ -54,7 +60,8 @@ class ImageContractTest(unittest.TestCase):
         runtime = dockerfile[dockerfile.rindex("FROM ") :]
 
         self.assertEqual(2, dockerfile.count(NODE_IMAGE))
-        self.assertIn("npm install --global pnpm@10.34.0", dockerfile)
+        self.assertIn(f"npm install --global pnpm@{PNPM_VERSION}", dockerfile)
+        self.assertIn(f"pnpm --version | grep -Fx '{PNPM_VERSION}'", dockerfile)
         self.assertIn("pnpm install --frozen-lockfile", dockerfile)
         self.assertIn("ARG APP_ENV", dockerfile)
         self.assertIn("ARG NEXT_PUBLIC_API_URL", dockerfile)
@@ -667,6 +674,23 @@ class SmokeAndE2EContractTest(unittest.TestCase):
 
 
 class CIContractTest(unittest.TestCase):
+    def test_pnpm_setup_uses_the_root_package_manager_pin(self) -> None:
+        workflow = read(".github/workflows/ci.yml")
+        frontend = workflow[
+            workflow.index("  frontend:") : workflow.index("\n  backend:")
+        ]
+        e2e = workflow[workflow.index("  e2e:") :]
+        action = "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271"
+
+        for job in (frontend, e2e):
+            setup_start = job.index("      - name: Setup pnpm")
+            setup_end = job.index("      - name: Setup Node", setup_start)
+            setup = job[setup_start:setup_end]
+
+            self.assertIn(action, setup)
+            self.assertNotIn("with:", setup)
+            self.assertNotIn("version:", setup)
+
     def test_container_setup_pins_match_canonical_frontend_and_ai_jobs(self) -> None:
         workflow = read(".github/workflows/ci.yml")
         frontend = workflow[
