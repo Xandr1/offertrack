@@ -34,8 +34,7 @@ trap cleanup INT TERM EXIT
 API_PID=$!
 
 (
-  cd apps/web
-  pnpm.cmd dev
+  pnpm --filter web run dev
 ) &
 WEB_PID=$!
 

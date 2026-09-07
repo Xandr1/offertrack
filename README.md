@@ -1,151 +1,124 @@
 # OfferTrack
 
-OfferTrack is a job application tracker for software engineers.
-
-It helps track applications, stages, interview rounds, follow-ups, and the next steps in a job search process.
+OfferTrack is a job application tracker for managing applications, interview stages, follow-ups and job-search progress
 
 ## Stack
 
-**Frontend**
+- **Web:** Next.js, React, TypeScript, Tailwind CSS, TanStack Query, Zod
+- **Core API:** Java 21, Spring Boot, Spring Security, jOOQ, Flyway
+- **AI service:** Python 3.11, FastAPI, Pydantic, OpenAI API
+- **Data:** PostgreSQL, Redis
+- **Local infrastructure:** Docker Compose, Mailpit, MinIO
 
-* Next.js
-* React
-* TypeScript
-* Tailwind
-* TanStack Query
-* Zod
+## Repository structure
 
-**Backend**
+```text
+apps/
+  web/          Next.js frontend
+  core-api/     Spring Boot API
+  ai-service/   FastAPI AI service
 
-* Java 21
-* Spring Boot
-* Spring Security
-* JWT
-* jOOQ
-* Flyway
-* PostgreSQL
+scripts/        Development, testing, E2E, and container tooling
+infra/          Infrastructure configuration
+docs/           Production, security, deployment, and architecture documentation
+```
 
-**Local infrastructure**
+## Prerequisites
 
-* Docker Compose
-* PostgreSQL
-* Redis
-* Mailpit
-* MinIO
-* FastAPI AI service
+- Docker with Docker Compose
+- Node.js 24
+- pnpm 12.3.4
+- Java 21
+- Python 3.11
+- Git Bash when running repository scripts on Windows
 
-## Local Setup
+Maven is provided through the repository Maven Wrapper.
 
-Use Git Bash on Windows.
+## Local development
 
-Create a root `.env` file from `.env.example`:
+Create the local environment file:
 
 ```bash
 cp .env.example .env
 ```
 
+Install JavaScript dependencies:
+
+```bash
+pnpm install --frozen-lockfile
+```
+
 Start local infrastructure:
 
 ```bash
-docker compose up -d
+pnpm run dev:infra
 ```
 
-Run database migrations and generate jOOQ classes:
+Prepare the database and generate jOOQ sources:
 
 ```bash
 ./scripts/backend-codegen.sh
 ```
 
-Start the backend:
+Start the Core API:
 
 ```bash
-npm run dev:api
+pnpm run dev:api
 ```
 
-Start the frontend:
+Start the Web application in another terminal:
 
 ```bash
-npm run dev:web
+pnpm run dev:web
 ```
 
-The frontend runs on:
+Local services:
 
-```text
-http://localhost:3000
-```
+- Web: http://localhost:3000
+- Core API: http://localhost:8080
+- AI service: http://localhost:8000
+- Mailpit: http://localhost:8025
+- MinIO console: http://localhost:9001
 
-The backend runs on:
+The defaults in `.env.example` are intended for local development. Real Google OAuth requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; AI extraction requires `OPENAI_API_KEY`.
 
-```text
-http://localhost:8080
-```
+## Commands
 
-The backend calls the internal AI service at `AI_SERVICE_BASE_URL`, which defaults to:
+| Command                    | Purpose                                              |
+| -------------------------- | ---------------------------------------------------- |
+| `pnpm run dev:infra`       | Start local infrastructure                           |
+| `pnpm run dev:api`         | Start the Core API                                   |
+| `pnpm run dev:web`         | Start the Web application                            |
+| `pnpm run format`          | Format project code                                  |
+| `pnpm run lint`            | Run linting, type checks, and backend compile checks |
+| `pnpm run test`            | Run the main project test suites                     |
+| `pnpm run test:web`        | Run frontend checks and unit tests                   |
+| `pnpm run test:api`        | Run Core API tests                                   |
+| `pnpm run test:ai-service` | Run AI service checks and tests                      |
+| `pnpm run e2e`             | Run the isolated Playwright E2E suite                |
+| `pnpm run db:up`           | Start local Docker Compose services                  |
+| `pnpm run db:down`         | Stop local Docker Compose services                   |
+| `pnpm run db:reset`        | Recreate local Docker Compose volumes and services   |
 
-```text
-http://localhost:8000
-```
-
-## Development Checks
-
-Frontend:
-
-```bash
-pnpm.cmd --dir apps/web run lint
-pnpm.cmd --dir apps/web run typecheck
-pnpm.cmd --dir apps/web run test
-```
-
-Backend:
-
-```bash
-cd apps/core-api
-./mvnw.cmd test
-```
-
-AI service:
-
-```bash
-cd apps/ai-service
-sha256sum --check pylock.test.toml.sha256
-python -m pip install --upgrade "pip==26.1.2"
-python -m pip install --requirement pylock.test.toml
-python -m ruff check .
-python -m ruff format --check .
-python -m pyright
-python -m pytest
-```
-
-Production build:
-
-```bash
-APP_ENV=test NEXT_PUBLIC_API_URL=http://127.0.0.1:18080 \
-  pnpm.cmd --dir apps/web run build
-```
-
-Full isolated browser smoke test (requires Docker, Java 21, Node, pnpm, and
-Chromium installed by Playwright):
-
-```bash
-pnpm.cmd run e2e
-```
-
-## Backend Codegen
-
-Run codegen after changing Flyway migrations, resetting the database, or when jOOQ classes are missing:
+Run backend code generation after changing Flyway migrations:
 
 ```bash
 ./scripts/backend-codegen.sh
 ```
 
-This script starts Postgres if needed, waits for readiness, runs Flyway migrations, and generates jOOQ classes.
+## Testing
 
-## Production hardening
+Run the main local validation:
 
-See [Production configuration](docs/production-configuration.md) for protected
-profile requirements, CSRF behavior, rate-limit defaults, proxy handling, E2E
-configuration, Python lock regeneration, and the complete CI command set.
+```bash
+pnpm run test
+```
 
-See [Production container images](docs/container-images.md) for the exact
-`linux/amd64` image build and smoke commands, runtime contracts, standalone Web
-layout, cleanup behavior, and aggregate Trivy policy.
+For browser E2E tests, install Chromium once:
+
+```bash
+pnpm --dir apps/web exec playwright install chromium
+pnpm run e2e
+```
+
+The E2E runner uses `.env.e2e.example` and isolated Docker Compose services.
