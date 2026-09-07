@@ -18,6 +18,10 @@ The scan covers:
 - the Python runtime lock, `apps/ai-service/pylock.toml`; and
 - the Python runtime-plus-test lock, `apps/ai-service/pylock.test.toml`.
 
+The pnpm 12 lockfile is split into environment and project documents by
+`scripts/osv/split-pnpm-lockfile.sh`. Both documents are explicit scanner
+inputs; an unexpected lockfile layout fails before scanning.
+
 The baseline verified locally with OSV-Scanner 2.3.8 on 2026-08-01 is:
 
 - unaccepted findings: **0**;
@@ -36,19 +40,36 @@ contains no ignored advisory IDs, so every reported vulnerability blocks CI.
 
 ## Temporary JavaScript overrides
 
-The following exact-version overrides remediate vulnerable transitive releases.
-They are intentionally narrow and temporary:
+The root `packageManager` pins pnpm 12.3.4. `pnpm-workspace.yaml` explicitly
+requires registry releases to be at least 1440 minutes (24 hours) old, sets
+`minimumReleaseAgeStrict: true` to reject unsatisfied age constraints, and sets
+`minimumReleaseAgeIgnoreMissingTime: false` to reject undated releases. There
+are no freshness exclusions; frozen installs retain pnpm's lockfile policy
+verification. `allowBuilds` is the build-script policy, with scripts for
+`sharp` and `unrs-resolver` explicitly disabled.
+
+The following overrides retain the reviewed fixed versions. Convergence
+selectors (`package@`) pin only dependency edges whose declared semver ranges
+accept the target. `@babel/core@`, `form-data@`, `nanoid@`, and `postcss@` use
+this form; the two old PostCSS selectors converge on one target. The separate
+`brace-expansion` and `js-yaml` selectors retain fixes for two major versions,
+which a single convergence selector cannot express. `browserslist@<=4.28.6`
+retains its explicit vulnerable range. The `sharp` pin remains unconditional:
+0.35.0 is outside Next 16.3.3's declared `^0.35.3` range. Changing that reviewed
+target is a separate dependency update.
+
+These security overrides are temporary:
 
 | Override | Advisory | Introduced by | Remove when |
 | --- | --- | --- | --- |
-| `@babel/core` 7.29.0 -> 7.29.6 | `GHSA-4x5r-pxfx-6jf8` | Next/styled-jsx peers and Jest/ts-jest | The supported upstream graph resolves 7.29.6 or later without the override. |
+| `@babel/core@` -> 7.29.6 | `GHSA-4x5r-pxfx-6jf8` | Jest/ts-jest | The supported upstream graph resolves 7.29.6 or later without the override. |
 | `brace-expansion` 1.1.14 -> 1.1.18 and 5.0.6 -> 5.0.9 | `GHSA-mh99-v99m-4gvg`, `GHSA-rgw5-rvv9-x895` | `minimatch` 3.x and 10.x through ESLint and Jest | Both supported `minimatch` branches resolve their corresponding fixed `brace-expansion` release. |
-| `form-data` 4.0.5 -> 4.0.6 | `GHSA-hmw2-7cc7-3qxx` | `jest-environment-jsdom` -> `jsdom` | jsdom's supported graph resolves 4.0.6 or later. |
+| `form-data@` -> 4.0.6 | `GHSA-hmw2-7cc7-3qxx` | `jest-environment-jsdom` -> `jsdom` | jsdom's supported graph resolves 4.0.6 or later. |
 | `js-yaml` 3.14.2 -> 3.15.1 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj` | Jest coverage -> `@istanbuljs/load-nyc-config` | The Jest coverage graph resolves a fixed 3.x release or removes it. |
 | `js-yaml` 4.1.1 -> 4.3.1 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj` | ESLint | The supported ESLint graph resolves 4.3.1 or later. |
-| `nanoid` 3.3.12 -> 3.3.18 | `GHSA-28wg-ghj8-5hjv`, `GHSA-2v37-7h3g-55p8` | PostCSS | The supported PostCSS graph resolves 3.3.18 or later without the override. |
-| `postcss` 8.4.31 and 8.5.15 -> 8.5.23 | `GHSA-qx2v-qp2m-jg93`, `GHSA-r28c-9q8g-f849`, `GHSA-fxqj-rqcc-2cmp` | Next 16.2.11 and Tailwind CSS | Both supported requesters resolve 8.5.23 or later. |
-| `sharp` -> 0.35.0 | `GHSA-f88m-g3jw-g9cj` | Next 16.2.11 | The supported Next graph resolves a fixed Sharp release without the override. |
+| `nanoid@` -> 3.3.18 | `GHSA-28wg-ghj8-5hjv`, `GHSA-2v37-7h3g-55p8` | PostCSS | The supported PostCSS graph resolves 3.3.18 or later without the override. |
+| `postcss@` -> 8.5.23 (replaces the 8.4.31 and 8.5.15 selectors) | `GHSA-qx2v-qp2m-jg93`, `GHSA-r28c-9q8g-f849`, `GHSA-fxqj-rqcc-2cmp` | Next and Tailwind CSS | Both supported requesters resolve 8.5.23 or later. |
+| `sharp` -> 0.35.0 | `GHSA-f88m-g3jw-g9cj` | Next | The supported Next graph resolves a fixed Sharp release without the override. |
 
 After regeneration, a frozen pnpm install resolved each fixed version. Frontend
 lint, typecheck, all 42 Jest suites (270 tests), and the Next production build

@@ -6,16 +6,10 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 echo "Running frontend lint..."
-(
-  cd apps/web
-  pnpm.cmd lint
-)
+pnpm --filter web run lint
 
 echo "Running frontend typecheck..."
-(
-  cd apps/web
-  pnpm.cmd typecheck
-)
+pnpm --filter web run typecheck
 
 echo "Running backend formatting check..."
 (
