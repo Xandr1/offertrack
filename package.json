@@ -1,7 +1,7 @@
 {
   "name": "offertrack",
   "private": true,
-  "packageManager": "pnpm@10.34.0",
+  "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "bash scripts/dev.sh",
     "dev:infra": "docker compose up -d",
@@ -10,15 +10,12 @@
     "format": "bash scripts/format.sh",
     "lint": "bash scripts/lint.sh",
     "test": "bash scripts/test.sh",
-    "test:web": "pnpm.cmd --dir apps/web run lint && pnpm.cmd --dir apps/web run typecheck && pnpm.cmd --dir apps/web run test",
+    "test:web": "pnpm --filter web run lint && pnpm --filter web run typecheck && pnpm --filter web run test",
     "test:api": "bash -c 'cd apps/core-api && ./mvnw.cmd test'",
     "test:ai-service": "bash -c 'cd apps/ai-service && python -m pip install --upgrade \"pip==26.1.2\" && if uname -s | grep -qiE \"^(MINGW|MSYS|CYGWIN)\"; then python -m pip install --editable \".[test]\"; else sha256sum --check pylock.test.toml.sha256 && python -m pip install --requirement pylock.test.toml; fi && python -m ruff check . && python -m ruff format --check . && python -m pyright && python -m pytest'",
     "e2e": "bash scripts/e2e/run-e2e.sh",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d"
-  },
-  "devDependencies": {
-    "@types/jest": "^30.0.0"
   }
 }

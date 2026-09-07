@@ -38,7 +38,7 @@
 		<commons-lang3.version>3.18.0</commons-lang3.version>
 		<postgresql.version>42.7.13</postgresql.version>
 		<spring-security.version>6.5.11</spring-security.version>
-		<tomcat.version>10.1.55</tomcat.version>
+		<tomcat.version>10.1.59</tomcat.version>
 		<!-- Testcontainers 1.21.4 still resolves the vulnerable 1.24.0 release. -->
 		<commons-compress.version>1.28.0</commons-compress.version>
 		<database.url>jdbc:postgresql://localhost:5432/offertrack</database.url>

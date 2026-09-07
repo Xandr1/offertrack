@@ -15,22 +15,13 @@ echo "Running backend tests..."
 )
 
 echo "Running frontend lint..."
-(
-  cd apps/web
-  pnpm.cmd lint
-)
+pnpm --filter web run lint
 
 echo "Running frontend typecheck..."
-(
-  cd apps/web
-  pnpm.cmd typecheck
-)
+pnpm --filter web run typecheck
 
 echo "Running frontend unit tests..."
-(
-  cd apps/web
-  pnpm.cmd test
-)
+pnpm --filter web run test
 
 echo "Running AI service lint and tests..."
 (

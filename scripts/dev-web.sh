@@ -3,6 +3,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT/apps/web"
+cd "$REPO_ROOT"
 
-pnpm.cmd dev
+pnpm --filter web run dev

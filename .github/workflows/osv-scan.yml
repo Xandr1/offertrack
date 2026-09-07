@@ -17,6 +17,7 @@ on:
       - apps/ai-service/pylock.toml.sha256
       - apps/ai-service/pylock.test.toml
       - apps/ai-service/pylock.test.toml.sha256
+      - scripts/osv/**
       - .github/dependabot.yml
       - .github/workflows/**
 
@@ -40,6 +41,21 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
+
+      - name: Verify pnpm lockfile splitter
+        shell: bash
+        run: bash scripts/osv/tests/test-split-pnpm-lockfile.sh
+
+      - name: Split pnpm lockfile for OSV
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The scanner is a Docker action, so its lockfiles must be visible from
+          # the workspace mounted into that action rather than only RUNNER_TEMP.
+          output_dir="${GITHUB_WORKSPACE%/}/.osv-pnpm-lockfiles"
+          [[ -d "$GITHUB_WORKSPACE" ]]
+          [[ ! -e "$output_dir" ]]
+          bash scripts/osv/split-pnpm-lockfile.sh pnpm-lock.yaml "$output_dir"
 
       - name: Resolve Maven dependency inventory
         working-directory: apps/core-api
@@ -83,7 +99,8 @@ jobs:
             --format=json
             --output-file=osv-results.json
             --config=osv-scanner.toml
-            --lockfile=pnpm-lock.yaml
+            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/environment/pnpm-lock.yaml
+            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/project/pnpm-lock.yaml
             --lockfile=osv-scanner:osv-maven-dependencies.json
             --lockfile=apps/ai-service/pylock.toml
             --lockfile=pylock.toml:apps/ai-service/pylock.test.toml
