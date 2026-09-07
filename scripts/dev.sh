@@ -4,6 +4,8 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+. "$REPO_ROOT/scripts/lib/maven-wrapper.sh"
+MAVEN_WRAPPER="$(resolve_maven_wrapper "$REPO_ROOT")"
 
 echo "Starting local infrastructure..."
 docker compose up -d
@@ -29,7 +31,7 @@ trap cleanup INT TERM EXIT
 
 (
   cd apps/core-api
-  ./mvnw.cmd spring-boot:run
+  "$MAVEN_WRAPPER" spring-boot:run
 ) &
 API_PID=$!
 

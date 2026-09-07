@@ -30,6 +30,7 @@ trap cleanup EXIT
 
 mkdir -p \
   "$FIXTURE_ROOT/scripts/containers" \
+  "$FIXTURE_ROOT/scripts/lib" \
   "$FIXTURE_ROOT/apps/web/src/lib" \
   "$FIXTURE_ROOT/apps/core-api/target" \
   "$FIXTURE_ROOT/apps/ai-service" \
@@ -37,6 +38,7 @@ mkdir -p \
   "$FLOW_RUNTIME_ROOT"
 
 cp -- "$SOURCE_BUILD_SCRIPT" "$FIXTURE_ROOT/scripts/containers/build-images.sh"
+cp -- "$REPO_ROOT/scripts/lib/maven-wrapper.sh" "$FIXTURE_ROOT/scripts/lib/maven-wrapper.sh"
 cp -- \
   "$REPO_ROOT/scripts/containers/validate-web-build-env.mjs" \
   "$FIXTURE_ROOT/scripts/containers/validate-web-build-env.mjs"

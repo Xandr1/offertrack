@@ -3,6 +3,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+. "$REPO_ROOT/scripts/lib/maven-wrapper.sh"
 CODEGEN_COMPOSE_FILE="$REPO_ROOT/compose.container-codegen.yml"
 CORE_DOCKERFILE="$REPO_ROOT/apps/core-api/Dockerfile"
 WEB_DOCKERFILE="$REPO_ROOT/apps/web/Dockerfile"
@@ -269,15 +270,11 @@ if (( CODEGEN_PORT < 1 || CODEGEN_PORT > 65535 )); then
   fail "Docker returned an invalid codegen PostgreSQL port: $CODEGEN_PORT"
 fi
 
-MAVEN_COMMAND=("./mvnw")
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) MAVEN_COMMAND=("./mvnw.cmd") ;;
-  *)
-    if [[ ! -x "$REPO_ROOT/apps/core-api/mvnw" ]]; then
-      MAVEN_COMMAND=(bash "./mvnw")
-    fi
-    ;;
-esac
+MAVEN_WRAPPER="$(resolve_maven_wrapper "$REPO_ROOT")"
+MAVEN_COMMAND=("$MAVEN_WRAPPER")
+if [[ "$MAVEN_WRAPPER" != *.cmd && ! -x "$MAVEN_WRAPPER" ]]; then
+  MAVEN_COMMAND=(bash "$MAVEN_WRAPPER")
+fi
 
 echo "Packaging Core API with Flyway followed by lifecycle jOOQ generation..."
 (

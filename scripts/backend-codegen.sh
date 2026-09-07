@@ -29,12 +29,8 @@ POSTGRES_WAIT_INTERVAL_SECONDS=2
 POSTGRES_ELAPSED_SECONDS=0
 ENABLE_FLYWAY_INSECURE_FALLBACK="${ENABLE_FLYWAY_INSECURE_FALLBACK:-false}"
 
-MAVEN_WRAPPER="./mvnw"
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*)
-    MAVEN_WRAPPER="./mvnw.cmd"
-    ;;
-esac
+. "$REPO_ROOT/scripts/lib/maven-wrapper.sh"
+MAVEN_WRAPPER="$(resolve_maven_wrapper "$REPO_ROOT")"
 
 echo "Starting postgres container..."
 "${COMPOSE_COMMAND[@]}" up -d "$BACKEND_CODEGEN_POSTGRES_SERVICE"
