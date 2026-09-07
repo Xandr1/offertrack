@@ -4,6 +4,8 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
+. "$REPO_ROOT/scripts/lib/maven-wrapper.sh"
+MAVEN_WRAPPER="$(resolve_maven_wrapper "$REPO_ROOT")"
 
 echo "Starting local infrastructure..."
 docker compose up -d
@@ -11,7 +13,7 @@ docker compose up -d
 echo "Running backend tests..."
 (
   cd apps/core-api
-  ./mvnw.cmd test
+  "$MAVEN_WRAPPER" test
 )
 
 echo "Running frontend lint..."

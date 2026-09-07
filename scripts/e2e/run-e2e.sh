@@ -3,6 +3,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+. "$REPO_ROOT/scripts/lib/maven-wrapper.sh"
+MAVEN_WRAPPER="$(resolve_maven_wrapper "$REPO_ROOT")"
 COMPOSE_FILE="$REPO_ROOT/docker-compose.e2e.yml"
 COMPOSE_PROJECT_NAME="offertrack-e2e"
 WEB_ROOT="$REPO_ROOT/apps/web"
@@ -160,11 +162,7 @@ export BACKEND_CODEGEN_ENV_FILE="$REPO_ROOT/.env.e2e.example"
 ./scripts/backend-codegen.sh
 
 cd "$REPO_ROOT/apps/core-api"
-if [[ "$(uname -s)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then
-  ./mvnw.cmd -DskipTests package
-else
-  ./mvnw -DskipTests package
-fi
+"$MAVEN_WRAPPER" -DskipTests package
 
 compose exec -T postgres \
   psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
