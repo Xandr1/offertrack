@@ -4,7 +4,7 @@ FROM eclipse-temurin:21.0.12_8-jre-alpine-3.23@sha256:1c59e0666519c026978ef64b42
 
 RUN apk add --no-cache \
         libcrypto3=3.5.8-r0 \
-        libexpat=2.8.3-r0 \
+        libexpat=2.8.4-r0 \
         libssl3=3.5.8-r0 \
         openssl=3.5.8-r0 \
         p11-kit=0.26.2-r0 \

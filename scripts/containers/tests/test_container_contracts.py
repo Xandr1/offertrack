@@ -135,7 +135,7 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("ENV SERVER_PORT=8080", dockerfile)
         for fixed_package in (
             "libcrypto3=3.5.8-r0",
-            "libexpat=2.8.3-r0",
+            "libexpat=2.8.4-r0",
             "libssl3=3.5.8-r0",
             "openssl=3.5.8-r0",
             "p11-kit=0.26.2-r0",
@@ -146,6 +146,11 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn('ENTRYPOINT ["java", "-jar", "/app/app.jar"]', dockerfile)
         self.assertNotIn("mvn", dockerfile.lower())
         self.assertNotIn("jdk", dockerfile.lower())
+
+    def test_core_uses_the_fixed_netty_release(self) -> None:
+        pom = read("apps/core-api/pom.xml")
+
+        self.assertIn("<netty.version>4.1.137.Final</netty.version>", pom)
 
     def test_maven_wrapper_distribution_has_official_sha256(self) -> None:
         wrapper = read("apps/core-api/.mvn/wrapper/maven-wrapper.properties")
