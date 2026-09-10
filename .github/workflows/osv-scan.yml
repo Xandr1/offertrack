@@ -46,6 +46,9 @@ jobs:
         shell: bash
         run: bash scripts/osv/tests/test-split-pnpm-lockfile.sh
 
+      - name: Verify OSV severity policy
+        run: python scripts/osv/tests/test-evaluate-results.py
+
       - name: Split pnpm lockfile for OSV
         shell: bash
         run: |
@@ -93,87 +96,43 @@ jobs:
 
       - name: Scan committed dependency sources
         id: osv
-        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
-        with:
-          scan-args: |-
-            --format=json
-            --output-file=osv-results.json
-            --config=osv-scanner.toml
-            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/environment/pnpm-lock.yaml
-            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/project/pnpm-lock.yaml
-            --lockfile=osv-scanner:osv-maven-dependencies.json
-            --lockfile=apps/ai-service/pylock.toml
+        shell: bash
+        run: |
+          # OSV-Scanner uses exit 0 for a clean scan and 1 when it finds an
+          # unignored vulnerability. Preserve the exact status for the policy
+          # evaluator; all other statuses fail closed there.
+          set -u -o pipefail
+          if [[ -e osv-results.json ]]; then
+            echo "Refusing to evaluate a pre-existing OSV result file." >&2
+            exit 1
+          fi
+          set +e
+          docker run --rm \
+            --workdir /github/workspace \
+            --volume "$GITHUB_WORKSPACE:/github/workspace" \
+            ghcr.io/google/osv-scanner-action:v2.3.8 \
+            --format=json \
+            --output-file=osv-results.json \
+            --config=osv-scanner.toml \
+            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/environment/pnpm-lock.yaml \
+            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/project/pnpm-lock.yaml \
+            --lockfile=osv-scanner:osv-maven-dependencies.json \
+            --lockfile=apps/ai-service/pylock.toml \
             --lockfile=pylock.toml:apps/ai-service/pylock.test.toml
+          scanner_exit_code=$?
+          set -e
+
+          echo "exit_code=$scanner_exit_code" >> "$GITHUB_OUTPUT"
+          echo "OSV-Scanner exited with code $scanner_exit_code."
 
       - name: Validate and summarize dependency results
         if: always()
         shell: bash
         run: |
-          if [[ ! -s osv-results.json ]]; then
-            echo "OSV-Scanner did not produce a result file." >&2
-            exit 1
-          fi
-
-          jq -e '(.results | type) == "array"' osv-results.json >/dev/null
-          unaccepted_ids="$(
-            jq -r '.results[]?.packages[]?.vulnerabilities[]?.id // empty' osv-results.json \
-              | sort -u
-          )"
-          if [[ -n "$unaccepted_ids" ]]; then
-            unaccepted_count="$(wc -l <<<"$unaccepted_ids" | tr -d ' ')"
-          else
-            unaccepted_count=0
-          fi
-          accepted_count="$(
-            python -c \
-              'import tomllib; print(len(tomllib.load(open("osv-scanner.toml", "rb")).get("IgnoredVulns", [])))'
-          )"
-          accepted_ids="$(
-            python -c \
-              'import tomllib; print("\n".join(risk["id"] for risk in tomllib.load(open("osv-scanner.toml", "rb")).get("IgnoredVulns", [])))'
-          )"
-
-          echo "OSV-Scanner reported ${unaccepted_count} unaccepted finding(s)."
-          if [[ -n "$unaccepted_ids" ]]; then
-            printf '%s\n' "$unaccepted_ids"
-          else
-            echo "No unaccepted advisory IDs reported."
-          fi
-          echo "Documented accepted risks: ${accepted_count}."
-          if [[ -n "$accepted_ids" ]]; then
-            echo "Documented accepted advisory IDs:"
-            printf '%s\n' "$accepted_ids"
-          fi
-
-          {
-            echo "## OSV dependency scan"
-            echo
-            echo "**Unaccepted findings:** ${unaccepted_count}"
-            echo
-            echo "**Documented accepted risks:** ${accepted_count}"
-            echo
-            if [[ -n "$unaccepted_ids" ]]; then
-              echo "**Unaccepted advisory IDs:**"
-              while IFS= read -r advisory_id; do
-                echo "- \`${advisory_id}\`"
-              done <<<"$unaccepted_ids"
-            else
-              echo "No unaccepted vulnerabilities were reported."
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          python <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import tomllib
-
-          with open("osv-scanner.toml", "rb") as config_file:
-              accepted_risks = tomllib.load(config_file).get("IgnoredVulns", [])
-
-          if accepted_risks:
-              print()
-              print("**Accepted risk IDs and expiries:**")
-              for risk in accepted_risks:
-                  print(f"- `{risk['id']}` — expires `{risk['ignoreUntil']}`")
-          PY
+          python scripts/osv/evaluate-results.py \
+            --results osv-results.json \
+            --scanner-exit-code "${{ steps.osv.outputs.exit_code }}" \
+            --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload OSV results
         if: always()
