@@ -55,9 +55,9 @@ dependency-health version from the exact Core revision, keep the value in the
 single shell process that needs it, and never write it to `$GITHUB_ENV`, print
 it, or print health response details.
 
-Staging deployment is manual-only through `workflow_dispatch` and is disabled
-until the GitHub repository variable `STAGING_DEPLOY_ENABLED=true` is explicitly
-set. It is not an environment-level variable. Keep it disabled until
+Staging deployment is disabled until the GitHub repository variable
+`STAGING_DEPLOY_ENABLED=true` is explicitly set. It is not an environment-level
+variable. Keep it disabled until
 foundation Terraform is applied, secret versions exist, database users are
 provisioned, seed images are published, and the Cloud Run services and
 migration job have been created successfully.
@@ -343,20 +343,12 @@ deployment traceable.
 
 ## Deployment workflow and rollback
 
-`.github/workflows/deploy-staging.yml` exposes only `workflow_dispatch`; it does
-not start after CI completion or a push. An operator must select `main`, and the
-deploy job requires the exact `refs/heads/main` ref plus the independent
-`STAGING_DEPLOY_ENABLED=true` repository-variable kill switch. Feature branches,
-tags, and arbitrary SHA refs cannot deploy.
-
-Before cloud authentication or rollout work, the workflow uses its
-`actions: read` permission to query the GitHub API for the exact selected
-`github.sha`. It requires at least one completed, successful `CI` workflow run
-triggered by a `push` to `main` in the same repository and fails closed if the
-API request or response cannot establish that result. It checks out exactly
-`github.sha` and independently verifies that `git rev-parse HEAD` matches; this
-exact-commit gate relies on CI's frontend, backend, AI, production-container
-smoke, Trivy, and Terraform jobs.
+`.github/workflows/deploy-staging.yml` is manual-only through
+`workflow_dispatch`. The deploy job accepts only `refs/heads/main` and requires
+the `STAGING_DEPLOY_ENABLED=true` repository-variable kill switch. Before cloud
+authentication or deployment, the GitHub API must find a successful
+push-triggered `CI` run on `main` for the exact selected `github.sha`; otherwise
+the workflow fails closed. The workflow checks out and deploys that exact SHA.
 
 The order is fixed:
 
