@@ -221,18 +221,18 @@ one workflow invocation creates one controlled attempt.
 Terraform owns these Secret Manager containers and exact accessor bindings, but
 never versions or values:
 
-| Secret                                 |            Minimum application contract | Consumers                      |
-| -------------------------------------- | --------------------------------------: | ------------------------------ |
-| `offertrack-stg-jwt-secret`            |                          32 UTF-8 bytes | Core                           |
-| `offertrack-stg-oauth-cookie-secret`   |             32 bytes, distinct from JWT | Core                           |
-| `offertrack-stg-rate-limit-key-secret` |       32 bytes, distinct from JWT/OAuth | Core                           |
+| Secret                                 |             Minimum application contract | Consumers                      |
+| -------------------------------------- | ---------------------------------------: | ------------------------------ |
+| `offertrack-stg-jwt-secret`            |                           32 UTF-8 bytes | Core                           |
+| `offertrack-stg-oauth-cookie-secret`   |              32 bytes, distinct from JWT | Core                           |
+| `offertrack-stg-rate-limit-key-secret` |        32 bytes, distinct from JWT/OAuth | Core                           |
 | `offertrack-stg-dependency-health-key` | 32 bytes, distinct from application keys | Core and deployer              |
-| `offertrack-stg-db-app-password`       |           operational policy: 32+ bytes | Core and DB bootstrap          |
-| `offertrack-stg-db-migrator-password`  | operational policy: 32+ bytes, distinct | migration job and DB bootstrap |
-| `offertrack-stg-google-client-secret`  |                          16 UTF-8 bytes | Core                           |
-| `offertrack-stg-ai-internal-key`       |                          32 UTF-8 bytes | Core and AI                    |
-| `offertrack-stg-openai-api-key`        |                      valid provider key | AI                             |
-| `offertrack-stg-smtp-password`         |                          12 UTF-8 bytes | Core                           |
+| `offertrack-stg-db-app-password`       |            operational policy: 32+ bytes | Core and DB bootstrap          |
+| `offertrack-stg-db-migrator-password`  |  operational policy: 32+ bytes, distinct | migration job and DB bootstrap |
+| `offertrack-stg-google-client-secret`  |                           16 UTF-8 bytes | Core                           |
+| `offertrack-stg-ai-internal-key`       |                           32 UTF-8 bytes | Core and AI                    |
+| `offertrack-stg-openai-api-key`        |                       valid provider key | AI                             |
+| `offertrack-stg-smtp-password`         |                           12 UTF-8 bytes | Core                           |
 
 Create a value without echoing it or passing it in an argument:
 
@@ -288,12 +288,12 @@ state. Changing the rate-limit key starts a fresh logical counter namespace.
 
 Runtime access is narrowly scoped:
 
-| Identity | Grants                                                                                                                                              |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Core     | its eight secret containers, including the dedicated dependency-health key; invoke only AI                                                            |
-| AI       | OpenAI and shared internal-key containers                                                                                                           |
-| Migrator | migration DB password container                                                                                                                     |
-| Web      | no secret access                                                                                                                                    |
+| Identity | Grants                                                                                                                                                                                       |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core     | its eight secret containers, including the dedicated dependency-health key; invoke only AI                                                                                                   |
+| AI       | OpenAI and shared internal-key containers                                                                                                                                                    |
+| Migrator | migration DB password container                                                                                                                                                              |
+| Web      | no secret access                                                                                                                                                                             |
 | Deployer | dedicated dependency-health secret only; repository writer; developer on exactly three services and one job; job execution; AI invocation; `serviceAccountUser` on the four runtime accounts |
 
 The deployer has no project-wide Cloud Run or Secret Manager role, no access to
@@ -307,7 +307,7 @@ IAM.
 GitHub authenticates without a key through provider:
 
 ```text
-projects/765846644391/locations/global/workloadIdentityPools/offertrack-github/providers/github
+projects/765846644391/locations/global/workloadIdentityPools/offertrack-github/providers/github-actions
 ```
 
 The provider requires immutable repository and owner IDs, the exact repository,
