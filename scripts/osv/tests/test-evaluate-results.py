@@ -52,7 +52,7 @@ def results_for(*findings: tuple[str, object]) -> dict[str, object]:
 
 class OsvPolicyEvaluatorTest(unittest.TestCase):
     def evaluate(
-        self, document: object | None, config: str = ""
+        self, document: object | None, config: str = "", scanner_exit_code: int = 0
     ) -> tuple[subprocess.CompletedProcess[str], str]:
         with tempfile.TemporaryDirectory(prefix="offertrack-osv-policy-") as directory:
             fixture = Path(directory)
@@ -73,6 +73,8 @@ class OsvPolicyEvaluatorTest(unittest.TestCase):
                     str(results_file),
                     "--config",
                     str(config_file),
+                    "--scanner-exit-code",
+                    str(scanner_exit_code),
                     "--summary",
                     str(summary_file),
                 ],
@@ -85,14 +87,18 @@ class OsvPolicyEvaluatorTest(unittest.TestCase):
             ) if summary_file.exists() else ""
 
     def test_critical_finding_blocks(self) -> None:
-        result, summary = self.evaluate(results_for(("GHSA-critical", "9.0")))
+        result, summary = self.evaluate(
+            results_for(("GHSA-critical", "9.0")), scanner_exit_code=1
+        )
 
         self.assertEqual(1, result.returncode, result.stderr)
         self.assertIn("**Critical findings (blocking):** 1", summary)
         self.assertIn("`GHSA-critical` — CVSS `9.0`", summary)
 
     def test_high_finding_does_not_block(self) -> None:
-        result, summary = self.evaluate(results_for(("GHSA-high", "8.9")))
+        result, summary = self.evaluate(
+            results_for(("GHSA-high", "8.9")), scanner_exit_code=1
+        )
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("**High findings:** 1", summary)
@@ -100,7 +106,8 @@ class OsvPolicyEvaluatorTest(unittest.TestCase):
 
     def test_medium_and_low_findings_do_not_block(self) -> None:
         result, summary = self.evaluate(
-            results_for(("GHSA-medium", "6.9"), ("GHSA-low", "3.9"))
+            results_for(("GHSA-medium", "6.9"), ("GHSA-low", "3.9")),
+            scanner_exit_code=1,
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
@@ -109,7 +116,8 @@ class OsvPolicyEvaluatorTest(unittest.TestCase):
 
     def test_mixed_critical_and_non_critical_findings_block(self) -> None:
         result, summary = self.evaluate(
-            results_for(("GHSA-high", "7.0"), ("GHSA-critical", "9.8"))
+            results_for(("GHSA-high", "7.0"), ("GHSA-critical", "9.8")),
+            scanner_exit_code=1,
         )
 
         self.assertEqual(1, result.returncode, result.stderr)
@@ -139,9 +147,32 @@ class OsvPolicyEvaluatorTest(unittest.TestCase):
         self.assertIn("failed closed", result.stderr)
         self.assertEqual("", summary)
 
+    def test_scanner_operational_failure_fails_closed(self) -> None:
+        result, summary = self.evaluate({"results": []}, scanner_exit_code=127)
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("exited with 127", result.stderr)
+        self.assertEqual("", summary)
+
+    def test_scanner_exit_code_must_match_result_findings(self) -> None:
+        result, summary = self.evaluate(
+            results_for(("GHSA-high", "8.9")), scanner_exit_code=0
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("exited cleanly but reported", result.stderr)
+        self.assertEqual("", summary)
+
+        result, summary = self.evaluate({"results": []}, scanner_exit_code=1)
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("findings exit but no findings", result.stderr)
+        self.assertEqual("", summary)
+
     def test_missing_or_unusable_severity_is_reported_without_blocking(self) -> None:
         result, summary = self.evaluate(
-            results_for(("GHSA-missing", None), ("GHSA-unusable", "not-a-score"))
+            results_for(("GHSA-missing", None), ("GHSA-unusable", "not-a-score")),
+            scanner_exit_code=1,
         )
 
         self.assertEqual(0, result.returncode, result.stderr)

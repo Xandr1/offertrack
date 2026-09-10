@@ -5,6 +5,9 @@ OSV-Scanner 2.3.8 emits full advisory records in
 ``packages[].vulnerabilities[]`` and groups the affected advisory IDs in
 ``packages[].groups[]``.  A group's numeric ``max_severity`` is OSV-Scanner's
 maximum CVSS score calculated from the advisory ``severity[].score`` data.
+
+The scanner is expected to return 0 only with no findings and 1 only when it
+reports one or more findings. All other scanner exit codes fail closed.
 """
 
 from __future__ import annotations
@@ -53,6 +56,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--scanner-exit-code", type=int, required=True)
     parser.add_argument(
         "--summary",
         type=Path,
@@ -213,6 +217,21 @@ def extract_findings(results: list[dict[str, Any]]) -> list[Finding]:
     return findings
 
 
+def validate_scanner_execution(exit_code: int, findings: list[Finding]) -> None:
+    if exit_code not in (0, 1):
+        raise PolicyError(
+            f"OSV-Scanner exited with {exit_code}; expected 0 for a clean scan or 1 for findings."
+        )
+    if exit_code == 0 and findings:
+        raise PolicyError(
+            "OSV-Scanner exited cleanly but reported vulnerability findings."
+        )
+    if exit_code == 1 and not findings:
+        raise PolicyError(
+            "OSV-Scanner reported a findings exit but no findings in its result file."
+        )
+
+
 def format_ids(advisory_ids: tuple[str, ...]) -> str:
     return ", ".join(f"`{advisory_id}`" for advisory_id in advisory_ids)
 
@@ -283,6 +302,7 @@ def main() -> int:
     results = load_results(arguments.results)
     accepted_risks = load_accepted_risks(arguments.config)
     findings = extract_findings(results)
+    validate_scanner_execution(arguments.scanner_exit_code, findings)
     write_summary(arguments.summary, findings, accepted_risks)
 
     critical_count = sum(finding.severity == "Critical" for finding in findings)

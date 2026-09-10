@@ -19,6 +19,11 @@ whose group lacks a usable numeric CVSS score is reported separately as
 non-blocking rather than being silently treated as Critical. The evaluator still
 rejects a result whose structure is not the expected OSV result schema.
 
+The workflow records the scanner's actual exit code. Only a clean `0` exit with
+no findings or a `1` exit with one or more findings can reach severity
+evaluation; every other code, result mismatch, pre-existing result file, or
+missing/malformed output fails closed.
+
 The scan covers:
 
 - the complete pnpm resolution in `pnpm-lock.yaml`;
@@ -78,9 +83,9 @@ These security overrides are temporary:
 | `@babel/core@` -> 7.29.6 | `GHSA-4x5r-pxfx-6jf8` | Jest/ts-jest | The supported upstream graph resolves 7.29.6 or later without the override. |
 | `brace-expansion` 1.1.14 -> 1.1.18 and 5.0.6 -> 5.0.9 | `GHSA-mh99-v99m-4gvg`, `GHSA-rgw5-rvv9-x895` | `minimatch` 3.x and 10.x through ESLint and Jest | Both supported `minimatch` branches resolve their corresponding fixed `brace-expansion` release. |
 | `form-data@` -> 4.0.6 | `GHSA-hmw2-7cc7-3qxx` | `jest-environment-jsdom` -> `jsdom` | jsdom's supported graph resolves 4.0.6 or later. |
-| `baseline-browser-mapping` 2.10.32 -> 2.11.21 | Current PR #38 security baseline | Next/browserslist | The supported graph resolves 2.11.21 or later without the override. |
-| `js-yaml` 3.14.2 -> 3.15.2 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj` | Jest coverage -> `@istanbuljs/load-nyc-config` | The Jest coverage graph resolves a fixed 3.x release or removes it. |
-| `js-yaml` 4.1.1 -> 4.3.2 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj` | ESLint | The supported ESLint graph resolves 4.3.2 or later. |
+| `baseline-browser-mapping` 2.10.32 -> 2.11.21 | `GHSA-w5vr-8v7q-w6rv` | Next/browserslist | The supported graph resolves 2.11.21 or later without the override. |
+| `js-yaml` 3.14.2 -> 3.15.2 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj`, `GHSA-2883-xcg3-v3hh` | Jest coverage -> `@istanbuljs/load-nyc-config` | The Jest coverage graph resolves a fixed 3.x release or removes it. |
+| `js-yaml` 4.1.1 -> 4.3.2 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj`, `GHSA-2883-xcg3-v3hh` | ESLint | The supported ESLint graph resolves 4.3.2 or later. |
 | `nanoid@` -> 3.3.18 | `GHSA-28wg-ghj8-5hjv`, `GHSA-2v37-7h3g-55p8` | PostCSS | The supported PostCSS graph resolves 3.3.18 or later without the override. |
 | `postcss@` -> 8.5.23 (replaces the 8.4.31 and 8.5.15 selectors) | `GHSA-qx2v-qp2m-jg93`, `GHSA-r28c-9q8g-f849`, `GHSA-fxqj-rqcc-2cmp` | Next and Tailwind CSS | Both supported requesters resolve 8.5.23 or later. |
 | `sharp` -> 0.35.4 | `GHSA-f88m-g3jw-g9cj` | Next | The supported Next graph resolves a fixed Sharp release without the override. |

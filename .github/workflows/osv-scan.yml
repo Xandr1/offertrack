@@ -96,20 +96,34 @@ jobs:
 
       - name: Scan committed dependency sources
         id: osv
-        # OSV-Scanner exits 1 for every finding. The evaluator below validates
-        # the JSON and applies OfferTrack's Critical-only blocking threshold.
-        continue-on-error: true
-        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
-        with:
-          scan-args: |-
-            --format=json
-            --output-file=osv-results.json
-            --config=osv-scanner.toml
-            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/environment/pnpm-lock.yaml
-            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/project/pnpm-lock.yaml
-            --lockfile=osv-scanner:osv-maven-dependencies.json
-            --lockfile=apps/ai-service/pylock.toml
+        shell: bash
+        run: |
+          # OSV-Scanner uses exit 0 for a clean scan and 1 when it finds an
+          # unignored vulnerability. Preserve the exact status for the policy
+          # evaluator; all other statuses fail closed there.
+          set -u -o pipefail
+          if [[ -e osv-results.json ]]; then
+            echo "Refusing to evaluate a pre-existing OSV result file." >&2
+            exit 1
+          fi
+          set +e
+          docker run --rm \
+            --workdir /github/workspace \
+            --volume "$GITHUB_WORKSPACE:/github/workspace" \
+            ghcr.io/google/osv-scanner-action:v2.3.8 \
+            --format=json \
+            --output-file=osv-results.json \
+            --config=osv-scanner.toml \
+            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/environment/pnpm-lock.yaml \
+            --lockfile=pnpm-lock.yaml:.osv-pnpm-lockfiles/project/pnpm-lock.yaml \
+            --lockfile=osv-scanner:osv-maven-dependencies.json \
+            --lockfile=apps/ai-service/pylock.toml \
             --lockfile=pylock.toml:apps/ai-service/pylock.test.toml
+          scanner_exit_code=$?
+          set -e
+
+          echo "exit_code=$scanner_exit_code" >> "$GITHUB_OUTPUT"
+          echo "OSV-Scanner exited with code $scanner_exit_code."
 
       - name: Validate and summarize dependency results
         if: always()
@@ -118,6 +132,7 @@ jobs:
           python scripts/osv/evaluate-results.py \
             --results osv-results.json \
             --config osv-scanner.toml \
+            --scanner-exit-code "${{ steps.osv.outputs.exit_code }}" \
             --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload OSV results
