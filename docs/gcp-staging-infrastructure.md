@@ -335,7 +335,7 @@ bash scripts/containers/build-images.sh \
 ```
 
 Registry tags are the full 40-character Git commit SHA. `latest` is never
-published or deployed. After push, the workflow resolves each tag to
+published or deployed. During deployment, the workflow resolves each tag to
 `LOCATION-docker.pkg.dev/PROJECT/offertrack/COMPONENT@sha256:DIGEST` and gives
 Cloud Run only that digest reference. A rerun reuses an existing immutable tag.
 The exact image plus the commit-bearing Cloud Run revision suffix makes each
@@ -343,10 +343,12 @@ deployment traceable.
 
 ## Deployment workflow and rollback
 
-`.github/workflows/deploy-staging.yml` starts only after the `CI` workflow has
-succeeded for a trusted `main` push. It checks out exactly that workflow's
-`head_sha`; this exact-commit gate relies on CI's frontend, backend, AI,
-production-container smoke, Trivy, and Terraform jobs.
+`.github/workflows/deploy-staging.yml` is manual-only through
+`workflow_dispatch`. The deploy job accepts only `refs/heads/main` and requires
+the `STAGING_DEPLOY_ENABLED=true` repository-variable kill switch. Before cloud
+authentication or deployment, the GitHub API must find a successful
+push-triggered `CI` run on `main` for the exact selected `github.sha`; otherwise
+the workflow fails closed. The workflow checks out and deploys that exact SHA.
 
 The order is fixed:
 

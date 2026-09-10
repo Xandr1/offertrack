@@ -1,14 +1,7 @@
 name: Deploy staging
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 concurrency:
   group: deploy-staging
@@ -30,15 +23,13 @@ jobs:
   deploy:
     name: Immutable staging rollout
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.ref == 'refs/heads/main' &&
       vars.STAGING_DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: staging
     permissions:
+      actions: read
       contents: read
       id-token: write
 
@@ -46,19 +37,33 @@ jobs:
       - name: Checkout the CI-approved commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Verify trusted deployment scope
         shell: bash
         env:
-          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+          APPROVED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$APPROVED_SHA" ]]
           printf '%s\n' "DEPLOY_SHA=$APPROVED_SHA" >> "$GITHUB_ENV"
           printf '%s\n' "REVISION_SUFFIX=g${APPROVED_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Verify successful CI push run for the selected commit
+        shell: bash
+        env:
+          APPROVED_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&head_sha=${APPROVED_SHA}&per_page=1" \
+            | jq -e '.total_count > 0' >/dev/null
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -107,7 +112,7 @@ jobs:
           chmod +x apps/core-api/mvnw scripts/containers/build-images.sh scripts/staging/smoke.sh
           printf '%s\n' "OFFERTRACK_CONTAINER_TEMP_ROOT=$resolved_temp" >> "$GITHUB_ENV"
 
-      # The completed CI workflow for DEPLOY_SHA already ran frontend, Core,
+      # The verified successful CI push workflow for DEPLOY_SHA ran frontend, Core,
       # AI, production-container smoke, Trivy, and Terraform validation. This
       # build deliberately reuses the same production image path after that
       # exact-commit gate instead of maintaining a second image definition.
