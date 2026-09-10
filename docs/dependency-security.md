@@ -12,12 +12,11 @@ the retained OSV JSON artifact, but do not block CI. Missing, malformed, or
 unparsable scanner output fails the job closed.
 
 The evaluator uses OSV-Scanner's `packages[].groups[].max_severity` number,
-which the scanner calculates from the advisory CVSS vectors in
-`packages[].vulnerabilities[].severity[].score`. A score of at least 9.0 is
-Critical; 7.0--8.9 is High; 4.0--6.9 is Medium; and 0.0--3.9 is Low. A finding
-whose group lacks a usable numeric CVSS score is reported separately as
-non-blocking rather than being silently treated as Critical. The evaluator still
-rejects a result whose structure is not the expected OSV result schema.
+which the scanner calculates from advisory CVSS data. A score of at least 9.0
+is Critical; 7.0--8.9 is High; 4.0--6.9 is Medium; and 0.0--3.9 is Low. A
+finding whose group lacks a usable numeric CVSS score is reported separately as
+non-blocking rather than being silently treated as Critical. The evaluator
+validates only the result structure needed to apply this policy.
 
 The workflow records the scanner's actual exit code. Only a clean `0` exit with
 no findings or a `1` exit with one or more findings can reach severity
@@ -43,18 +42,18 @@ The baseline verified locally with OSV-Scanner 2.3.8 on 2026-08-01 is:
 - raw findings: **0**.
 
 The GitHub Actions job prints a Critical/High/Medium/Low breakdown and advisory
-IDs, reports findings with missing or unusable severity separately, adds the
-accepted-risk count and expiry to the job summary, and retains the raw JSON
-result for three days. A GitHub run is still required before treating the remote
-baseline as verified.
+IDs, reports findings with missing or unusable severity separately, and retains
+the raw JSON result for three days. A GitHub run is still required before
+treating the remote baseline as verified.
 
 ## Accepted risk
 
 No dependency vulnerabilities are currently accepted. `osv-scanner.toml`
 contains no ignored advisory IDs, but reviewed exceptions remain supported when
 they have an advisory ID and `ignoreUntil` expiry. Exceptions are still removed
-by OSV-Scanner before this evaluator runs and must not be extended merely to
-keep CI green.
+by OSV-Scanner before this evaluator runs; the evaluator does not reimplement
+ignore or expiry enforcement. Exceptions must not be extended merely to keep CI
+green.
 
 ## Temporary JavaScript overrides
 

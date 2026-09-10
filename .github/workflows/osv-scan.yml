@@ -131,7 +131,6 @@ jobs:
         run: |
           python scripts/osv/evaluate-results.py \
             --results osv-results.json \
-            --config osv-scanner.toml \
             --scanner-exit-code "${{ steps.osv.outputs.exit_code }}" \
             --summary "$GITHUB_STEP_SUMMARY"
 
