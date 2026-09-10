@@ -200,6 +200,21 @@ class CloudRunContractTest(unittest.TestCase):
             'dependency_health_key = "offertrack-stg-dependency-health-key"', secrets
         )
 
+    def test_nullable_runtime_strings_have_empty_fallbacks(self) -> None:
+        environment = assignment_block(self.cloud_run, "core_environment")
+        for name, variable in (
+            ("GOOGLE_CLIENT_ID", "google_oauth_client_id"),
+            ("MAIL_FROM", "mail_from"),
+            ("SMTP_HOST", "smtp_host"),
+            ("SMTP_USERNAME", "smtp_username"),
+        ):
+            with self.subTest(environment=name):
+                self.assertRegex(
+                    environment,
+                    rf'(?m)^\s*{name}\s*=\s*var\.{variable}\s*==\s*null\s*'
+                    rf'\?\s*""\s*:\s*trimspace\(var\.{variable}\)\s*$',
+                )
+
     def test_runtime_inputs_are_nullable_only_for_foundation(self) -> None:
         variables = read("infra/terraform/staging/variables.tf")
         for name in ("google_oauth_client_id", "smtp_host", "smtp_port", "smtp_username", "mail_from"):
