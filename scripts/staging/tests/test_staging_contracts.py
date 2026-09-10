@@ -300,17 +300,50 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.workflow = read(".github/workflows/deploy-staging.yml")
 
-    def test_deploys_only_an_exact_ci_approved_main_commit(self) -> None:
-        self.assertIn("workflow_run:", self.workflow)
-        self.assertIn("github.event.workflow_run.conclusion == 'success'", self.workflow)
-        self.assertIn("github.event.workflow_run.event == 'push'", self.workflow)
-        self.assertIn("github.event.workflow_run.head_branch == 'main'", self.workflow)
+    def test_deployment_is_manual_only_and_restricted_to_main(self) -> None:
+        trigger = self.workflow[
+            self.workflow.index("\non:\n") + 1 : self.workflow.index("\npermissions:")
+        ]
+        self.assertEqual("on:\n  workflow_dispatch:\n", trigger)
+        self.assertNotIn("workflow_run:", self.workflow)
+        self.assertIn("github.event_name == 'workflow_dispatch'", self.workflow)
+        self.assertIn("github.ref == 'refs/heads/main'", self.workflow)
         self.assertIn("vars.STAGING_DEPLOY_ENABLED == 'true'", self.workflow)
         self.assertNotRegex(self.workflow, r"(?m)^  STAGING_DEPLOY_ENABLED:")
-        self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", self.workflow)
+        self.assertIn("ref: ${{ github.sha }}", self.workflow)
+        self.assertIn("APPROVED_SHA: ${{ github.sha }}", self.workflow)
+        self.assertNotIn("github.event.workflow_run", self.workflow)
         self.assertIn("workload_identity_provider:", self.workflow)
         self.assertNotIn("credentials_json:", self.workflow)
         self.assertNotIn("secrets.", self.workflow)
+
+    def test_exact_selected_commit_requires_a_successful_ci_push_run(self) -> None:
+        verification_start = self.workflow.index(
+            "      - name: Verify successful CI push run"
+        )
+        verification_end = self.workflow.index("      - name: Setup Node")
+        verification = self.workflow[verification_start:verification_end]
+        self.assertIn("      actions: read", self.workflow)
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", verification)
+        self.assertIn("set -euo pipefail", verification)
+        self.assertIn("curl --fail", verification)
+        self.assertIn("/actions/workflows/ci.yml/runs", verification)
+        self.assertIn('--data-urlencode "branch=main"', verification)
+        self.assertIn('--data-urlencode "event=push"', verification)
+        self.assertIn('--data-urlencode "status=success"', verification)
+        self.assertIn('--data-urlencode "head_sha=$APPROVED_SHA"', verification)
+        self.assertIn("jq -e", verification)
+        self.assertIn('.name == "CI"', verification)
+        self.assertIn('.event == "push"', verification)
+        self.assertIn('.status == "completed"', verification)
+        self.assertIn('.conclusion == "success"', verification)
+        self.assertIn('.head_branch == "main"', verification)
+        self.assertIn('.head_sha == $sha', verification)
+        self.assertIn('.head_repository.full_name == $repository', verification)
+        self.assertLess(
+            self.workflow.index("Verify successful CI push run for the selected commit"),
+            self.workflow.index("Authenticate to Google Cloud with WIF"),
+        )
 
     def test_dependency_health_key_is_scoped_and_uses_the_core_revision_pin(self) -> None:
         self.assertIn('select(.name == "DEPENDENCY_HEALTH_KEY")', self.workflow)

@@ -55,9 +55,9 @@ dependency-health version from the exact Core revision, keep the value in the
 single shell process that needs it, and never write it to `$GITHUB_ENV`, print
 it, or print health response details.
 
-Staging deployment is disabled until the GitHub repository variable
-`STAGING_DEPLOY_ENABLED=true` is explicitly set. It is not an environment-level
-variable. Keep it disabled until
+Staging deployment is manual-only through `workflow_dispatch` and is disabled
+until the GitHub repository variable `STAGING_DEPLOY_ENABLED=true` is explicitly
+set. It is not an environment-level variable. Keep it disabled until
 foundation Terraform is applied, secret versions exist, database users are
 provisioned, seed images are published, and the Cloud Run services and
 migration job have been created successfully.
@@ -335,7 +335,7 @@ bash scripts/containers/build-images.sh \
 ```
 
 Registry tags are the full 40-character Git commit SHA. `latest` is never
-published or deployed. After push, the workflow resolves each tag to
+published or deployed. During deployment, the workflow resolves each tag to
 `LOCATION-docker.pkg.dev/PROJECT/offertrack/COMPONENT@sha256:DIGEST` and gives
 Cloud Run only that digest reference. A rerun reuses an existing immutable tag.
 The exact image plus the commit-bearing Cloud Run revision suffix makes each
@@ -343,10 +343,20 @@ deployment traceable.
 
 ## Deployment workflow and rollback
 
-`.github/workflows/deploy-staging.yml` starts only after the `CI` workflow has
-succeeded for a trusted `main` push. It checks out exactly that workflow's
-`head_sha`; this exact-commit gate relies on CI's frontend, backend, AI,
-production-container smoke, Trivy, and Terraform jobs.
+`.github/workflows/deploy-staging.yml` exposes only `workflow_dispatch`; it does
+not start after CI completion or a push. An operator must select `main`, and the
+deploy job requires the exact `refs/heads/main` ref plus the independent
+`STAGING_DEPLOY_ENABLED=true` repository-variable kill switch. Feature branches,
+tags, and arbitrary SHA refs cannot deploy.
+
+Before cloud authentication or rollout work, the workflow uses its
+`actions: read` permission to query the GitHub API for the exact selected
+`github.sha`. It requires at least one completed, successful `CI` workflow run
+triggered by a `push` to `main` in the same repository and fails closed if the
+API request or response cannot establish that result. It checks out exactly
+`github.sha` and independently verifies that `git rev-parse HEAD` matches; this
+exact-commit gate relies on CI's frontend, backend, AI, production-container
+smoke, Trivy, and Terraform jobs.
 
 The order is fixed:
 
