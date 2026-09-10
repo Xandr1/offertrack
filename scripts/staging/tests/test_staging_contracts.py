@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -196,24 +199,84 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertEqual(1, self.iam.count('"roles/secretmanager.secretAccessor"'))
 
         secrets = read("infra/terraform/staging/secrets.tf")
-        self.assertIn(
-            'dependency_health_key = "offertrack-stg-dependency-health-key"', secrets
-        )
+        self.assertIn('dependency_health_key = "offertrack-stg-dependency-health-key"', secrets)
 
     def test_nullable_runtime_strings_have_empty_fallbacks(self) -> None:
         environment = assignment_block(self.cloud_run, "core_environment")
-        for name, variable in (
-            ("GOOGLE_CLIENT_ID", "google_oauth_client_id"),
-            ("MAIL_FROM", "mail_from"),
-            ("SMTP_HOST", "smtp_host"),
-            ("SMTP_USERNAME", "smtp_username"),
-        ):
-            with self.subTest(environment=name):
-                self.assertRegex(
-                    environment,
-                    rf'(?m)^\s*{name}\s*=\s*var\.{variable}\s*==\s*null\s*'
-                    rf'\?\s*""\s*:\s*trimspace\(var\.{variable}\)\s*$',
-                )
+        inputs = {
+            "GOOGLE_CLIENT_ID": (
+                "google_oauth_client_id",
+                "client.apps.googleusercontent.com",
+            ),
+            "MAIL_FROM": ("mail_from", "mail@example.test"),
+            "SMTP_HOST": ("smtp_host", "smtp.example.test"),
+            "SMTP_USERNAME": ("smtp_username", "mailer"),
+        }
+
+        expressions = {}
+        for name in inputs:
+            match = re.search(
+                rf"(?ms)^\s*{name}\s*=\s*(.*?)(?=^\s*[A-Z][A-Z_0-9]*\s*=|^  \}})",
+                environment,
+            )
+            if match is None:
+                self.fail(f"Missing runtime environment value: {name}")
+            expressions[name] = "${" + match.group(1).strip() + "}"
+
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            (fixture / "main.tf.json").write_text(
+                json.dumps(
+                    {
+                        "variable": {
+                            variable: {"type": "string"} for variable, _ in inputs.values()
+                        },
+                        "locals": {"environment": expressions},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            for scenario in ("null", "empty", "padded"):
+                with self.subTest(scenario=scenario):
+                    values = {
+                        variable: (
+                            None
+                            if scenario == "null"
+                            else ""
+                            if scenario == "empty"
+                            else f" \t{value}\n "
+                        )
+                        for variable, value in inputs.values()
+                    }
+
+                    (fixture / "terraform.tfvars.json").write_text(
+                        json.dumps(values),
+                        encoding="utf-8",
+                    )
+
+                    result = subprocess.run(
+                        ["terraform", "console", "-no-color"],
+                        input="jsonencode(local.environment)\n",
+                        cwd=fixture,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+
+                    self.assertEqual(
+                        0,
+                        result.returncode,
+                        f"terraform console failed:\n{result.stderr}",
+                    )
+
+                    expected = {
+                        name: value if scenario == "padded" else ""
+                        for name, (_, value) in inputs.items()
+                    }
+                    actual = json.loads(json.loads(result.stdout))
+
+                    self.assertEqual(expected, actual)
 
     def test_runtime_inputs_are_nullable_only_for_foundation(self) -> None:
         variables = read("infra/terraform/staging/variables.tf")
@@ -231,7 +294,6 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertIn("nullable = true", secret_versions)
         self.assertIn("!var.enable_cloud_run_runtime || var.secret_versions != null", secret_versions)
         self.assertNotRegex(secret_versions, r'=\s*"1"')
-
 
 class DeploymentWorkflowContractTest(unittest.TestCase):
     @classmethod
