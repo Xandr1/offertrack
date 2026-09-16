@@ -29,14 +29,14 @@ WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'offertrack_mi
 \gexec
 
 SELECT format(
-  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS',
   'offertrack_app',
   :'app_password'
 )
 \gexec
 
 SELECT format(
-  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS',
   'offertrack_migrator',
   :'migrator_password'
 )
@@ -77,6 +77,19 @@ ALTER DEFAULT PRIVILEGES FOR ROLE offertrack_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO offertrack_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE offertrack_migrator IN SCHEMA public
   GRANT SELECT, USAGE ON SEQUENCES TO offertrack_app;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT FROM pg_catalog.pg_roles
+    WHERE rolname IN ('offertrack_app', 'offertrack_migrator')
+      AND (rolsuper OR rolreplication OR rolcreatedb OR rolcreaterole
+           OR rolbypassrls OR rolinherit OR NOT rolcanlogin)
+  ) THEN
+    RAISE EXCEPTION 'Database roles do not satisfy the required security attributes.';
+  END IF;
+END;
+$$;
 
 COMMIT;
 
