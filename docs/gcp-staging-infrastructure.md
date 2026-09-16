@@ -189,6 +189,12 @@ arguments. Its SQL transaction:
 - gives the application role only schema usage, table DML, and sequence
   read/usage, including matching migrator default privileges.
 
+For Cloud SQL ownership transfers, the transaction temporarily grants
+`offertrack_migrator` to the bootstrap administrator with `INHERIT FALSE, SET TRUE`
+and grants the migrator `CREATE` on database `offertrack`. Both grants are revoked
+before the final security checks and commit. Those checks verify `public`
+ownership and that neither temporary privilege remains.
+
 The application role receives no schema creation or object ownership. The
 migrator is not used by the server service.
 

@@ -45,6 +45,10 @@ SELECT format(
 REVOKE ALL ON DATABASE offertrack FROM PUBLIC;
 GRANT CONNECT ON DATABASE offertrack TO offertrack_app, offertrack_migrator;
 
+-- Cloud SQL ownership transfers require temporary SET ROLE and database CREATE.
+GRANT offertrack_migrator TO CURRENT_USER WITH INHERIT FALSE, SET TRUE;
+GRANT CREATE ON DATABASE offertrack TO offertrack_migrator;
+
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ALTER SCHEMA public OWNER TO offertrack_migrator;
 GRANT USAGE ON SCHEMA public TO offertrack_app;
@@ -78,8 +82,26 @@ ALTER DEFAULT PRIVILEGES FOR ROLE offertrack_migrator IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE offertrack_migrator IN SCHEMA public
   GRANT SELECT, USAGE ON SEQUENCES TO offertrack_app;
 
+REVOKE CREATE ON DATABASE offertrack FROM offertrack_migrator;
+REVOKE offertrack_migrator FROM CURRENT_USER;
+
 DO $$
 BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_namespace
+    WHERE nspname = 'public' AND nspowner = 'offertrack_migrator'::regrole
+  ) THEN
+    RAISE EXCEPTION 'The public schema must be owned by offertrack_migrator.';
+  END IF;
+
+  IF has_database_privilege('offertrack_migrator', 'offertrack', 'CREATE') THEN
+    RAISE EXCEPTION 'The migration role must not retain database CREATE.';
+  END IF;
+
+  IF pg_has_role(CURRENT_USER, 'offertrack_migrator', 'SET') THEN
+    RAISE EXCEPTION 'The bootstrap administrator must not retain SET ROLE to offertrack_migrator.';
+  END IF;
+
   IF EXISTS (
     SELECT FROM pg_catalog.pg_roles
     WHERE rolname IN ('offertrack_app', 'offertrack_migrator')

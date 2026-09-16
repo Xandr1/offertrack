@@ -396,6 +396,24 @@ class DatabaseProvisioningContractTest(unittest.TestCase):
         )
         self.assertNotRegex(sql, r"GRANT\s+(?:ALL|CREATE).*TO offertrack_app")
 
+    def test_bootstrap_privileges_are_temporary_and_transactional(self) -> None:
+        sql = read("scripts/staging/database/provision-users.sql")
+        ordered_markers = (
+            "BEGIN;",
+            "GRANT offertrack_migrator TO CURRENT_USER WITH INHERIT FALSE, SET TRUE;",
+            "GRANT CREATE ON DATABASE offertrack TO offertrack_migrator;",
+            "ALTER SCHEMA public OWNER TO offertrack_migrator;",
+            "ALTER TABLE %I.%I OWNER TO %I",
+            "ALTER SEQUENCE %I.%I OWNER TO %I",
+            "GRANT SELECT, USAGE ON SEQUENCES TO offertrack_app;",
+            "REVOKE CREATE ON DATABASE offertrack FROM offertrack_migrator;",
+            "REVOKE offertrack_migrator FROM CURRENT_USER;",
+            "DO $$",
+            "COMMIT;",
+        )
+        indexes = [sql.index(marker) for marker in ordered_markers]
+        self.assertEqual(indexes, sorted(indexes))
+
     def test_roles_use_cloud_sql_compatible_attributes(self) -> None:
         sql = read("scripts/staging/database/provision-users.sql")
         self.assertEqual(
@@ -412,6 +430,21 @@ class DatabaseProvisioningContractTest(unittest.TestCase):
         postcondition = re.search(r"DO \$\$(.*?)\$\$;", sql, re.DOTALL)
         self.assertIsNotNone(postcondition)
         check = " ".join(postcondition.group(1).split()) if postcondition else ""
+        self.assertIn(
+            "IF NOT EXISTS ( SELECT FROM pg_catalog.pg_namespace "
+            "WHERE nspname = 'public' AND nspowner = 'offertrack_migrator'::regrole "
+            ") THEN RAISE EXCEPTION",
+            check,
+        )
+        self.assertIn(
+            "IF has_database_privilege('offertrack_migrator', 'offertrack', 'CREATE') "
+            "THEN RAISE EXCEPTION",
+            check,
+        )
+        self.assertIn(
+            "IF pg_has_role(CURRENT_USER, 'offertrack_migrator', 'SET') THEN RAISE EXCEPTION",
+            check,
+        )
         self.assertIn(
             "IF EXISTS ( SELECT FROM pg_catalog.pg_roles "
             "WHERE rolname IN ('offertrack_app', 'offertrack_migrator') "
