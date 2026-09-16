@@ -180,8 +180,10 @@ versions into restrictive temporary files and process memory, never command
 arguments. Its SQL transaction:
 
 - creates or rotates both login roles;
-- removes superuser, role/database creation, replication, inheritance, and
-  row-level-security bypass capability;
+- removes role/database creation, inheritance, and row-level-security bypass
+  capability;
+- verifies that neither role has superuser or replication capability and fails
+  the transaction if either invariant is violated;
 - makes the migrator own `public` and any existing public tables/sequences;
 - gives the migrator the schema ownership needed by Flyway; and
 - gives the application role only schema usage, table DML, and sequence
