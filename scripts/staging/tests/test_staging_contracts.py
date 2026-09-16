@@ -395,8 +395,33 @@ class DatabaseProvisioningContractTest(unittest.TestCase):
             sql,
         )
         self.assertNotRegex(sql, r"GRANT\s+(?:ALL|CREATE).*TO offertrack_app")
-        self.assertIn("NOSUPERUSER NOCREATEDB NOCREATEROLE", sql)
-        self.assertIn("NOBYPASSRLS", sql)
+
+    def test_roles_use_cloud_sql_compatible_attributes(self) -> None:
+        sql = read("scripts/staging/database/provision-users.sql")
+        self.assertEqual(
+            2,
+            sql.count(
+                "ALTER ROLE %I WITH LOGIN PASSWORD %L NOCREATEDB NOCREATEROLE "
+                "NOINHERIT NOBYPASSRLS"
+            ),
+        )
+        self.assertNotRegex(sql, r"\b(?:NOSUPERUSER|NOREPLICATION)\b")
+
+    def test_role_security_postcondition_is_transactional(self) -> None:
+        sql = read("scripts/staging/database/provision-users.sql")
+        postcondition = re.search(r"DO \$\$(.*?)\$\$;", sql, re.DOTALL)
+        self.assertIsNotNone(postcondition)
+        check = " ".join(postcondition.group(1).split()) if postcondition else ""
+        self.assertIn(
+            "IF EXISTS ( SELECT FROM pg_catalog.pg_roles "
+            "WHERE rolname IN ('offertrack_app', 'offertrack_migrator') "
+            "AND (rolsuper OR rolreplication OR rolcreatedb OR rolcreaterole "
+            "OR rolbypassrls OR rolinherit OR NOT rolcanlogin) ) THEN RAISE EXCEPTION",
+            check,
+        )
+        self.assertLess(sql.index("BEGIN;"), sql.index("DO $$"))
+        self.assertLess(sql.rindex("ALTER ROLE"), sql.index("DO $$"))
+        self.assertLess(sql.index("$$;"), sql.index("COMMIT;"))
 
 
 if __name__ == "__main__":
