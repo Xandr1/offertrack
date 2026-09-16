@@ -51,7 +51,6 @@ GRANT CREATE ON DATABASE offertrack TO offertrack_migrator;
 
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ALTER SCHEMA public OWNER TO offertrack_migrator;
-GRANT USAGE ON SCHEMA public TO offertrack_app;
 
 -- Normalize ownership if this procedure is adopted after an earlier manual
 -- migration. Index ownership follows its table, so it does not need a separate
@@ -68,6 +67,10 @@ WHERE schemaname = 'public'
   AND sequenceowner <> 'offertrack_migrator'
 \gexec
 
+SET ROLE offertrack_migrator;
+
+GRANT USAGE ON SCHEMA public TO offertrack_app;
+
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, offertrack_app;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, offertrack_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO offertrack_app;
@@ -81,6 +84,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE offertrack_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO offertrack_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE offertrack_migrator IN SCHEMA public
   GRANT SELECT, USAGE ON SEQUENCES TO offertrack_app;
+
+RESET ROLE;
 
 REVOKE CREATE ON DATABASE offertrack FROM offertrack_migrator;
 REVOKE offertrack_migrator FROM CURRENT_USER;
