@@ -18,16 +18,16 @@ if PACKAGE_MANAGER_MATCH is None:
 PNPM_VERSION = PACKAGE_MANAGER_MATCH.group(1)
 
 NODE_IMAGE = (
-    "node:24.18.0-bookworm-slim@"
-    "sha256:d45d78e7929b46875bbd4e29bea672d5bc48186c6c3588306521c815e78352d6"
+    "node:24.21.0-bookworm-slim@"
+    "sha256:713cfbf4a0ac19f40e1bb9919893e126b74a5c8cf5d0623c9f89515c8f74c6fa"
 )
 TEMURIN_IMAGE = (
     "eclipse-temurin:21.0.12_8-jre-alpine-3.23@"
     "sha256:1c59e0666519c026978ef64b429dfb78518d013d51f5056530f0daa57f2a5bcb"
 )
 PYTHON_IMAGE = (
-    "python:3.11.15-slim-trixie@"
-    "sha256:78b39ef14d8e2b4d71f8dc304f1328c37df95fe0ef99477c2ae6bd3d03784553"
+    "python:3.11.16-slim-trixie@"
+    "sha256:d1053354624536b044162aaab1e418bd000ea35184fb1ae098ab3166b1072e72"
 )
 POSTGRES_IMAGE = (
     "postgres:16.14-bookworm@"
@@ -198,18 +198,10 @@ class ImageContractTest(unittest.TestCase):
         self.assertEqual(2, dockerfile.count("pip uninstall --yes setuptools wheel"))
         self.assertEqual(2, dockerfile.count("pip uninstall --yes pip"))
         for fixed_package in (
-            "bsdutils=1:2.41.5-0+deb13u1",
-            "libblkid1=2.41.5-0+deb13u1",
-            "liblastlog2-2=2.41.5-0+deb13u1",
-            "libmount1=2.41.5-0+deb13u1",
-            "libsmartcols1=2.41.5-0+deb13u1",
-            "libssl3t64=3.5.7-1~deb13u2",
-            "libuuid1=2.41.5-0+deb13u1",
-            "login=1:4.16.0-2+really2.41.5-0+deb13u1",
-            "mount=2.41.5-0+deb13u1",
-            "openssl=3.5.7-1~deb13u2",
-            "openssl-provider-legacy=3.5.7-1~deb13u2",
-            "util-linux=2.41.5-0+deb13u1",
+            "gzip=1.13-1+deb13u1",
+            "libpcre2-8-0=10.46-1~deb13u2",
+            "libsqlite3-0=3.46.1-7+deb13u2",
+            "perl-base=5.40.1-6+deb13u1",
         ):
             self.assertIn(fixed_package, runtime)
         self.assertIn("rm -rf /var/lib/apt/lists/*", runtime)
