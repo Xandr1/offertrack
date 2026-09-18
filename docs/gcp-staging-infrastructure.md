@@ -99,6 +99,11 @@ value before continuing. The AI URL is also the Google ID-token audience. The
 Core URL is compiled into the Web image, and the Web URL is the exact Core CORS
 origin and redirect target.
 
+The AI startup, liveness, and readiness probes send `Host` set to the canonical
+AI hostname. This lets `/health` pass its explicit `TrustedHostMiddleware`
+allowlist when Cloud Run otherwise uses a probe host that is not an allowed
+service hostname.
+
 ## Terraform and deployment ownership
 
 Terraform owns:

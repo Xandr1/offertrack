@@ -218,6 +218,10 @@ resource "google_cloud_run_v2_service" "ai" {
         http_get {
           path = "/health"
           port = 8080
+          http_headers {
+            name  = "Host"
+            value = local.ai_service_host
+          }
         }
       }
 
@@ -229,6 +233,10 @@ resource "google_cloud_run_v2_service" "ai" {
         http_get {
           path = "/health"
           port = 8080
+          http_headers {
+            name  = "Host"
+            value = local.ai_service_host
+          }
         }
       }
 
@@ -240,6 +248,10 @@ resource "google_cloud_run_v2_service" "ai" {
         http_get {
           path = "/health"
           port = 8080
+          http_headers {
+            name  = "Host"
+            value = local.ai_service_host
+          }
         }
       }
     }
