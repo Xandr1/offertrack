@@ -508,6 +508,35 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
             self.assertIn("set -euo pipefail", self.step(name))
             self.assertNotRegex(self.step(name), r"(?m)^        if:")
 
+    def test_rollout_http_checks_have_bounded_propagation_retry(self) -> None:
+        retry_policy = {
+            "--connect-timeout 5": None,
+            "--max-time 20": None,
+            "--retry 12": None,
+            "--retry-all-errors": None,
+            "--retry-delay 5": None,
+            "--retry-max-time 75": None,
+        }
+
+        steps = (
+            ("Verify and promote the AI candidate revision", 2),
+            ("Deploy and verify the Core candidate revision", 3),
+            ("Deploy and verify the Web candidate revision", 1),
+        )
+
+        for step_name, expected_checks in steps:
+            with self.subTest(step=step_name):
+                step = self.step(step_name)
+
+                self.assertEqual(expected_checks, step.count("curl --fail"))
+
+                for option in retry_policy:
+                    self.assertEqual(
+                        expected_checks,
+                        step.count(option),
+                        f"{step_name} must apply '{option}' to every rollout HTTP check",
+                    )
+
     def test_rollout_uses_canonical_urls_without_service_uri_equality(self) -> None:
         self.assertIn('PROJECT_NUMBER: "765846644391"', self.workflow)
         steps = (
@@ -690,14 +719,11 @@ class SmokeTokenContractTest(unittest.TestCase):
                         )
                         self.assertEqual("5", arguments[arguments.index("--connect-timeout") + 1])
                         self.assertEqual("20", arguments[arguments.index("--max-time") + 1])
-                        self.assertEqual("12", arguments[arguments.index("--retry") + 1])
-                        self.assertEqual("5", arguments[arguments.index("--retry-delay") + 1])
-                        self.assertEqual("75", arguments[arguments.index("--retry-max-time") + 1])
+                        self.assertEqual("4", arguments[arguments.index("--retry") + 1])
                         self.assertEqual(
                             "https://offertrack-stg-ai-765846644391.europe-central2.run.app/health",
                             arguments[-1],
                         )
-
 
 class DatabaseProvisioningContractTest(unittest.TestCase):
     def test_passwords_come_from_separate_secret_versions(self) -> None:
