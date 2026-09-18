@@ -690,7 +690,9 @@ class SmokeTokenContractTest(unittest.TestCase):
                         )
                         self.assertEqual("5", arguments[arguments.index("--connect-timeout") + 1])
                         self.assertEqual("20", arguments[arguments.index("--max-time") + 1])
-                        self.assertEqual("4", arguments[arguments.index("--retry") + 1])
+                        self.assertEqual("12", arguments[arguments.index("--retry") + 1])
+                        self.assertEqual("5", arguments[arguments.index("--retry-delay") + 1])
+                        self.assertEqual("75", arguments[arguments.index("--retry-max-time") + 1])
                         self.assertEqual(
                             "https://offertrack-stg-ai-765846644391.europe-central2.run.app/health",
                             arguments[-1],
