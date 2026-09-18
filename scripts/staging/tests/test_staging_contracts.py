@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -355,6 +358,82 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = read(".github/workflows/deploy-staging.yml")
+        cls.steps = re.findall(
+            r"(?ms)^      - name: (.*?)(?=^      - name: |\Z)", cls.workflow
+        )
+
+    def step(self, name: str) -> str:
+        return next(step for step in self.steps if step.splitlines()[0] == name)
+
+    def test_ai_id_tokens_are_fresh_and_do_not_replace_gcloud_credentials(self) -> None:
+        original_auth = self.step("Authenticate to Google Cloud with WIF")
+        auth_pin = re.search(r"uses: (google-github-actions/auth@[0-9a-f]{40})", original_auth)
+        self.assertIsNotNone(auth_pin)
+        expected_inputs = {
+            "workload_identity_provider": (
+                "projects/765846644391/locations/global/"
+                "workloadIdentityPools/offertrack-github/providers/github-actions"
+            ),
+            "service_account": (
+                "offertrack-stg-deployer@offertrack-staging.iam.gserviceaccount.com"
+            ),
+            "token_format": "id_token",
+            "id_token_audience": (
+                "https://offertrack-stg-ai-765846644391.europe-central2.run.app"
+            ),
+            "id_token_include_email": "true",
+            "create_credentials_file": "false",
+            "export_environment_variables": "false",
+        }
+        self.assertNotIn("token_format:", original_auth)
+        self.assertNotIn("create_credentials_file: false", original_auth)
+        self.assertNotIn("export_environment_variables: false", original_auth)
+        self.assertEqual(2, self.workflow.count("token_format: id_token"))
+
+        for consumer_name, token_id in (
+            ("Verify and promote the AI candidate revision", "ai_verification_token"),
+            ("Run bounded staging smoke checks", "ai_smoke_token"),
+        ):
+            with self.subTest(consumer=consumer_name):
+                consumer = self.step(consumer_name)
+                mint = self.steps[self.steps.index(consumer) - 1]
+                self.assertIn(f"uses: {auth_pin.group(1)}", mint)
+                self.assertRegex(mint, rf"(?m)^        id: {token_id}$")
+                for key, value in expected_inputs.items():
+                    self.assertRegex(mint, rf"(?m)^          {key}: {re.escape(value)}$")
+                self.assertIn(
+                    "        env:\n"
+                    f"          AI_ID_TOKEN: ${{{{ steps.{token_id}.outputs.id_token }}}}",
+                    consumer,
+                )
+                self.assertEqual(1, self.workflow.count(f"steps.{token_id}.outputs.id_token"))
+                self.assertNotRegex(mint + consumer, r"(?m)^        (?:if|continue-on-error):")
+
+    def test_ai_tokens_stay_in_step_environment_and_curl_standard_input(self) -> None:
+        smoke = read("scripts/staging/smoke.sh")
+        verification = self.step("Verify and promote the AI candidate revision")
+        for source in (self.workflow, smoke):
+            self.assertNotIn("gcloud auth print-identity-token", source)
+            self.assertNotRegex(source, r"(?m)^.*(?:AI_ID_TOKEN|id_token).*GITHUB_(?:ENV|OUTPUT)")
+            self.assertNotRegex(source, r"(?:echo|printf)\s+[^\n]*(?:AI_ID_TOKEN|id_token)")
+            self.assertNotRegex(
+                source,
+                r"--(?:header|ai-id-token|id-token)\s+[\"']?[^\n<]*\$\{?AI_ID_TOKEN",
+            )
+        for source, expected_headers in ((verification, 2), (smoke, 1)):
+            self.assertIn("set +x", source)
+            self.assertIn("unset AI_ID_TOKEN", source)
+            self.assertEqual(expected_headers, source.count("--header @-"))
+            self.assertEqual(
+                expected_headers,
+                source.count('<<< "Authorization: Bearer $AI_ID_TOKEN"'),
+            )
+        self.assertIn('"$candidate_url/health"', verification)
+        self.assertIn('"$canonical_url/health"', verification)
+        self.assertNotIn("id_token_audience:", verification)
+        self.assertNotIn(
+            "roles/iam.serviceAccountTokenCreator", read("infra/terraform/staging/iam.tf")
+        )
 
     def test_deployment_is_manual_only_and_restricted_to_main(self) -> None:
         trigger = self.workflow[
@@ -410,7 +489,8 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
     def test_rollout_order_blocks_on_ai_and_migration(self) -> None:
         ordered_markers = (
             "Build production Core and AI images",
-            "Deploy and verify the AI candidate revision",
+            "Deploy the AI candidate revision",
+            "Verify and promote the AI candidate revision",
             "Update and execute the migration job",
             "Deploy and verify the Core candidate revision",
             "Build the Web image with the canonical Core URL",
@@ -423,21 +503,25 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         self.assertEqual(3, self.workflow.count("--to-latest --clear-tags"))
         self.assertIn('gcloud run jobs execute "$MIGRATION_JOB"', self.workflow)
         self.assertIn("--wait", self.workflow)
+        self.assertNotIn("continue-on-error:", self.workflow)
+        for name in ordered_markers[1:]:
+            self.assertIn("set -euo pipefail", self.step(name))
+            self.assertNotRegex(self.step(name), r"(?m)^        if:")
 
     def test_rollout_uses_canonical_urls_without_service_uri_equality(self) -> None:
         self.assertIn('PROJECT_NUMBER: "765846644391"', self.workflow)
         steps = (
-            ("AI", "AI", "Update and execute the migration job", "/health"),
+            ("AI", "Verify and promote the AI", "Update and execute the migration job", "/health"),
             (
-                "CORE", "Core", "Build the Web image with the canonical Core URL",
+                "CORE", "Deploy and verify the Core", "Build the Web image with the canonical Core URL",
                 "/actuator/health/readiness",
             ),
-            ("WEB", "Web", "Run bounded staging smoke checks", "/login"),
+            ("WEB", "Deploy and verify the Web", "Run bounded staging smoke checks", "/login"),
         )
         for service, label, next_step, health_path in steps:
             with self.subTest(service=service):
                 start = self.workflow.index(
-                    f"Deploy and verify the {label} candidate revision"
+                    f"{label} candidate revision"
                 )
                 step = self.workflow[start : self.workflow.index(next_step, start)]
                 self.assertIn(
@@ -462,17 +546,24 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
                 )
 
         ai_step = self.workflow[
-            self.workflow.index("Deploy and verify the AI candidate revision") :
+            self.workflow.index("Verify and promote the AI candidate revision") :
             self.workflow.index("Update and execute the migration job")
         ]
-        self.assertIn('gcloud auth print-identity-token --audiences "$canonical_url"', ai_step)
+        self.assertLess(
+            ai_step.index('"$candidate_url/health"'),
+            ai_step.index("--to-latest --clear-tags"),
+        )
+        self.assertLess(
+            ai_step.index('jq -e \'.status == "ok"\''),
+            ai_step.index("--to-latest --clear-tags"),
+        )
         self.assertLess(
             ai_step.index("--to-latest --clear-tags"),
             ai_step.index('"$canonical_url/health"'),
         )
         self.assertRegex(
             ai_step,
-            r'"\$canonical_url/health"\s+jq -e \'\.status == "ok"\'',
+            r'"\$canonical_url/health"[^\n]*\s+jq -e \'\.status == "ok"\'',
         )
 
         core_step = self.workflow[
@@ -509,6 +600,101 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         self.assertIn("--next-public-api-url \"$CORE_URL\"", self.workflow)
         self.assertIn("image_summary.fully_qualified_digest", self.workflow)
         self.assertIn("X-Dependency-Health-Key", self.workflow)
+
+
+class SmokeTokenContractTest(unittest.TestCase):
+    def test_smoke_preserves_health_and_immutable_identity_checks(self) -> None:
+        smoke = read("scripts/staging/smoke.sh")
+        self.assertIn("set -euo pipefail", smoke)
+        self.assertIn("trap cleanup EXIT", smoke)
+        for service, path, expected_status in (
+            ("AI", "/health", "ok"),
+            ("CORE", "/actuator/health/liveness", "UP"),
+            ("CORE", "/actuator/health/readiness", "UP"),
+            ("CORE", "/actuator/health/dependencies", "UP"),
+        ):
+            start = smoke.index(f'retry_curl "${service}_URL{path}"')
+            self.assertIn(f'jq -e \'.status == "{expected_status}"\'', smoke[start:].split("\n\n")[0])
+        self.assertIn('retry_curl "$WEB_URL/login"', smoke)
+        for service in ("AI", "CORE", "WEB"):
+            self.assertIn(
+                f'check_service_revision offertrack-stg-{service.lower()} "${service}_REVISION" "${service}_IMAGE"',
+                smoke,
+            )
+        self.assertIn('[[ "$ready_revision" == "$expected_revision" ]]', smoke)
+        self.assertIn('[[ "$actual_image" == "$expected_image" ]]', smoke)
+        self.assertIn("gcloud run jobs describe offertrack-stg-migrate", smoke)
+        self.assertIn('[[ "$job_image" == "$CORE_IMAGE" ]]', smoke)
+
+    def test_missing_or_blank_token_fails_before_requests_and_valid_token_uses_stdin(self) -> None:
+        git_bash = Path("C:/Program Files/Git/bin/bash.exe")
+        bash = str(git_bash) if os.name == "nt" and git_bash.is_file() else shutil.which("bash")
+        self.assertIsNotNone(bash, "Bash is required for staging smoke contracts")
+        commit = "a" * 40
+        args = ["scripts/staging/smoke.sh", "--commit", commit]
+        for service, component in (("ai", "ai-service"), ("core", "core-api"), ("web", "web")):
+            args.extend([
+                f"--{service}-url",
+                f"https://offertrack-stg-{service}-765846644391.europe-central2.run.app",
+                f"--{service}-image",
+                f"europe-central2-docker.pkg.dev/offertrack-staging/offertrack/{component}@sha256:{'b' * 64}",
+                f"--{service}-revision",
+                f"offertrack-stg-{service}-g{commit[:12]}-123-1",
+            ])
+        wrapper = textwrap.dedent("""\
+            curl() {
+              printf '%s\\n' "$@" > "$CALL_LOG"
+              cat > "$HEADER_LOG"
+              return 42
+            }
+            gcloud() { echo 'unexpected gcloud call' >&2; return 99; }
+            jq() { echo 'unexpected jq call' >&2; return 99; }
+            export -f curl gcloud jq
+            bash -x "$@"
+            """)
+        sentinel = "offline-test-ai-token"
+        for token in (None, "", " \t\n ", sentinel):
+            with self.subTest(token="valid" if token == sentinel else repr(token)):
+                with tempfile.TemporaryDirectory() as directory:
+                    call_log = Path(directory) / "curl-arguments.txt"
+                    header_log = Path(directory) / "curl-stdin.txt"
+                    environment = dict(os.environ)
+                    environment.pop("AI_ID_TOKEN", None)
+                    if token is not None:
+                        environment["AI_ID_TOKEN"] = token
+                    environment["CALL_LOG"] = call_log.as_posix()
+                    environment["HEADER_LOG"] = header_log.as_posix()
+                    result = subprocess.run(
+                        [bash, "-c", wrapper, "staging-smoke-test", *args],
+                        cwd=REPO_ROOT,
+                        env=environment,
+                        stdin=subprocess.DEVNULL,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+                    self.assertNotIn(sentinel, result.stdout + result.stderr)
+                    if token != sentinel:
+                        self.assertEqual(1, result.returncode, result.stderr)
+                        self.assertIn("AI_ID_TOKEN is required", result.stderr)
+                        self.assertFalse(call_log.exists())
+                        self.assertNotIn("unexpected", result.stderr)
+                    else:
+                        self.assertEqual(42, result.returncode, result.stderr)
+                        arguments = call_log.read_text(encoding="utf-8").splitlines()
+                        self.assertNotIn(sentinel, " ".join(arguments))
+                        self.assertEqual("@-", arguments[arguments.index("--header") + 1])
+                        self.assertEqual(
+                            f"Authorization: Bearer {sentinel}\n",
+                            header_log.read_text(encoding="utf-8"),
+                        )
+                        self.assertEqual("5", arguments[arguments.index("--connect-timeout") + 1])
+                        self.assertEqual("20", arguments[arguments.index("--max-time") + 1])
+                        self.assertEqual("4", arguments[arguments.index("--retry") + 1])
+                        self.assertEqual(
+                            "https://offertrack-stg-ai-765846644391.europe-central2.run.app/health",
+                            arguments[-1],
+                        )
 
 
 class DatabaseProvisioningContractTest(unittest.TestCase):

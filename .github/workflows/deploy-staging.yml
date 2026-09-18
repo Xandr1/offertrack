@@ -157,14 +157,10 @@ jobs:
           printf '%s\n' "CORE_IMAGE=$core_image" >> "$GITHUB_ENV"
           printf '%s\n' "AI_IMAGE=$ai_image" >> "$GITHUB_ENV"
 
-      - name: Deploy and verify the AI candidate revision
+      - name: Deploy the AI candidate revision
         shell: bash
         run: |
           set -euo pipefail
-          expected_revision="${AI_SERVICE}-${REVISION_SUFFIX}"
-          canonical_url="https://${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
-          candidate_url="https://candidate---${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
-
           gcloud run services update "$AI_SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
@@ -174,20 +170,43 @@ jobs:
             --tag candidate \
             --quiet
 
+      - name: Mint an AI ID token for candidate verification
+        id: ai_verification_token
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: offertrack-staging
+          workload_identity_provider: projects/765846644391/locations/global/workloadIdentityPools/offertrack-github/providers/github-actions
+          service_account: offertrack-stg-deployer@offertrack-staging.iam.gserviceaccount.com
+          token_format: id_token
+          id_token_audience: https://offertrack-stg-ai-765846644391.europe-central2.run.app
+          id_token_include_email: true
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Verify and promote the AI candidate revision
+        shell: bash
+        env:
+          AI_ID_TOKEN: ${{ steps.ai_verification_token.outputs.id_token }}
+        run: |
+          set -euo pipefail
+          set +x
+          [[ "${AI_ID_TOKEN:-}" =~ [^[:space:]] ]] || { echo "AI ID token is required" >&2; exit 1; }
+          expected_revision="${AI_SERVICE}-${REVISION_SUFFIX}"
+          canonical_url="https://${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          candidate_url="https://candidate---${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+
           ready_revision="$(gcloud run services describe "$AI_SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" \
             --format='value(status.latestReadyRevisionName)')"
           [[ "$ready_revision" == "$expected_revision" ]]
 
-          id_token="$(gcloud auth print-identity-token --audiences "$canonical_url" --include-email)"
-          [[ -n "$id_token" ]]
           response="$(mktemp "${RUNNER_TEMP%/}/offertrack-ai-health.XXXXXX")"
-          trap 'rm -f -- "$response"; unset id_token' EXIT
+          trap 'rm -f -- "$response"; unset AI_ID_TOKEN' EXIT
           curl --fail --silent --show-error \
             --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
-            --header "Authorization: Bearer $id_token" \
+            --header @- \
             --output "$response" \
-            "$candidate_url/health"
+            "$candidate_url/health" <<< "Authorization: Bearer $AI_ID_TOKEN"
           jq -e '.status == "ok"' "$response" >/dev/null
 
           gcloud run services update-traffic "$AI_SERVICE" \
@@ -195,11 +214,11 @@ jobs:
             --to-latest --clear-tags --quiet
           curl --fail --silent --show-error \
             --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
-            --header "Authorization: Bearer $id_token" \
+            --header @- \
             --output "$response" \
-            "$canonical_url/health"
+            "$canonical_url/health" <<< "Authorization: Bearer $AI_ID_TOKEN"
           jq -e '.status == "ok"' "$response" >/dev/null
-          unset id_token
+          unset AI_ID_TOKEN
           rm -f -- "$response"
           trap - EXIT
           printf '%s\n' "AI_URL=$canonical_url" "AI_REVISION=$expected_revision" >> "$GITHUB_ENV"
@@ -344,8 +363,23 @@ jobs:
             --to-latest --clear-tags --quiet
           printf '%s\n' "WEB_URL=$canonical_url" "WEB_REVISION=$expected_revision" >> "$GITHUB_ENV"
 
+      - name: Mint a fresh AI ID token for staging smoke
+        id: ai_smoke_token
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: offertrack-staging
+          workload_identity_provider: projects/765846644391/locations/global/workloadIdentityPools/offertrack-github/providers/github-actions
+          service_account: offertrack-stg-deployer@offertrack-staging.iam.gserviceaccount.com
+          token_format: id_token
+          id_token_audience: https://offertrack-stg-ai-765846644391.europe-central2.run.app
+          id_token_include_email: true
+          create_credentials_file: false
+          export_environment_variables: false
+
       - name: Run bounded staging smoke checks
         shell: bash
+        env:
+          AI_ID_TOKEN: ${{ steps.ai_smoke_token.outputs.id_token }}
         run: |
           set -euo pipefail
           bash scripts/staging/smoke.sh \

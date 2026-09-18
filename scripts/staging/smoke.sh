@@ -24,8 +24,9 @@ Usage: smoke.sh --commit SHA --ai-url URL --core-url URL --web-url URL \
   --ai-revision NAME --core-revision NAME --web-revision NAME \
   [--project PROJECT] [--region REGION]
 
-Runs bounded post-deployment checks using only the dedicated dependency-health
-credential required by Core's detail-free aggregate health endpoint.
+Requires AI_ID_TOKEN in the environment, minted for the canonical AI service URL.
+Runs bounded post-deployment checks with that token and the dedicated
+dependency-health credential for Core's detail-free aggregate health endpoint.
 EOF
 }
 
@@ -85,6 +86,8 @@ for revision in "$AI_REVISION" "$CORE_REVISION" "$WEB_REVISION"; do
     || fail "revision does not identify the intended commit"
 done
 
+[[ "${AI_ID_TOKEN:-}" =~ [^[:space:]] ]] || fail "AI_ID_TOKEN is required"
+
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v gcloud >/dev/null 2>&1 || fail "gcloud is required"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
@@ -130,11 +133,8 @@ retry_curl() {
     "$destination"
 }
 
-AI_ID_TOKEN="$(gcloud auth print-identity-token --audiences "$AI_URL" --include-email)"
-[[ -n "$AI_ID_TOKEN" ]] || fail "could not mint an AI service identity token"
-
 retry_curl "$AI_URL/health" "$RUNTIME_DIR/ai.json" \
-  --header "Authorization: Bearer $AI_ID_TOKEN"
+  --header @- <<< "Authorization: Bearer $AI_ID_TOKEN"
 jq -e '.status == "ok"' "$RUNTIME_DIR/ai.json" >/dev/null \
   || fail "AI health response was not healthy"
 unset AI_ID_TOKEN
