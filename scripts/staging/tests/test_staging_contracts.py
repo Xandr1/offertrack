@@ -137,6 +137,43 @@ class CloudRunContractTest(unittest.TestCase):
                 )
         self.assertNotIn("readiness_probe", ai)
 
+    def test_application_urls_and_oauth_configuration_remain_canonical(self) -> None:
+        for service, resource in (
+            ("ai", "ai"),
+            ("core", "core_api"),
+            ("web", "web"),
+        ):
+            with self.subTest(service=service):
+                self.assertIn(
+                    f'{service}_service_host = "${{local.cloud_run_names.{resource}}}-'
+                    '${var.project_number}.${var.region}.run.app"',
+                    " ".join(self.cloud_run.split()),
+                )
+                self.assertRegex(
+                    self.cloud_run,
+                    rf'(?m)^\s*{service}_service_url\s*=\s*'
+                    rf'"https://\${{local.{service}_service_host}}"$',
+                )
+
+        core_environment = assignment_block(self.cloud_run, "core_environment")
+        for name, url in (
+            ("AI_SERVICE_BASE_URL", "ai"),
+            ("AI_SERVICE_AUDIENCE", "ai"),
+            ("APP_WEB_URL", "web"),
+            ("CORS_ALLOWED_ORIGINS", "web"),
+        ):
+            with self.subTest(environment=name):
+                self.assertRegex(
+                    core_environment,
+                    rf"(?m)^\s*{name}\s*=\s*local.{url}_service_url$",
+                )
+
+        self.assertIn(
+            "https://offertrack-stg-core-765846644391.europe-central2.run.app"
+            "/login/oauth2/code/google",
+            read("docs/gcp-staging-infrastructure.md"),
+        )
+
     def test_deployer_permissions_are_resource_scoped_and_explicit(self) -> None:
         ai_invoker = resource_block(
             self.iam, "google_cloud_run_v2_service_iam_member", "ai_invoker"
@@ -376,7 +413,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
             "Deploy and verify the AI candidate revision",
             "Update and execute the migration job",
             "Deploy and verify the Core candidate revision",
-            "Build the Web image with the resolved Core URL",
+            "Build the Web image with the canonical Core URL",
             "Deploy and verify the Web candidate revision",
             "Run bounded staging smoke checks",
         )
@@ -386,6 +423,83 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         self.assertEqual(3, self.workflow.count("--to-latest --clear-tags"))
         self.assertIn('gcloud run jobs execute "$MIGRATION_JOB"', self.workflow)
         self.assertIn("--wait", self.workflow)
+
+    def test_rollout_uses_canonical_urls_without_service_uri_equality(self) -> None:
+        self.assertIn('PROJECT_NUMBER: "765846644391"', self.workflow)
+        steps = (
+            ("AI", "AI", "Update and execute the migration job", "/health"),
+            (
+                "CORE", "Core", "Build the Web image with the canonical Core URL",
+                "/actuator/health/readiness",
+            ),
+            ("WEB", "Web", "Run bounded staging smoke checks", "/login"),
+        )
+        for service, label, next_step, health_path in steps:
+            with self.subTest(service=service):
+                start = self.workflow.index(
+                    f"Deploy and verify the {label} candidate revision"
+                )
+                step = self.workflow[start : self.workflow.index(next_step, start)]
+                self.assertIn(
+                    f'canonical_url="https://${{{service}_SERVICE}}-'
+                    '${PROJECT_NUMBER}.${REGION}.run.app"',
+                    step,
+                )
+                self.assertIn(
+                    f'candidate_url="https://candidate---${{{service}_SERVICE}}-'
+                    '${PROJECT_NUMBER}.${REGION}.run.app"',
+                    step,
+                )
+                self.assertIn('[[ "$ready_revision" == "$expected_revision" ]]', step)
+                self.assertIn(f'"$candidate_url{health_path}"', step)
+                self.assertIn(f'"{service}_URL=$canonical_url"', step)
+                for line in step.splitlines():
+                    if re.search(r"\$(?:canonical_url|\{canonical_url\})", line):
+                        self.assertNotRegex(line, r"\s(?:==|=|!=)\s")
+                self.assertLess(
+                    step.index("--to-latest --clear-tags"),
+                    step.index(f'"{service}_URL=$canonical_url"'),
+                )
+
+        ai_step = self.workflow[
+            self.workflow.index("Deploy and verify the AI candidate revision") :
+            self.workflow.index("Update and execute the migration job")
+        ]
+        self.assertIn('gcloud auth print-identity-token --audiences "$canonical_url"', ai_step)
+        self.assertLess(
+            ai_step.index("--to-latest --clear-tags"),
+            ai_step.index('"$canonical_url/health"'),
+        )
+        self.assertRegex(
+            ai_step,
+            r'"\$canonical_url/health"\s+jq -e \'\.status == "ok"\'',
+        )
+
+        core_step = self.workflow[
+            self.workflow.index("Deploy and verify the Core candidate revision") :
+            self.workflow.index("Build the Web image with the canonical Core URL")
+        ]
+        self.assertLess(
+            core_step.index("--to-latest --clear-tags"),
+            core_step.index('"$canonical_url/actuator/health/readiness"'),
+        )
+        self.assertRegex(
+            core_step,
+            r'"\$canonical_url/actuator/health/readiness"\s+'
+            r'jq -e \'\.status == "UP"\'',
+        )
+        self.assertIn('"$candidate_url/actuator/health/dependencies"', core_step)
+        self.assertIn('--next-public-api-url "$CORE_URL"', self.workflow)
+
+        smoke = read("scripts/staging/smoke.sh")
+        for service, path in (
+            ("AI", "/health"),
+            ("CORE", "/actuator/health/readiness"),
+            ("WEB", "/login"),
+        ):
+            with self.subTest(smoke=service):
+                self.assertIn(f'--{service.lower()}-url "${service}_URL"', self.workflow)
+                self.assertIn(f'"${service}_URL{path}"', smoke)
 
     def test_images_are_commit_tagged_and_deployed_by_digest(self) -> None:
         self.assertIn('offertrack/${component}:$DEPLOY_SHA', self.workflow)

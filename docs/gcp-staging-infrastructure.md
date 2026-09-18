@@ -93,10 +93,12 @@ https://offertrack-stg-core-765846644391.europe-central2.run.app
 https://offertrack-stg-web-765846644391.europe-central2.run.app
 ```
 
-Terraform exposes these canonical URLs and the API-reported URIs. Deployment
-automation resolves the API-reported URI and requires it to equal the canonical
-value before continuing. The AI URL is also the Google ID-token audience. The
-Core URL is compiled into the Web image, and the Web URL is the exact Core CORS
+Terraform exposes these canonical application URLs and the Cloud Run
+API-reported service URIs. The API may report a different, hash-based
+`*.a.run.app` URI; both forms can be valid. Deployment uses the deterministic
+URLs and verifies them with bounded HTTPS checks rather than comparing them to
+the API-reported URI. The AI URL is also the Google ID-token audience. The Core
+URL is compiled into the Web image, and the Web URL is the exact Core CORS
 origin and redirect target.
 
 The AI startup and liveness probes send `Host` set to the canonical AI hostname.
@@ -340,7 +342,7 @@ bash scripts/containers/build-images.sh \
   --components core-api,ai-service \
   --tag "$GIT_SHA"
 
-# Web must be built only after resolving the exact Core URL.
+# Web must be built only after Core passes readiness at its canonical URL.
 bash scripts/containers/build-images.sh \
   --components web \
   --app-env staging \
@@ -371,14 +373,14 @@ The order is fixed:
 2. rebuild the production Core and AI images and publish immutable SHA tags;
 3. resolve both digests;
 4. create AI at zero traffic, call its IAM-authenticated health endpoint, then
-   promote it;
+   promote it and check health at its deterministic URL;
 5. update the migration job definition to the Core digest;
 6. execute the job once and wait for a successful result;
 7. create Core at zero traffic, resolve the dedicated health-secret version
    from that revision, and require readiness plus authenticated dependency
    health without exporting the credential globally;
-8. promote Core and resolve its actual canonical URI;
-9. build Web with that exact URI, publish and resolve its digest;
+8. promote Core and check readiness at its deterministic URL;
+9. build Web with that Core URL, publish and resolve its digest;
 10. create Web at zero traffic, verify `/login`, then promote it; and
 11. run bounded post-rollout checks and report commit, revisions, job, and image
     digests without protected environment output.

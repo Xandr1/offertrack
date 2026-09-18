@@ -189,17 +189,20 @@ jobs:
             --output "$response" \
             "$candidate_url/health"
           jq -e '.status == "ok"' "$response" >/dev/null
-          unset id_token
-          rm -f -- "$response"
-          trap - EXIT
 
           gcloud run services update-traffic "$AI_SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" \
             --to-latest --clear-tags --quiet
-          actual_url="$(gcloud run services describe "$AI_SERVICE" \
-            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
-          [[ "$actual_url" == "$canonical_url" ]]
-          printf '%s\n' "AI_URL=$actual_url" "AI_REVISION=$expected_revision" >> "$GITHUB_ENV"
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --header "Authorization: Bearer $id_token" \
+            --output "$response" \
+            "$canonical_url/health"
+          jq -e '.status == "ok"' "$response" >/dev/null
+          unset id_token
+          rm -f -- "$response"
+          trap - EXIT
+          printf '%s\n' "AI_URL=$canonical_url" "AI_REVISION=$expected_revision" >> "$GITHUB_ENV"
 
       - name: Update and execute the migration job
         shell: bash
@@ -272,14 +275,16 @@ jobs:
           gcloud run services update-traffic "$CORE_SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" \
             --to-latest --clear-tags --quiet
-          actual_url="$(gcloud run services describe "$CORE_SERVICE" \
-            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
-          [[ "$actual_url" == "$canonical_url" ]]
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
+            --output "$response" \
+            "$canonical_url/actuator/health/readiness"
+          jq -e '.status == "UP"' "$response" >/dev/null
           rm -f -- "$response" "$revision_config"
           trap - EXIT
-          printf '%s\n' "CORE_URL=$actual_url" "CORE_REVISION=$expected_revision" >> "$GITHUB_ENV"
+          printf '%s\n' "CORE_URL=$canonical_url" "CORE_REVISION=$expected_revision" >> "$GITHUB_ENV"
 
-      - name: Build the Web image with the resolved Core URL
+      - name: Build the Web image with the canonical Core URL
         shell: bash
         run: |
           set -euo pipefail
@@ -337,10 +342,7 @@ jobs:
           gcloud run services update-traffic "$WEB_SERVICE" \
             --project "$PROJECT_ID" --region "$REGION" \
             --to-latest --clear-tags --quiet
-          actual_url="$(gcloud run services describe "$WEB_SERVICE" \
-            --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
-          [[ "$actual_url" == "$canonical_url" ]]
-          printf '%s\n' "WEB_URL=$actual_url" "WEB_REVISION=$expected_revision" >> "$GITHUB_ENV"
+          printf '%s\n' "WEB_URL=$canonical_url" "WEB_REVISION=$expected_revision" >> "$GITHUB_ENV"
 
       - name: Run bounded staging smoke checks
         shell: bash

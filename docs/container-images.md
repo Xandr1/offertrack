@@ -44,9 +44,9 @@ offertrack/ai-service:local
 
 `--tag` defaults to `local`. `--components` accepts a comma-separated selection
 of `web`, `core-api`, and `ai-service` and defaults to all three. This lets the
-staging workflow publish Core and AI before Core's service URI is resolved, then
-build only Web with that exact URI. `--app-env` is required when Web is selected
-and accepts exactly
+staging workflow publish Core and AI, then build only Web with the deterministic
+Core URL after Core passes its canonical readiness check. `--app-env` is required
+when Web is selected and accepts exactly
 `local`, `development`, `test`, `e2e`, `staging`, or `production`.
 `--next-public-api-url` is also required when Web is selected. The validator rejects credentials,
 queries, fragments, non-HTTP(S) schemes, and unsafe protected-environment

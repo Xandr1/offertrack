@@ -122,7 +122,7 @@ output "web_service_url" {
 }
 
 output "cloud_run_reported_uris" {
-  description = "Cloud Run API-reported service URIs for operational verification against the configured canonical URLs."
+  description = "Cloud Run API-reported service URIs for diagnostics; these may differ from the canonical URLs."
   value = {
     ai   = try(google_cloud_run_v2_service.ai[0].uri, null)
     core = try(google_cloud_run_v2_service.core[0].uri, null)
