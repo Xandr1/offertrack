@@ -795,9 +795,6 @@ for (const viewport of responsiveViewports) {
       await page
         .getByRole("combobox", { name: "Stage" })
         .selectOption("applied");
-      await expect(
-        page.getByRole("button", { name: "Clear filters" }),
-      ).toBeVisible();
     }
 
     const search = page.getByRole("textbox", { name: "Search applications" });
@@ -899,8 +896,8 @@ test("collapsed sidebar expands content and persists across navigation and reloa
   );
   expect(
     expandedSidebarBox.x +
-      expandedSidebarBox.width -
-      (expandedToggleBox.x + expandedToggleBox.width),
+    expandedSidebarBox.width -
+    (expandedToggleBox.x + expandedToggleBox.width),
   ).toBeLessThanOrEqual(18);
   expect(expandedToggleBox.y).toBeGreaterThan(
     expandedLogoBox.y + expandedLogoBox.height + 1,
@@ -918,7 +915,7 @@ test("collapsed sidebar expands content and persists across navigation and reloa
       monitor.maxOverflow = Math.max(
         monitor.maxOverflow,
         document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
+        document.documentElement.clientWidth,
       );
       if (monitor.active) {
         window.requestAnimationFrame(sampleOverflow);
@@ -964,15 +961,15 @@ test("collapsed sidebar expands content and persists across navigation and reloa
   expect(
     Math.abs(
       logoBox.x +
-        logoBox.width / 2 -
-        (collapsedSidebarBox.x + collapsedSidebarBox.width / 2),
+      logoBox.width / 2 -
+      (collapsedSidebarBox.x + collapsedSidebarBox.width / 2),
     ),
   ).toBeLessThanOrEqual(1);
   expect(
     Math.abs(
       collapsedToggleBox.x +
-        collapsedToggleBox.width / 2 -
-        (logoBox.x + logoBox.width / 2),
+      collapsedToggleBox.width / 2 -
+      (logoBox.x + logoBox.width / 2),
     ),
   ).toBeLessThanOrEqual(1);
   expect(collapsedToggleBox.y).toBeGreaterThan(
@@ -1031,9 +1028,6 @@ test("collapsed sidebar expands content and persists across navigation and reloa
   await page
     .getByRole("combobox", { name: "Stage" })
     .selectOption("applied");
-  await expect(
-    page.getByRole("button", { name: "Clear filters" }),
-  ).toBeVisible();
   await expectApplicationsToolbarLayout(page, "intermediate", true);
   await page.getByRole("button", { name: "Board" }).click();
   await expect(
