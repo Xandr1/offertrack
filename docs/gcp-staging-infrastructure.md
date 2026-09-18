@@ -412,6 +412,15 @@ manual rollback state first.
 - latest-ready revision names and resolved revision image digests; and
 - the migration job's Core image digest.
 
+The workflow uses the pinned `google-github-actions/auth` action to mint a
+deployer ID token immediately before AI candidate verification and a fresh one
+before smoke. Both include the deployer email and use
+`https://offertrack-stg-ai-765846644391.europe-central2.run.app` as the audience,
+including requests to the candidate tag URL. These token-only calls preserve the
+existing WIF credentials used by gcloud. Each token is passed only in its
+consumer step's `AI_ID_TOKEN` environment variable; smoke fails if it is absent
+or blank. AI authorization headers reach curl through standard input.
+
 It fails rather than skipping a downstream check. It reads no application
 secret. Browser OAuth redirect, secure-cookie, and CSRF acceptance is a separate
 real-browser staging test after Google OAuth callback registration.
