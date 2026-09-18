@@ -118,10 +118,10 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertRegex(self.cloud_run, r'REDIS_TLS_ENABLED\s+=\s+"true"')
         self.assertNotIn("insecure", self.cloud_run.lower())
 
-    def test_ai_health_probes_use_the_canonical_trusted_host(self) -> None:
+    def test_ai_http_health_probes_use_the_canonical_trusted_host(self) -> None:
         ai = resource_block(self.cloud_run, "google_cloud_run_v2_service", "ai")
 
-        for probe_name in ("startup_probe", "liveness_probe", "readiness_probe"):
+        for probe_name in ("startup_probe", "liveness_probe"):
             with self.subTest(probe=probe_name):
                 probe = re.search(
                     rf"(?ms)^      {probe_name} \{{(.*?)^      \}}", ai
@@ -135,6 +135,7 @@ class CloudRunContractTest(unittest.TestCase):
                     "            value = local.ai_service_host\n          }",
                     probe_contents,
                 )
+        self.assertNotIn("readiness_probe", ai)
 
     def test_deployer_permissions_are_resource_scoped_and_explicit(self) -> None:
         ai_invoker = resource_block(
