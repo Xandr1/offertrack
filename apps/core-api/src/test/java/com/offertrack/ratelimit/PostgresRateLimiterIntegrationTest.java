@@ -3,6 +3,8 @@ package com.offertrack.ratelimit;
 import static com.offertrack.jooq.generated.tables.RateLimitCounters.RATE_LIMIT_COUNTERS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.sql.Connection;
 import java.time.Clock;
@@ -159,6 +161,9 @@ class PostgresRateLimiterIntegrationTest {
     seed("recent", "at-grace-boundary", NOW.minusSeconds(300));
     seed("active", "active", NOW.plusSeconds(60));
     String lockedHash = hasher.hash("old-200");
+    Clock clock = mock(Clock.class);
+    setTime(clock, NOW);
+    PostgresRateLimiter limiter = new PostgresRateLimiter(dsl, hasher, clock);
     try (Connection connection = dataSource.getConnection()) {
       connection.setAutoCommit(false);
       DSL.using(connection, SQLDialect.POSTGRES)
@@ -166,7 +171,6 @@ class PostgresRateLimiterIntegrationTest {
           .where(RATE_LIMIT_COUNTERS.SUBJECT_HASH.eq(lockedHash))
           .forUpdate()
           .fetch();
-      PostgresRateLimiter limiter = limiter(NOW);
       limiter.consume(attempt("cleanup@example.com", 1));
       assertThat(rows("stale")).isEqualTo(101);
       assertThat(rows("recent")).isEqualTo(1);
@@ -178,8 +182,25 @@ class PostgresRateLimiterIntegrationTest {
       assertThat(rows("stale")).isEqualTo(101);
       connection.rollback();
     }
-    limiter(NOW.plusSeconds(60)).consume(attempt("cleanup@example.com", 1));
+    setTime(clock, NOW.plusMillis(999));
+    limiter.consume(attempt("cleanup@example.com", 1));
+    assertThat(rows("stale")).isEqualTo(101);
+    setTime(clock, NOW.plusSeconds(1));
+    limiter.consume(attempt("cleanup@example.com", 1));
     assertThat(rows("stale")).isEqualTo(1);
+    setTime(clock, NOW.plusSeconds(2));
+    limiter.consume(attempt("cleanup@example.com", 1));
+    assertThat(rows("stale")).isZero();
+    assertThat(rows("recent")).isZero();
+    assertThat(rows("active")).isEqualTo(1);
+
+    seed("stale", "after-partial-batch", NOW.minusSeconds(600));
+    setTime(clock, NOW.plusSeconds(3));
+    limiter.consume(attempt("cleanup@example.com", 1));
+    assertThat(rows("stale")).isEqualTo(1);
+    setTime(clock, NOW.plusSeconds(62));
+    limiter.consume(attempt("cleanup@example.com", 1));
+    assertThat(rows("stale")).isZero();
   }
 
   @Test
@@ -220,6 +241,11 @@ class PostgresRateLimiterIntegrationTest {
 
   private PostgresRateLimiter limiter(Instant now) {
     return new PostgresRateLimiter(dsl, hasher, Clock.fixed(now, ZoneOffset.UTC));
+  }
+
+  private static void setTime(Clock clock, Instant now) {
+    when(clock.instant()).thenReturn(now);
+    when(clock.millis()).thenReturn(now.toEpochMilli());
   }
 
   private static RateLimitAttempt attempt(String subject, int limit) {

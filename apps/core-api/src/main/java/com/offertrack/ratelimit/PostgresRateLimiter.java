@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 class PostgresRateLimiter implements RateLimiter {
   private static final Logger log = LoggerFactory.getLogger(PostgresRateLimiter.class);
   private static final Duration CLEANUP_INTERVAL = Duration.ofMinutes(1);
+  private static final Duration BACKLOG_CLEANUP_INTERVAL = Duration.ofSeconds(1);
   private static final Duration CLEANUP_GRACE = Duration.ofMinutes(5);
   private static final int CLEANUP_BATCH_SIZE = 100;
 
@@ -82,35 +83,42 @@ class PostgresRateLimiter implements RateLimiter {
   private void cleanupIfDue() {
     long now = clock.millis();
     long next = nextCleanupAt.get();
-    if (now < next || !nextCleanupAt.compareAndSet(next, now + CLEANUP_INTERVAL.toMillis())) {
+    long claimedNextCleanupAt = now + CLEANUP_INTERVAL.toMillis();
+    if (now < next || !nextCleanupAt.compareAndSet(next, claimedNextCleanupAt)) {
       return;
     }
 
     try {
-      dsl.deleteFrom(RATE_LIMIT_COUNTERS)
-          .where(
-              DSL.row(
-                      RATE_LIMIT_COUNTERS.POLICY,
-                      RATE_LIMIT_COUNTERS.SUBJECT_TYPE,
-                      RATE_LIMIT_COUNTERS.SUBJECT_HASH,
-                      RATE_LIMIT_COUNTERS.BUCKET)
-                  .in(
-                      dsl.select(
-                              RATE_LIMIT_COUNTERS.POLICY,
-                              RATE_LIMIT_COUNTERS.SUBJECT_TYPE,
-                              RATE_LIMIT_COUNTERS.SUBJECT_HASH,
-                              RATE_LIMIT_COUNTERS.BUCKET)
-                          .from(RATE_LIMIT_COUNTERS)
-                          .where(
-                              RATE_LIMIT_COUNTERS.EXPIRES_AT.lt(
-                                  Instant.ofEpochMilli(now)
-                                      .minus(CLEANUP_GRACE)
-                                      .atOffset(ZoneOffset.UTC)))
-                          .orderBy(RATE_LIMIT_COUNTERS.EXPIRES_AT)
-                          .limit(CLEANUP_BATCH_SIZE)
-                          .forUpdate()
-                          .skipLocked()))
-          .execute();
+      int deleted =
+          dsl.deleteFrom(RATE_LIMIT_COUNTERS)
+              .where(
+                  DSL.row(
+                          RATE_LIMIT_COUNTERS.POLICY,
+                          RATE_LIMIT_COUNTERS.SUBJECT_TYPE,
+                          RATE_LIMIT_COUNTERS.SUBJECT_HASH,
+                          RATE_LIMIT_COUNTERS.BUCKET)
+                      .in(
+                          dsl.select(
+                                  RATE_LIMIT_COUNTERS.POLICY,
+                                  RATE_LIMIT_COUNTERS.SUBJECT_TYPE,
+                                  RATE_LIMIT_COUNTERS.SUBJECT_HASH,
+                                  RATE_LIMIT_COUNTERS.BUCKET)
+                              .from(RATE_LIMIT_COUNTERS)
+                              .where(
+                                  RATE_LIMIT_COUNTERS.EXPIRES_AT.lt(
+                                      Instant.ofEpochMilli(now)
+                                          .minus(CLEANUP_GRACE)
+                                          .atOffset(ZoneOffset.UTC)))
+                              .orderBy(RATE_LIMIT_COUNTERS.EXPIRES_AT)
+                              .limit(CLEANUP_BATCH_SIZE)
+                              .forUpdate()
+                              .skipLocked()))
+              .execute();
+      if (deleted == CLEANUP_BATCH_SIZE) {
+        // Do not replace a newer claim if this cleanup took longer than the normal interval.
+        nextCleanupAt.compareAndSet(
+            claimedNextCleanupAt, clock.millis() + BACKLOG_CLEANUP_INTERVAL.toMillis());
+      }
     } catch (RuntimeException exception) {
       log.warn("rate_limit_cleanup_failed");
     }

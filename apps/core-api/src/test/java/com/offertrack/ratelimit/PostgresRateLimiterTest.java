@@ -26,6 +26,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -43,6 +45,7 @@ class PostgresRateLimiterTest {
   private Long count = 1L;
   private RuntimeException counterFailure;
   private boolean cleanupFails;
+  private int cleanupDeletedRows;
 
   @BeforeEach
   void setUp() {
@@ -60,7 +63,7 @@ class PostgresRateLimiterTest {
                     if (cleanupFails) {
                       throw new SQLException("cleanup-secret-marker");
                     }
-                    return new MockResult[] {new MockResult(0)};
+                    return new MockResult[] {new MockResult(cleanupDeletedRows)};
                   }
                   if (counterFailure != null) {
                     throw counterFailure;
@@ -143,7 +146,81 @@ class PostgresRateLimiterTest {
   }
 
   @Test
-  void concurrentSuccessesOnlyClaimOneCleanupPerInterval() throws Exception {
+  void fullBatchesAccelerateCleanupUntilAPartialBatchRestoresTheNormalInterval() {
+    cleanupDeletedRows = 100;
+    assertThat(limiter.consume(attempt()).allowed()).isTrue();
+    assertThat(cleanupCalls).hasValue(1);
+    count = 6L;
+    setTime("2026-07-12T00:00:59.999Z");
+    assertThat(limiter.consume(attempt()).allowed()).isFalse();
+    assertThat(cleanupCalls).hasValue(1);
+    setTime("2026-07-12T00:01:00Z");
+    assertThat(limiter.consume(attempt()).allowed()).isFalse();
+    assertThat(cleanupCalls).hasValue(2);
+
+    cleanupDeletedRows = 99;
+    setTime("2026-07-12T00:01:01Z");
+    limiter.consume(attempt());
+    assertThat(cleanupCalls).hasValue(3);
+    setTime("2026-07-12T00:01:02Z");
+    limiter.consume(attempt());
+    setTime("2026-07-12T00:02:00.999Z");
+    limiter.consume(attempt());
+    assertThat(cleanupCalls).hasValue(3);
+    setTime("2026-07-12T00:02:01Z");
+    limiter.consume(attempt());
+    assertThat(cleanupCalls).hasValue(4);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 99})
+  void partialAndEmptyBatchesKeepTheNormalInterval(int deleted) {
+    cleanupDeletedRows = deleted;
+    limiter.consume(attempt());
+    setTime("2026-07-12T00:01:00Z");
+    limiter.consume(attempt());
+    setTime("2026-07-12T00:01:58.999Z");
+    limiter.consume(attempt());
+    assertThat(cleanupCalls).hasValue(1);
+    setTime("2026-07-12T00:01:59Z");
+    limiter.consume(attempt());
+    assertThat(cleanupCalls).hasValue(2);
+  }
+
+  @Test
+  void failedAcceleratedCleanupUsesTheNormalRetryInterval(CapturedOutput output) {
+    cleanupDeletedRows = 100;
+    limiter.consume(attempt());
+    cleanupFails = true;
+    count = 6L;
+    setTime("2026-07-12T00:01:00Z");
+    assertThat(limiter.consume(attempt()).allowed()).isFalse();
+    assertThat(cleanupCalls).hasValue(2);
+    setTime("2026-07-12T00:01:01Z");
+    limiter.consume(attempt());
+    setTime("2026-07-12T00:01:59.999Z");
+    limiter.consume(attempt());
+    assertThat(cleanupCalls).hasValue(2);
+    setTime("2026-07-12T00:02:00Z");
+    assertThat(limiter.consume(attempt()).allowed()).isFalse();
+    assertThat(cleanupCalls).hasValue(3);
+    assertThat(output.getAll())
+        .contains("rate_limit_cleanup_failed")
+        .doesNotContain("cleanup-secret-marker");
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 100})
+  void concurrentSuccessesOnlyClaimOneCleanupPerInterval(int deleted) throws Exception {
+    cleanupDeletedRows = deleted;
+    consumeConcurrently();
+    assertThat(cleanupCalls).hasValue(1);
+    setTime(deleted == 100 ? "2026-07-12T00:01:00Z" : "2026-07-12T00:01:59Z");
+    consumeConcurrently();
+    assertThat(cleanupCalls).hasValue(2);
+  }
+
+  private void consumeConcurrently() throws Exception {
     try (var executor = Executors.newFixedThreadPool(8)) {
       List<Callable<RateLimitDecision>> calls = new ArrayList<>();
       for (int i = 0; i < 64; i++) {
@@ -153,10 +230,6 @@ class PostgresRateLimiterTest {
         assertThat(result.get().allowed()).isTrue();
       }
     }
-    assertThat(cleanupCalls).hasValue(1);
-    setTime("2026-07-12T00:01:59Z");
-    limiter.consume(attempt());
-    assertThat(cleanupCalls).hasValue(2);
   }
 
   private void setTime(String value) {

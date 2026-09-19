@@ -187,13 +187,15 @@ buckets use epoch seconds divided by the configured whole-second window. The
 stored subject is only the existing HMAC-SHA-256 hash. No raw email, IP, token,
 user ID, or key secret is stored in this table or logged by the limiter.
 
-After successful counter operations, each Core instance attempts cleanup at
-most once per minute. It deletes at most 100 rows whose bucket ended over five
-minutes ago, using an expiry index and `FOR UPDATE SKIP LOCKED`. Cleanup runs
+After successful counter operations, each Core instance normally attempts cleanup
+once per minute. Each execution deletes at most 100 rows whose bucket ended over
+five minutes ago, using an expiry index and `FOR UPDATE SKIP LOCKED`. A full batch
+makes the next cleanup eligible after one second to drain a possible backlog;
+partial or empty batches retain the one-minute interval. Cleanup runs
 separately from counter updates; cleanup failures emit a generic warning and do
-not affect allowed or denied decisions. Failed cleanup is also throttled. This
-bounds cleanup work, not total table size: sustained churn or persistent cleanup
-failures can accumulate expired rows and should be monitored.
+not affect allowed or denied decisions. Failed cleanup retains the one-minute
+interval. This bounds cleanup work, not total table size: sustained churn or
+persistent cleanup failures can accumulate expired rows and should be monitored.
 
 ## AI draft caching
 

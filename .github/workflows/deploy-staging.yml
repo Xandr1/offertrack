@@ -203,7 +203,7 @@ jobs:
           response="$(mktemp "${RUNNER_TEMP%/}/offertrack-ai-health.XXXXXX")"
           trap 'rm -f -- "$response"; unset AI_ID_TOKEN' EXIT
           curl --fail --silent --show-error \
-            --connect-timeout 5 --max-time 20 --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 75 \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --header @- \
             --output "$response" \
             "$candidate_url/health" <<< "Authorization: Bearer $AI_ID_TOKEN"
@@ -213,7 +213,7 @@ jobs:
             --project "$PROJECT_ID" --region "$REGION" \
             --to-latest --clear-tags --quiet
           curl --fail --silent --show-error \
-            --connect-timeout 5 --max-time 20 --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 75 \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --header @- \
             --output "$response" \
             "$canonical_url/health" <<< "Authorization: Bearer $AI_ID_TOKEN"
@@ -263,7 +263,7 @@ jobs:
           [[ "$ready_revision" == "$expected_revision" ]]
 
           curl --fail --silent --show-error \
-            --connect-timeout 5 --max-time 20 --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 75 \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output "$response" \
             "$candidate_url/actuator/health/readiness"
           jq -e '.status == "UP"' "$response" >/dev/null
@@ -284,7 +284,7 @@ jobs:
             --secret "$health_secret_name" --project "$PROJECT_ID")"
           [[ -n "$dependency_health_key" ]]
           curl --fail --silent --show-error \
-            --connect-timeout 5 --max-time 20 --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 75 \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output "$response" \
             --header "X-Dependency-Health-Key: $dependency_health_key" \
             "$candidate_url/actuator/health/dependencies"
@@ -295,7 +295,7 @@ jobs:
             --project "$PROJECT_ID" --region "$REGION" \
             --to-latest --clear-tags --quiet
           curl --fail --silent --show-error \
-            --connect-timeout 5 --max-time 20 --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 75 \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output "$response" \
             "$canonical_url/actuator/health/readiness"
           jq -e '.status == "UP"' "$response" >/dev/null
@@ -354,7 +354,7 @@ jobs:
             --format='value(status.latestReadyRevisionName)')"
           [[ "$ready_revision" == "$expected_revision" ]]
           curl --fail --silent --show-error \
-            --connect-timeout 5 --max-time 20 --retry 12 --retry-all-errors --retry-delay 5 --retry-max-time 75 \
+            --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output /dev/null \
             "$candidate_url/login"
 

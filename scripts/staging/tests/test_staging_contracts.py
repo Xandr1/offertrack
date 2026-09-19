@@ -542,10 +542,9 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         retry_policy = {
             "--connect-timeout 5": None,
             "--max-time 20": None,
-            "--retry 12": None,
+            "--retry 4": None,
             "--retry-all-errors": None,
-            "--retry-delay 5": None,
-            "--retry-max-time 75": None,
+            "--retry-delay 2": None,
         }
 
         steps = (
@@ -559,6 +558,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
                 step = self.step(step_name)
 
                 self.assertEqual(expected_checks, step.count("curl --fail"))
+                self.assertNotIn("--retry-max-time", step)
 
                 for option in retry_policy:
                     self.assertEqual(
