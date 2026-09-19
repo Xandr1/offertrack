@@ -18,16 +18,6 @@ class InfrastructureConfigurationRulesTest {
   }
 
   @Test
-  void rejectsMalformedRedisHostWithoutLeakingItsValue() {
-    MockEnvironment environment = ProtectedConfigurationRulesTest.validEnvironment();
-    environment.withProperty("spring.data.redis.host", "redis host containing secret-marker");
-
-    assertThatThrownBy(() -> InfrastructureConfigurationRules.validate(configuration(environment)))
-        .hasMessageContaining("spring.data.redis.host")
-        .hasMessageNotContaining("secret-marker");
-  }
-
-  @Test
   void protectedServerAndPureMigrationValidationMakeTheSameDatabaseDecisions() {
     for (UnaryOperator<MockEnvironment> invalidCase :
         java.util.List.<UnaryOperator<MockEnvironment>>of(

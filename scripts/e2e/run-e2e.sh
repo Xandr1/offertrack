@@ -153,7 +153,7 @@ rm -rf -- "$WEB_ROOT/test-results" "$WEB_ROOT/playwright-report"
 
 # A fresh isolated volume is the primary database/reset mechanism.
 compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-compose up --detach postgres redis mailpit
+compose up --detach postgres mailpit
 
 export BACKEND_CODEGEN_COMPOSE_FILE="$COMPOSE_FILE"
 export BACKEND_CODEGEN_COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME"

@@ -17,19 +17,6 @@ services:
       timeout: 5s
       retries: 30
 
-  redis:
-    image: redis:7.4.9-alpine@sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7
-    platform: linux/amd64
-    ports:
-      - "127.0.0.1:56380:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 2s
-      timeout: 5s
-      retries: 30
-
   ai-service:
     image: offertrack/ai-service:${OFFERTRACK_IMAGE_TAG:?OFFERTRACK_IMAGE_TAG is required}
     platform: linux/amd64
@@ -81,8 +68,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       ai-service:
         condition: service_healthy
     environment:
@@ -93,10 +78,6 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke
       DB_USER: offertrack_container_smoke
       DB_PASSWORD: container-smoke-postgres-password-not-for-production
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_CONNECT_TIMEOUT: 2s
-      REDIS_TIMEOUT: 2s
       JWT_SECRET: container-smoke-jwt-secret-not-for-production-0123456789abcdef
       JWT_ACCESS_TOKEN_TTL: 1h
       OAUTH_COOKIE_SECRET: container-smoke-oauth-secret-not-for-production-fedcba9876543210
@@ -113,7 +94,6 @@ services:
       AI_SERVICE_INTERNAL_API_KEY: container-smoke-ai-internal-key-not-for-production-0123456789
       AI_SERVICE_AUTH_MODE: internal-key
       AI_SERVICE_AUDIENCE: ""
-      AI_DRAFT_CACHE_ENABLED: "false"
       SMTP_HOST: mail.invalid
       SMTP_PORT: "1025"
       SMTP_USERNAME: ""
@@ -185,4 +165,3 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:

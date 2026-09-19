@@ -6,7 +6,6 @@ locals {
     "roles/iam.roleViewer",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.workloadIdentityPoolAdmin",
-    "roles/redis.admin",
     "roles/resourcemanager.projectIamAdmin",
     "roles/run.admin",
     "roles/servicenetworking.networksAdmin",

@@ -3,10 +3,6 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://127.0.0.1:55432/offertrack_e2e}
     username: ${DB_USER:offertrack_e2e}
     password: ${DB_PASSWORD:offertrack_e2e_password}
-  data:
-    redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:56379}
   mail:
     host: ${SMTP_HOST:127.0.0.1}
     port: ${SMTP_PORT:51025}
@@ -20,7 +16,7 @@ management:
     health:
       group:
         readiness:
-          include: readinessState,db,redis
+          include: readinessState,db
 
 app:
   jwt:

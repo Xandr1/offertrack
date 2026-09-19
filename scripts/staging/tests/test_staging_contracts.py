@@ -115,11 +115,41 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertIn('name = "DB_PASSWORD"', migration)
         self.assertIn("max_retries           = 0", migration)
 
-    def test_redis_uses_the_complete_provider_ca_set(self) -> None:
-        self.assertIn("google_redis_instance.staging.server_ca_certs", self.cloud_run)
-        self.assertIn("REDIS_TLS_CA_CERTIFICATES", self.cloud_run)
-        self.assertRegex(self.cloud_run, r'REDIS_TLS_ENABLED\s+=\s+"true"')
-        self.assertNotIn("insecure", self.cloud_run.lower())
+    def test_postgres_runtime_has_no_managed_cache_dependency(self) -> None:
+        terraform = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (REPO_ROOT / "infra/terraform/staging").glob("*.tf")
+        )
+        self.assertNotRegex(terraform.lower(), r"redis|memorystore|ai_draft_cache")
+        self.assertIn("sqladmin.googleapis.com", read("infra/terraform/staging/apis.tf"))
+        self.assertRegex(read("infra/terraform/staging/apis.tf"), r"disable_on_destroy\s*=\s*false")
+        self.assertIn('secret  = "rate_limit_key"', self.cloud_run)
+        self.assertIn("RATE_LIMIT_KEY_SECRET", self.cloud_run)
+        self.assertRegex(self.cloud_run, r'RATE_LIMIT_FAIL_OPEN\s*=\s*"false"')
+
+    def test_cloud_sql_cost_default_preserves_database_safeguards(self) -> None:
+        variables = read("infra/terraform/staging/variables.tf")
+        tier = resource_block(variables, "cloud_sql_tier", "cloud_sql_tier", keyword="variable")
+        disk = resource_block(variables, "cloud_sql_disk_size_gb", "cloud_sql_disk_size_gb", keyword="variable")
+        self.assertRegex(tier, r'default\s*=\s*"db-f1-micro"')
+        self.assertRegex(disk, r"default\s*=\s*10\b")
+        database = read("infra/terraform/staging/cloud-sql.tf")
+        for name, value in {
+            "database_version": '"POSTGRES_16"',
+            "edition": '"ENTERPRISE"',
+            "availability_type": '"ZONAL"',
+            "disk_type": '"PD_SSD"',
+            "tier": "var.cloud_sql_tier",
+            "disk_size": "var.cloud_sql_disk_size_gb",
+            "deletion_protection": "true",
+            "deletion_protection_enabled": "true",
+            "point_in_time_recovery_enabled": "true",
+            "ipv4_enabled": "false",
+            "private_network": "google_compute_network.staging.id",
+        }.items():
+            self.assertRegex(database, rf"(?m)^\s*{name}\s*=\s*{re.escape(value)}\s*$")
+        self.assertRegex(database, r"backup_configuration\s*\{\s*enabled\s*=\s*true")
+        self.assertIn("google_service_networking_connection.private_services", database)
 
     def test_ai_http_health_probes_use_the_canonical_trusted_host(self) -> None:
         ai = resource_block(self.cloud_run, "google_cloud_run_v2_service", "ai")

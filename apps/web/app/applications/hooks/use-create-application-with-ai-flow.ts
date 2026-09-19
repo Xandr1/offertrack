@@ -4,7 +4,8 @@ import { FormEvent, useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApplicationDraft } from "@/lib/api";
-import type { ApplicationDraftResponse } from "@/lib/api";
+import type { ApplicationDraftRequest, ApplicationDraftResponse } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import {
   getRequestErrorMessage,
   redirectToLoginIfProtectedRoute,
@@ -76,7 +77,14 @@ export const useCreateApplicationWithAiFlow = ({
   const [createWithAiError, setCreateWithAiError] = useState<string | null>(null);
   const activeAiDraftRequestRef = useRef(0);
   const createApplicationDraftMutation = useMutation({
-    mutationFn: createApplicationDraft,
+    mutationFn: (payload: ApplicationDraftRequest) =>
+      queryClient.fetchQuery({
+        queryKey: queryKeys.applications.aiDraft(payload.jobUrl),
+        queryFn: () => createApplicationDraft(payload),
+        staleTime: 600_000,
+        gcTime: 600_000,
+        retry: false,
+      }),
   });
 
   const applyDraftToCreateModal = useCallback(

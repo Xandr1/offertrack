@@ -60,8 +60,10 @@ class FlywayMigrationRunnerTest {
 
     assertThat(first.successful()).isTrue();
     assertThat(first.migrationsExecuted()).isGreaterThan(0);
-    assertThat(firstHistory).contains("V1__create_users.sql", "V9__dashboard");
-    assertThat(firstSchema).contains("users|table", "job_applications|table");
+    assertThat(firstHistory)
+        .contains("V1__create_users.sql", "V9__dashboard", "V10__create_rate_limit_counters.sql");
+    assertThat(firstSchema)
+        .contains("users|table", "job_applications|table", "rate_limit_counters|table");
     assertThat(second.successful()).isTrue();
     assertThat(second.migrationsExecuted()).isZero();
     assertThat(secondHistory).isEqualTo(firstHistory);
@@ -198,7 +200,7 @@ class FlywayMigrationRunnerTest {
         select table_name, 'table'
         from information_schema.tables
         where table_schema = 'public'
-          and table_name in ('users', 'job_applications', 'application_interviews')
+          and table_name in ('users', 'job_applications', 'application_interviews', 'rate_limit_counters')
         order by table_name
         """);
   }

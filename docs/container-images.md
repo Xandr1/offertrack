@@ -17,7 +17,7 @@ The build requires:
 
 The smoke suite additionally requires Python 3 and `curl` on the host.
 
-All application images and the PostgreSQL and Redis smoke services target
+All application images and the PostgreSQL smoke service target
 `linux/amd64`. Builds use `docker buildx build --platform linux/amd64 --load`,
 and the scripts reject a loaded image whose inspected platform is not
 `linux/amd64`. An ARM host therefore needs Docker's amd64 emulation; these
@@ -139,8 +139,8 @@ Normal mode supplies `APP_ENV=e2e` and
 `NEXT_PUBLIC_API_URL=http://127.0.0.1:18081` to the image build. `--no-build`
 does not build or pull application images: it requires all three exact local
 application image references and verifies their `linux/amd64` architecture
-before Compose starts. Docker may still pull the PostgreSQL and Redis images by
-their committed immutable digests when those infrastructure images are absent.
+before Compose starts. Docker may still pull the PostgreSQL image by
+its committed immutable digest when that infrastructure image is absent.
 
 The deterministic smoke endpoints are:
 
@@ -150,11 +150,10 @@ The deterministic smoke endpoints are:
 | Core | 18081 | `http://127.0.0.1:18081` |
 | AI | 18001 | `http://127.0.0.1:18001` |
 | PostgreSQL | 5432 | `127.0.0.1:55433` |
-| Redis | 6379 | `127.0.0.1:56380` |
 
 The Compose file contains fixed smoke-only database credentials, cryptographic
-placeholders, URLs, CORS and cookie settings, AI limits and internal key, Redis
-timeouts, and non-routable mail settings. They must never be reused as
+placeholders, URLs, CORS and cookie settings, AI limits and internal key,
+rate-limit settings, and non-routable mail settings. They must never be reused as
 production credentials. Application root filesystems are read-only, Linux
 capabilities are dropped, `no-new-privileges` is enabled, and bounded tmpfs
 mounts provide `/tmp` plus the writable Next.js cache.
@@ -173,7 +172,7 @@ smoke services start.
 The full suite then performs bounded CORS, CSRF and
 login, Core-to-AI SSRF, PostgreSQL create/restart/read persistence, health,
 non-root, PID 1, runtime-content, and SIGTERM checks. The Core readiness view
-that exposes database and Redis components exists only in the
+that exposes application readiness and database components exists only in the
 `container-smoke` profile.
 
 Web production-output checks require:
@@ -185,9 +184,9 @@ Web production-output checks require:
   cache; and
 - `/login` to remain healthy after the Web container restarts.
 
-The successful Core-to-AI request shows that the Redis-backed limiter path,
+The successful Core-to-AI request shows that the PostgreSQL-backed limiter path,
 internal AI authentication and networking, and SSRF rejection are operational.
-It does not prove Redis fail-closed behavior during an outage; that behavior
+It does not prove PostgreSQL counter-store fail-closed behavior during an outage; that behavior
 remains covered by the existing focused tests.
 
 Before its first Compose mutation, each script installs cleanup traps scoped to
@@ -224,7 +223,7 @@ service continues to use `SERVER_PORT=18080`.
   smoke-specific and is not a future staging artifact.
 - No smoke request calls Google, OpenAI, or a real external job page.
 - The staging Terraform root now defines Artifact Registry, Cloud Run, Cloud
-  SQL, managed Redis, Secret Manager integration, and the deployment identity;
+  SQL, Secret Manager integration, and the deployment identity;
   production and custom-domain infrastructure remain outside this scope.
 - Staging publishes immutable Git-SHA tags and deploys resolved digests. Image
   signing, generated provenance attestations, and multi-platform publishing

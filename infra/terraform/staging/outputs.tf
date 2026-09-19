@@ -54,28 +54,6 @@ output "database_name" {
   value       = google_sql_database.offertrack.name
 }
 
-output "redis_host" {
-  description = "The private TLS Memorystore endpoint used by Core."
-  value       = google_redis_instance.staging.host
-  sensitive   = true
-}
-
-output "redis_port" {
-  description = "The TLS-enabled Memorystore endpoint port returned by GCP."
-  value       = google_redis_instance.staging.port
-}
-
-output "redis_tls_enabled" {
-  description = "Whether the Memorystore instance requires TLS."
-  value       = google_redis_instance.staging.transit_encryption_mode == "SERVER_AUTHENTICATION"
-}
-
-output "redis_server_ca_certificates" {
-  description = "Active Memorystore server CA certificates for the future runtime trust configuration."
-  value       = [for server_ca in google_redis_instance.staging.server_ca_certs : server_ca.cert]
-  sensitive   = true
-}
-
 output "secret_resource_names" {
   description = "Secret Manager container resource names; no secret values are exposed."
   value       = { for key, secret in google_secret_manager_secret.staging : key => secret.name }
