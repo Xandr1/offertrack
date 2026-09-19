@@ -12,7 +12,6 @@ import java.util.Set;
 import org.springframework.util.StringUtils;
 
 final class InfrastructureConfigurationRules {
-  private static final String REDIS_SSL_BUNDLE = "offertrack-redis";
   private static final String LOCAL_OAUTH_CLIENT_ID = "local-google-client-id";
   private static final String LOCAL_OAUTH_CLIENT_SECRET = "local-google-client-secret";
   private static final Set<String> FORWARD_HEADER_STRATEGIES =
@@ -23,7 +22,6 @@ final class InfrastructureConfigurationRules {
   static void validate(ProtectedConfigurationSnapshot configuration) {
     validateDatabase(configuration);
     requirePort(configuration.serverPort(), "server.port");
-    validateRedis(configuration);
     validateMail(configuration);
     validateGoogle(configuration);
   }
@@ -40,32 +38,6 @@ final class InfrastructureConfigurationRules {
     } catch (DatabaseConfigurationValidationException exception) {
       throw ConfigurationRuleSupport.invalidException(exception.property());
     }
-  }
-
-  private static void validateRedis(ProtectedConfigurationSnapshot configuration) {
-    HostValidation.requireExplicitNonLoopbackHost(
-        configuration.redisHost(), "spring.data.redis.host");
-    requirePort(configuration.redisPort(), "spring.data.redis.port");
-    requirePositiveDuration(
-        configuration.redisConnectTimeout(), "spring.data.redis.connect-timeout");
-    requirePositiveDuration(configuration.redisTimeout(), "spring.data.redis.timeout");
-    validateRedisTls(configuration);
-  }
-
-  private static void validateRedisTls(ProtectedConfigurationSnapshot configuration) {
-    String enabledProperty = "spring.data.redis.ssl.enabled";
-    requireBoolean(configuration.redisTlsEnabled(), enabledProperty);
-    if (!Boolean.parseBoolean(configuration.redisTlsEnabled().trim())) {
-      invalid(enabledProperty);
-    }
-
-    String bundleProperty = "spring.data.redis.ssl.bundle";
-    requireText(configuration.redisTlsBundle(), bundleProperty);
-    if (!REDIS_SSL_BUNDLE.equals(configuration.redisTlsBundle().trim())) {
-      invalid(bundleProperty);
-    }
-
-    RedisTlsTrustMaterialValidator.validate(configuration.redisTlsCaCertificates());
   }
 
   private static void validateMail(ProtectedConfigurationSnapshot configuration) {

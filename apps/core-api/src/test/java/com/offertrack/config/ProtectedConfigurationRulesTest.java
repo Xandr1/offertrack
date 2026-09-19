@@ -3,9 +3,6 @@ package com.offertrack.config;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
@@ -14,71 +11,6 @@ class ProtectedConfigurationRulesTest {
   void acceptsCompleteProtectedConfiguration() {
     assertThatCode(() -> ProtectedConfigurationRules.validate(validConfiguration()))
         .doesNotThrowAnyException();
-  }
-
-  @Test
-  void acceptsTheFullActiveRedisCaSet() {
-    MockEnvironment environment = validEnvironment();
-    environment.withProperty(
-        RedisTlsTrustMaterialValidator.PROPERTY,
-        redisCaCertificate() + "\n" + redisOtherCaCertificate());
-
-    assertThatCode(
-            () ->
-                ProtectedConfigurationRules.validate(
-                    ProtectedConfigurationSnapshot.from(environment)))
-        .doesNotThrowAnyException();
-  }
-
-  @Test
-  void rejectsDisabledRedisTlsInProtectedProfiles() {
-    MockEnvironment environment = validEnvironment();
-    environment.withProperty("spring.data.redis.ssl.enabled", "false");
-
-    assertThatThrownBy(
-            () ->
-                ProtectedConfigurationRules.validate(
-                    ProtectedConfigurationSnapshot.from(environment)))
-        .hasMessageContaining("spring.data.redis.ssl.enabled");
-  }
-
-  @Test
-  void rejectsMissingRedisTrustMaterial() {
-    MockEnvironment environment = validEnvironment();
-    environment.withProperty(RedisTlsTrustMaterialValidator.PROPERTY, "");
-
-    assertThatThrownBy(
-            () ->
-                ProtectedConfigurationRules.validate(
-                    ProtectedConfigurationSnapshot.from(environment)))
-        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY);
-  }
-
-  @Test
-  void rejectsInvalidRedisTrustMaterialWithoutLeakingIt() {
-    MockEnvironment environment = validEnvironment();
-    environment.withProperty(
-        RedisTlsTrustMaterialValidator.PROPERTY, "invalid-certificate-secret-marker");
-
-    assertThatThrownBy(
-            () ->
-                ProtectedConfigurationRules.validate(
-                    ProtectedConfigurationSnapshot.from(environment)))
-        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY)
-        .hasMessageNotContaining("secret-marker");
-  }
-
-  @Test
-  void rejectsAValidEndEntityCertificateAsRedisTrustMaterial() {
-    MockEnvironment environment = validEnvironment();
-    environment.withProperty(
-        RedisTlsTrustMaterialValidator.PROPERTY, resource("/redis/tls/server.crt"));
-
-    assertThatThrownBy(
-            () ->
-                ProtectedConfigurationRules.validate(
-                    ProtectedConfigurationSnapshot.from(environment)))
-        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY);
   }
 
   @Test
@@ -351,18 +283,18 @@ class ProtectedConfigurationRulesTest {
 
   @Test
   void rejectsMalformedExplicitInfrastructureHosts() {
-    MockEnvironment redisEnvironment = validEnvironment();
-    redisEnvironment.withProperty("spring.data.redis.host", "https://redis.example.com");
+    MockEnvironment urlEnvironment = validEnvironment();
+    urlEnvironment.withProperty("spring.mail.host", "https://smtp.example.com");
     MockEnvironment smtpEnvironment = validEnvironment();
     smtpEnvironment.withProperty("spring.mail.host", "bad host");
     MockEnvironment invalidIpv4Environment = validEnvironment();
-    invalidIpv4Environment.withProperty("spring.data.redis.host", "999.2.3.4");
+    invalidIpv4Environment.withProperty("spring.mail.host", "999.2.3.4");
 
     assertThatThrownBy(
             () ->
                 ProtectedConfigurationRules.validate(
-                    ProtectedConfigurationSnapshot.from(redisEnvironment)))
-        .hasMessageContaining("spring.data.redis.host");
+                    ProtectedConfigurationSnapshot.from(urlEnvironment)))
+        .hasMessageContaining("spring.mail.host");
     assertThatThrownBy(
             () ->
                 ProtectedConfigurationRules.validate(
@@ -372,13 +304,13 @@ class ProtectedConfigurationRulesTest {
             () ->
                 ProtectedConfigurationRules.validate(
                     ProtectedConfigurationSnapshot.from(invalidIpv4Environment)))
-        .hasMessageContaining("spring.data.redis.host");
+        .hasMessageContaining("spring.mail.host");
   }
 
   @Test
   void acceptsValidNonLoopbackIpv6InfrastructureHost() {
     MockEnvironment environment = validEnvironment();
-    environment.withProperty("spring.data.redis.host", "2001:db8::1");
+    environment.withProperty("spring.mail.host", "2001:db8::1");
 
     assertThatCode(
             () ->
@@ -571,13 +503,6 @@ class ProtectedConfigurationRulesTest {
             .withProperty("spring.datasource.username", "production_user")
             .withProperty("spring.datasource.password", "production-database-password")
             .withProperty("server.port", "8080")
-            .withProperty("spring.data.redis.host", "redis.example.com")
-            .withProperty("spring.data.redis.port", "6379")
-            .withProperty("spring.data.redis.connect-timeout", "2s")
-            .withProperty("spring.data.redis.timeout", "2s")
-            .withProperty("spring.data.redis.ssl.enabled", "true")
-            .withProperty("spring.data.redis.ssl.bundle", "offertrack-redis")
-            .withProperty(RedisTlsTrustMaterialValidator.PROPERTY, redisCaCertificate())
             .withProperty("spring.mail.host", "smtp.example.com")
             .withProperty("spring.mail.port", "587")
             .withProperty("spring.mail.username", "smtp-user")
@@ -642,24 +567,5 @@ class ProtectedConfigurationRulesTest {
 
   private static String jwtSecret() {
     return "jwt-signing-secret-which-is-at-least-thirty-two-bytes";
-  }
-
-  static String redisCaCertificate() {
-    return resource("/redis/tls/ca.crt");
-  }
-
-  static String redisOtherCaCertificate() {
-    return resource("/redis/tls/other-ca.crt");
-  }
-
-  private static String resource(String name) {
-    try (InputStream input = ProtectedConfigurationRulesTest.class.getResourceAsStream(name)) {
-      if (input == null) {
-        throw new IllegalStateException("Missing test resource " + name);
-      }
-      return new String(input.readAllBytes(), StandardCharsets.US_ASCII).trim();
-    } catch (IOException exception) {
-      throw new IllegalStateException("Could not read test resource " + name, exception);
-    }
   }
 }

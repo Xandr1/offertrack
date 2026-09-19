@@ -5,7 +5,7 @@ management:
       show-details: never
       group:
         readiness:
-          include: readinessState,db,redis
+          include: readinessState,db
 
 app:
   ai-service:

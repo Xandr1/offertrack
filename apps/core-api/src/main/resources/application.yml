@@ -16,15 +16,6 @@ spring:
   jooq:
     sql-dialect: POSTGRES
 
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
-      timeout: ${REDIS_TIMEOUT:1s}
-      ssl:
-        enabled: ${REDIS_TLS_ENABLED:false}
-
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
@@ -97,9 +88,6 @@ app:
     internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:local-dev-ai-service-key}
     auth-mode: ${AI_SERVICE_AUTH_MODE:internal-key}
     audience: ${AI_SERVICE_AUDIENCE:}
-  ai-draft-cache:
-    enabled: ${AI_DRAFT_CACHE_ENABLED:true}
-    ttl: ${AI_DRAFT_CACHE_TTL:24h}
   rate-limit:
     key-secret: ${RATE_LIMIT_KEY_SECRET:local-dev-rate-limit-key-secret-change-me}
     fail-open: ${RATE_LIMIT_FAIL_OPEN:true}
@@ -149,21 +137,6 @@ spring:
     url: ${DATABASE_URL:}
     username: ${DB_USER:}
     password: ${DB_PASSWORD:}
-  data:
-    redis:
-      host: ${REDIS_HOST:}
-      port: ${REDIS_PORT:}
-      connect-timeout: ${REDIS_CONNECT_TIMEOUT:}
-      timeout: ${REDIS_TIMEOUT:}
-      ssl:
-        enabled: ${REDIS_TLS_ENABLED:}
-        bundle: offertrack-redis
-  ssl:
-    bundle:
-      pem:
-        offertrack-redis:
-          truststore:
-            certificate: ${REDIS_TLS_CA_CERTIFICATES:}
   mail:
     host: ${SMTP_HOST:}
     port: ${SMTP_PORT:}
@@ -185,9 +158,9 @@ management:
     health:
       group:
         readiness:
-          include: readinessState,db,redis
+          include: readinessState,db
         dependencies:
-          include: db,redis,aiService
+          include: db,aiService
 
 app:
   management:

@@ -33,10 +33,6 @@ POSTGRES_IMAGE = (
     "postgres:16.14-bookworm@"
     "sha256:c95fd5346040eba2de3c435e14874af18f5d681fb5848d4f081dbead0878af28"
 )
-REDIS_IMAGE = (
-    "redis:7.4.9-alpine@"
-    "sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7"
-)
 
 
 def read(relative_path: str) -> str:
@@ -177,7 +173,7 @@ class ImageContractTest(unittest.TestCase):
             application,
         )
         self.assertIn("port: ${PORT:${SERVER_PORT:18080}}", e2e)
-        self.assertIn("include: readinessState,db,redis", smoke)
+        self.assertIn("include: readinessState,db", smoke)
         self.assertIn("show-components: always", smoke)
         self.assertIn("show-details: never", smoke)
         self.assertIn("enabled: ${SPRING_FLYWAY_ENABLED:true}", application)
@@ -336,7 +332,7 @@ class BuildScriptContractTest(unittest.TestCase):
 
 
 class ComposeContractTest(unittest.TestCase):
-    def test_all_postgres_and_redis_compose_references_are_pinned(self) -> None:
+    def test_all_postgres_compose_references_are_pinned(self) -> None:
         for relative_path in (
             "docker-compose.yml",
             "docker-compose.e2e.yml",
@@ -344,12 +340,12 @@ class ComposeContractTest(unittest.TestCase):
             "compose.container-smoke.yml",
         ):
             compose = read(relative_path)
+            self.assertNotIn("redis", compose.lower())
+            self.assertNotIn("AI_DRAFT_CACHE", compose)
             for line in compose.splitlines():
                 stripped = line.strip()
                 if stripped.startswith("image: postgres:"):
                     self.assertEqual(f"image: {POSTGRES_IMAGE}", stripped)
-                if stripped.startswith("image: redis:"):
-                    self.assertEqual(f"image: {REDIS_IMAGE}", stripped)
 
     def test_pinned_infrastructure_and_portable_codegen_compose(self) -> None:
         codegen = read("compose.container-codegen.yml")
@@ -365,8 +361,8 @@ class ComposeContractTest(unittest.TestCase):
     def test_smoke_compose_has_exact_images_platform_and_no_pull(self) -> None:
         compose = read("compose.container-smoke.yml")
         self.assertIn(f"image: {POSTGRES_IMAGE}", compose)
-        self.assertIn(f"image: {REDIS_IMAGE}", compose)
-        self.assertEqual(6, compose.count("platform: linux/amd64"))
+        self.assertNotIn("redis", compose.lower())
+        self.assertEqual(5, compose.count("platform: linux/amd64"))
         self.assertEqual(4, compose.count("pull_policy: never"))
         for image in ("web", "core-api", "ai-service"):
             self.assertIn(
@@ -378,7 +374,6 @@ class ComposeContractTest(unittest.TestCase):
         compose = read("compose.container-smoke.yml")
         expected_ports = (
             "127.0.0.1:55433:5432",
-            "127.0.0.1:56380:6379",
             "127.0.0.1:13001:13001",
             "127.0.0.1:18001:18001",
             "127.0.0.1:18081:18081",
@@ -432,15 +427,11 @@ class ComposeContractTest(unittest.TestCase):
             'PORT: "18081"',
             'SERVER_PORT: "18081"',
             "DATABASE_URL: jdbc:postgresql://postgres:5432/offertrack_container_smoke",
-            "REDIS_HOST: redis",
-            "REDIS_CONNECT_TIMEOUT: 2s",
-            "REDIS_TIMEOUT: 2s",
             "APP_WEB_URL: http://127.0.0.1:13001",
             "CORS_ALLOWED_ORIGINS: http://127.0.0.1:13001",
             "AI_SERVICE_BASE_URL: http://ai-service:18001",
             "AI_SERVICE_AUTH_MODE: internal-key",
             'AI_SERVICE_AUDIENCE: ""',
-            'AI_DRAFT_CACHE_ENABLED: "false"',
             'RATE_LIMIT_FAIL_OPEN: "false"',
             "SERVER_FORWARD_HEADERS_STRATEGY: none",
             "SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 10s",
@@ -492,7 +483,7 @@ class ComposeContractTest(unittest.TestCase):
 
     def test_infrastructure_and_web_health_checks_are_bounded(self) -> None:
         compose = read("compose.container-smoke.yml")
-        for service in ("postgres", "redis", "web"):
+        for service in ("postgres", "web"):
             block = service_block(compose, service)
             self.assertIn("interval: 2s", block)
             self.assertIn("timeout: 5s", block)

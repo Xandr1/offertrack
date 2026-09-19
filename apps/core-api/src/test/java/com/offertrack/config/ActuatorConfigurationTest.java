@@ -28,20 +28,20 @@ class ActuatorConfigurationTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"prod", "production", "stage", "staging", "e2e", "container-smoke"})
-  void deploymentReadinessIncludesDatabaseAndRedis(String profile) {
+  void deploymentReadinessIncludesDatabase(String profile) {
     ConfigurableEnvironment environment = loadConfig(profile);
 
     assertThat(environment.getProperty("management.endpoint.health.group.readiness.include"))
-        .isEqualTo("readinessState,db,redis");
+        .isEqualTo("readinessState,db");
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"prod", "production", "stage", "staging"})
-  void protectedDependencyCheckIncludesDatabaseRedisAndAuthenticatedAi(String profile) {
+  void protectedDependencyCheckIncludesDatabaseAndAuthenticatedAi(String profile) {
     ConfigurableEnvironment environment = loadConfig(profile);
 
     assertThat(environment.getProperty("management.endpoint.health.group.dependencies.include"))
-        .isEqualTo("db,redis,aiService");
+        .isEqualTo("db,aiService");
   }
 
   @Test

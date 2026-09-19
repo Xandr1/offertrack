@@ -7,7 +7,7 @@ OfferTrack is a job application tracker for managing applications, interview sta
 - **Web:** Next.js, React, TypeScript, Tailwind CSS, TanStack Query, Zod
 - **Core API:** Java 21, Spring Boot, Spring Security, jOOQ, Flyway
 - **AI service:** Python 3.11, FastAPI, Pydantic, OpenAI API
-- **Data:** PostgreSQL, Redis
+- **Data:** PostgreSQL
 - **Local infrastructure:** Docker Compose, Mailpit, MinIO
 
 ## Repository structure
@@ -105,6 +105,11 @@ Run backend code generation after changing Flyway migrations:
 ```bash
 ./scripts/backend-codegen.sh
 ```
+
+Maven also regenerates jOOQ during compilation and tests. Use the same migrated
+database for both steps: an unmigrated database can overwrite generated classes
+and cause missing-table-class compilation errors. When overriding `DATABASE_URL`,
+also supply `DB_USER` and `DB_PASSWORD` consistently for codegen and Maven.
 
 ## Testing
 

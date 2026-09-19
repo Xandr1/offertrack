@@ -102,9 +102,9 @@ class ApplicationDraftControllerSecurityTest {
         .andExpect(jsonPath("$.interviews[0].scheduledAt").doesNotExist())
         .andExpect(jsonPath("$.warnings[0]").value("Location was not explicit."));
 
-    InOrder quotaBeforeCacheOrAi = inOrder(rateLimitGuard, applicationDraftService);
-    quotaBeforeCacheOrAi.verify(rateLimitGuard).checkAiDraft(AUTHENTICATED_USER_ID);
-    quotaBeforeCacheOrAi.verify(applicationDraftService).createDraft(any());
+    InOrder quotaBeforeAi = inOrder(rateLimitGuard, applicationDraftService);
+    quotaBeforeAi.verify(rateLimitGuard).checkAiDraft(AUTHENTICATED_USER_ID);
+    quotaBeforeAi.verify(applicationDraftService).createDraft(any());
   }
 
   @Test

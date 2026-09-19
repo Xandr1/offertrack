@@ -10,9 +10,6 @@ non-loopback HTTPS `NEXT_PUBLIC_API_URL`. `local` development may default to
 Protected Spring startup requires safe explicit values for:
 
 - Database: `DATABASE_URL`, `DB_USER`, `DB_PASSWORD`
-- Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_CONNECT_TIMEOUT`, `REDIS_TIMEOUT`;
-  protected Cloud Run also requires `REDIS_TLS_ENABLED=true` and
-  `REDIS_TLS_CA_CERTIFICATES` containing the complete active server CA set
 - JWT/OAuth: `JWT_SECRET`, `JWT_ACCESS_TOKEN_TTL`, `OAUTH_COOKIE_SECRET`,
   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - Browser topology: `APP_WEB_URL`, `CORS_ALLOWED_ORIGINS`,
@@ -38,16 +35,6 @@ Protected validation applies these exact UTF-8 byte minimums:
 Known local/default placeholders are rejected. These checks validate byte
 length and known unsafe values; they do not estimate cryptographic entropy.
 Never commit a real environment file or secret.
-
-### Redis TLS
-
-Local and test Redis remain plaintext unless `REDIS_TLS_ENABLED=true` is set.
-Protected profiles require TLS, select the fixed `offertrack-redis` Spring Boot
-SSL bundle, and reject missing, malformed, expired, or non-CA PEM trust
-material before startup. The bundle is attached only to Spring Data
-Redis/Lettuce; the process-wide JVM trust store is unchanged. Lettuce retains
-peer and hostname verification. Multiple concatenated PEM CAs are supported so
-Memorystore can publish an overlap set during certificate rotation.
 
 ## Core-to-AI authentication
 
@@ -126,7 +113,7 @@ environment variable. This prevents pre-Spring migration startup from silently
 using the standard database policy when a protected profile was intended.
 
 Migration mode is selected before the regular Spring application is created.
-It does not initialize an HTTP listener, Redis, rate limiting, Spring Security,
+It does not initialize an HTTP listener, rate limiting, Spring Security,
 Google OAuth, SMTP, JWT configuration, AI clients, controllers, or web filters.
 
 Keep `SERVER_FORWARD_HEADERS_STRATEGY=none` unless the API is behind a trusted
@@ -144,13 +131,13 @@ environments require explicit trusted hosts and disable docs unless deliberately
 enabled.
 
 The protected, detail-free actuator group
-`/actuator/health/dependencies` aggregates database, Redis, and authenticated AI
+`/actuator/health/dependencies` aggregates database and authenticated AI
 health for deployment smoke checks. It requires the separate
 `app.management.dependency-health-key` value in `X-Dependency-Health-Key`; the
 AI internal API key is not accepted for this purpose. Protected startup requires
 the dependency-health key to be at least 32 UTF-8 bytes and distinct from the
 JWT, OAuth-cookie, rate-limit, and AI internal keys. Normal readiness includes
-only the database and Redis so a scaled-to-zero AI instance is not kept warm by
+application readiness and the database so a scaled-to-zero AI instance is not kept warm by
 platform probes. Health details remain disabled.
 
 Protected profiles require both `mail.smtp.starttls.enable=true` and
@@ -192,7 +179,33 @@ Every limit and window is configurable using the following pairs:
 The limiter uses fixed windows, so bursts at a window boundary are an accepted
 trade-off. Subject keys are HMAC-SHA-256 derived; rotating
 `RATE_LIMIT_KEY_SECRET` resets effective counters. Protected profiles fail
-closed when Redis is unavailable.
+closed when PostgreSQL counter operations are unavailable.
+
+Counters live in PostgreSQL's `rate_limit_counters` table, introduced by Flyway
+V10. Each `(policy, subject_type, subject_hash, bucket)` has an atomic increment;
+buckets use epoch seconds divided by the configured whole-second window. The
+stored subject is only the existing HMAC-SHA-256 hash. No raw email, IP, token,
+user ID, or key secret is stored in this table or logged by the limiter.
+
+After successful counter operations, each Core instance normally attempts cleanup
+once per minute. Each execution deletes at most 100 rows whose bucket ended over
+five minutes ago, using an expiry index and `FOR UPDATE SKIP LOCKED`. A full batch
+makes the next cleanup eligible after one second to drain a possible backlog;
+partial or empty batches retain the one-minute interval. Cleanup runs
+separately from counter updates; cleanup failures emit a generic warning and do
+not affect allowed or denied decisions. Failed cleanup retains the one-minute
+interval. This bounds cleanup work, not total table size: sustained churn or
+persistent cleanup failures can accumulate expired rows and should be monitored.
+
+## AI draft caching
+
+Core calls the AI service for every `/api/applications/draft` request after its
+existing per-user minute/day checks. Successful Web responses are cached for ten
+minutes in the existing TanStack Query client, keyed by the URL returned by
+`normalizeAiJobUrlInput`. Hits reuse the response without an API request and do
+not extend freshness. The next request at expiry calls the API again; failures
+are not successful cache results. The cache is memory-only and is cleared with
+application data on logout/account changes. Refreshing the page clears it too.
 
 ## E2E and CI
 

@@ -10,6 +10,8 @@ export const queryKeys = {
   settings: ["settings"] as const,
   applications: {
     all: ["applications"] as const,
+    aiDraft: (normalizedJobUrl: string) =>
+      ["applications", "ai-draft", normalizedJobUrl] as const,
     list: (params?: ApplicationsListParams) =>
       params ? (["applications", "list", params] as const) : (["applications", "list"] as const),
     board: (params?: ApplicationsBoardParams) =>

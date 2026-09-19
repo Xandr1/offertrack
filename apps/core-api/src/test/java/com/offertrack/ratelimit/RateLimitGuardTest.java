@@ -132,7 +132,7 @@ class RateLimitGuardTest {
   }
 
   @Test
-  void unavailableWarningsAreSuppressedAndNeverIncludeRedisMessages(CapturedOutput output) {
+  void unavailableWarningsAreSuppressedAndNeverIncludeStorageMessages(CapturedOutput output) {
     properties.setFailOpen(true);
     when(rateLimiter.consume(any())).thenThrow(new RateLimitStoreUnavailableException());
 

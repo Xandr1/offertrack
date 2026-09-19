@@ -34,9 +34,6 @@ locals {
   } : var.secret_versions
 
   database_url = "jdbc:postgresql://${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.offertrack.name}"
-  redis_tls_ca_certificates = join("\n", [
-    for server_ca in google_redis_instance.staging.server_ca_certs : trimspace(server_ca.cert)
-  ])
 
   ai_environment = {
     AI_SERVICE_ALLOWED_HOSTS         = "localhost,${local.ai_service_host},${local.ai_candidate_host}"
@@ -62,8 +59,6 @@ locals {
   }
 
   core_environment = {
-    AI_DRAFT_CACHE_ENABLED                             = "true"
-    AI_DRAFT_CACHE_TTL                                 = "24h"
     AI_SERVICE_AUDIENCE                                = local.ai_service_url
     AI_SERVICE_AUTH_MODE                               = "google-id-token"
     AI_SERVICE_BASE_URL                                = local.ai_service_url
@@ -81,12 +76,6 @@ locals {
     MAIL_FROM                                          = var.mail_from == null ? "" : trimspace(var.mail_from)
     OFFERTRACK_RUN_MODE                                = "server"
     RATE_LIMIT_FAIL_OPEN                               = "false"
-    REDIS_CONNECT_TIMEOUT                              = "2s"
-    REDIS_HOST                                         = google_redis_instance.staging.host
-    REDIS_PORT                                         = tostring(google_redis_instance.staging.port)
-    REDIS_TIMEOUT                                      = "2s"
-    REDIS_TLS_CA_CERTIFICATES                          = local.redis_tls_ca_certificates
-    REDIS_TLS_ENABLED                                  = "true"
     SERVER_FORWARD_HEADERS_STRATEGY                    = "framework"
     SMTP_HOST                                          = var.smtp_host == null ? "" : trimspace(var.smtp_host)
     SMTP_PORT                                          = var.smtp_port == null ? "" : tostring(var.smtp_port)
@@ -368,11 +357,6 @@ resource "google_cloud_run_v2_service" "core" {
 
   lifecycle {
     ignore_changes = [template[0].containers[0].image]
-
-    precondition {
-      condition     = length(local.redis_tls_ca_certificates) > 0 && length(local.redis_tls_ca_certificates) <= 32768
-      error_message = "Memorystore must expose a non-empty active CA set that fits in one Cloud Run environment variable."
-    }
   }
 
   depends_on = [

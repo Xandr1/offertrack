@@ -18,20 +18,6 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:7.4.9-alpine@sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7
-    platform: linux/amd64
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - offertrack_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   mailpit:
     image: axllent/mailpit:v1.30.1
     restart: unless-stopped
@@ -85,5 +71,4 @@ services:
 
 volumes:
   offertrack_postgres_data:
-  offertrack_redis_data:
   offertrack_minio_data:

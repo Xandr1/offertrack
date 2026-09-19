@@ -215,7 +215,7 @@ collect_failure_diagnostics() {
       || { diagnostics_error "container-smoke diagnostics escaped the repository"; exit 1; }
 
     local service raw sanitized
-    for service in postgres redis ai-service core-api core-api-migrate web; do
+    for service in postgres ai-service core-api core-api-migrate web; do
       raw="$RUNTIME_DIR/${service}.raw.log"
       sanitized="${service}.log"
       if ! compose logs --no-color --tail 250 "$service" >"$raw" 2>/dev/null; then
@@ -467,7 +467,6 @@ echo "Flyway immutable history rows=$MIGRATION_ROW_COUNT first_sha256=$FIRST_HIS
 echo "Representative schema first_sha256=$FIRST_SCHEMA_SHA256 second_sha256=$SECOND_SCHEMA_SHA256."
 
 compose up --detach
-wait_for_health redis
 wait_for_health ai-service
 wait_for_url "Core API readiness" "http://127.0.0.1:18081/actuator/health/readiness"
 wait_for_health web
@@ -487,7 +486,6 @@ with urlopen("http://127.0.0.1:18081/actuator/health/readiness", timeout=5) as r
     readiness = json.load(response)
 assert readiness["status"] == "UP"
 assert readiness["components"]["db"]["status"] == "UP"
-assert readiness["components"]["redis"]["status"] == "UP"
 PY
 }
 

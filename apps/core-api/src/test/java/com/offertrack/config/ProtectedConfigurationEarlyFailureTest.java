@@ -30,7 +30,7 @@ class ProtectedConfigurationEarlyFailureTest {
   }
 
   @Test
-  void invalidRedisTrustMaterialFailsBeforeDatasourceConnectionAttempt() {
+  void invalidRateLimitKeyFailsBeforeDatasourceConnectionAttempt() {
     TrackingDriver.connectionAttempted.set(false);
     SpringApplication application = new SpringApplication(CoreApiApplication.class);
     application.setWebApplicationType(WebApplicationType.NONE);
@@ -44,16 +44,16 @@ class ProtectedConfigurationEarlyFailureTest {
                         : value)
             .map(
                 value ->
-                    value.startsWith("--" + RedisTlsTrustMaterialValidator.PROPERTY + "=")
-                        ? "--" + RedisTlsTrustMaterialValidator.PROPERTY + "=not-a-certificate"
+                    value.startsWith("--app.rate-limit.key-secret=")
+                        ? "--app.rate-limit.key-secret=short-secret-marker"
                         : value)
             .toArray(String[]::new);
 
     String[] invalidArguments = arguments;
     assertThatThrownBy(() -> application.run(invalidArguments))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining(RedisTlsTrustMaterialValidator.PROPERTY)
-        .hasMessageNotContaining("not-a-certificate");
+        .hasMessageContaining("app.rate-limit.key-secret")
+        .hasMessageNotContaining("short-secret-marker");
     assertThat(TrackingDriver.connectionAttempted).isFalse();
   }
 
@@ -66,16 +66,6 @@ class ProtectedConfigurationEarlyFailureTest {
       "--spring.datasource.username=production_user",
       "--spring.datasource.password=production-database-password",
       "--spring.datasource.driver-class-name=" + TrackingDriver.class.getName(),
-      "--spring.data.redis.host=redis.example.com",
-      "--spring.data.redis.port=6379",
-      "--spring.data.redis.connect-timeout=2s",
-      "--spring.data.redis.timeout=2s",
-      "--spring.data.redis.ssl.enabled=true",
-      "--spring.data.redis.ssl.bundle=offertrack-redis",
-      "--"
-          + RedisTlsTrustMaterialValidator.PROPERTY
-          + "="
-          + ProtectedConfigurationRulesTest.redisCaCertificate(),
       "--spring.mail.host=smtp.example.com",
       "--spring.mail.port=587",
       "--spring.mail.username=smtp-user",

@@ -29,8 +29,7 @@ Browser
   └── HTTPS -> offertrack-stg-core (public edge, application auth/CSRF/CORS)
                     │
                     ├── private-range Direct VPC egress
-                    │     ├── Cloud SQL PostgreSQL private IP
-                    │     └── Memorystore private IP + verified TLS
+                    │     └── Cloud SQL PostgreSQL private IP
                     │
                     └── HTTPS + Google ID token + X-Internal-Api-Key
                           -> offertrack-stg-ai (IAM protected)
@@ -64,7 +63,7 @@ migration job have been created successfully.
 
 Core and the migration job use Direct VPC egress to
 `offertrack-staging-subnet`. Egress mode is `PRIVATE_RANGES_ONLY`, so traffic to
-Cloud SQL and Memorystore uses the VPC while unrelated public egress does not.
+Cloud SQL uses the VPC while unrelated public egress does not.
 AI and Web have no VPC attachment.
 
 ## Cloud Run resources
@@ -139,33 +138,19 @@ the intentional source-of-truth boundary: normal image deployments do not
 rewrite Terraform-managed configuration, and a later Terraform apply does not
 roll a service back to its seed image.
 
-## Redis TLS trust
+## PostgreSQL rate limiting
 
-Memorystore uses `SERVER_AUTHENTICATION` with Redis AUTH disabled. Terraform
-passes the host and returned port to Core, enables Lettuce TLS explicitly, and
-joins every certificate currently returned by `server_ca_certs` into
-`REDIS_TLS_CA_CERTIFICATES`.
+Core uses PostgreSQL for fixed-window rate-limit counters. V10 creates the
+counter table, and the existing migration-role default grants give Core the
+required DML permissions. `RATE_LIMIT_KEY_SECRET` remains required and distinct
+from JWT/OAuth secrets. Protected counter operations fail closed; bounded,
+opportunistic expiry cleanup is best effort. See [production configuration](production-configuration.md#rate-limits).
 
-Spring Boot builds the named `offertrack-redis` PEM SSL bundle exclusively for
-the Redis client. It does not mutate the global JVM trust store. Protected
-startup validates that TLS is enabled, that the expected bundle is selected,
-and that the trust value contains only one or more currently valid X.509 CA
-certificates capable of initializing an isolated trust manager. Empty,
-malformed, expired, or end-entity-only material fails startup. Hostname and
-certificate-chain verification remain enabled.
-
-For a Memorystore CA rotation:
-
-1. Refresh Terraform against the instance while both old and new active CAs are
-   present.
-2. Review the Core environment diff; it may contain public CA material but no
-   secret data.
-3. Apply before the old CA expires so Cloud Run creates a Core revision trusting
-   the full active set.
-4. Run dependency health, then repeat after Google removes the retired CA.
-
-Core retains the existing two-second connect/command timeouts and protected
-rate limiting remains fail closed.
+The staging Cloud SQL default is `db-f1-micro`. PostgreSQL 16, Enterprise edition,
+zonal placement, the 10 GiB SSD default, backups, PITR, private networking, and
+both deletion-protection settings are retained. Review any local tier override
+before applying. Monitor database load, connections, request latency, and expired
+counter accumulation on this smaller tier.
 
 Every protected SMTP runtime requires STARTTLS with both
 `mail.smtp.starttls.enable=true` and `mail.smtp.starttls.required=true`, whether
@@ -228,7 +213,7 @@ either permission.
 The migration job uses the same immutable Core production image as the server,
 with only these application settings: `OFFERTRACK_RUN_MODE=migrate`, protected
 profile, database URL, migration user, and the pinned migration-password secret.
-It starts no HTTP server or Redis, SMTP, OAuth, JWT, security, or AI components.
+It starts no HTTP server or SMTP, OAuth, JWT, security, or AI components.
 Flyway success (including an already-current schema) exits zero; validation,
 connection, or migration failure exits nonzero. Cloud Run retries are zero, so
 one workflow invocation creates one controlled attempt.
@@ -406,8 +391,8 @@ manual rollback state first.
 
 - AI `/health` with a deployer Google ID token;
 - Core liveness and readiness;
-- the detail-free Core `dependencies` group, which proves PostgreSQL, verified
-  TLS Redis, and Core-to-AI Google ID token plus `X-Internal-Api-Key`;
+- the detail-free Core `dependencies` group, which checks database connectivity
+  and Core-to-AI Google ID token plus `X-Internal-Api-Key` authentication;
 - Web `/login`;
 - latest-ready revision names and resolved revision image digests; and
 - the migration job's Core image digest.
@@ -429,7 +414,7 @@ real-browser staging test after Google OAuth callback registration.
 
 `enable_cloud_run_runtime` defaults to `false`, allowing an empty-project
 foundation apply to create the repository, secret containers, database,
-Redis, identities, and WIF without inventing image or secret values. Setting it
+identities, and WIF without inventing image or secret values. Setting it
 to `true` requires three valid `initial_images` digests. Runtime creation also
 requires non-secret `google_oauth_client_id`, `smtp_host`, `smtp_username`,
 `mail_from`, and numeric `secret_versions`. Keep environment-specific values in
@@ -455,6 +440,32 @@ python -m unittest discover \
 A real plan/apply additionally needs the separately authorized infra identity
 and external state-bucket access. CI and the staging deployer do not run
 Terraform apply.
+
+## Migrating an existing staging environment away from Memorystore
+
+This is a one-time cutover; existing Redis counters are not copied. Policies and
+limits stay unchanged, with fresh PostgreSQL counters at cutover.
+
+1. Keep existing Memorystore and Core environment configuration while the normal
+   deployment workflow migrates V10 and promotes the new Core/Web images. Verify
+   candidate/dependency health and canonical application endpoints before
+   removing infrastructure. The new Core ignores legacy cache environment values.
+2. Using the authorized infra identity and existing runtime inputs/secret pins,
+   review a targeted Terraform plan for the removed `google_redis_instance.staging`
+   resource. Apply that removal while the Redis admin IAM grant is still present.
+   Do not remove the VPC, subnet, private service access, or Cloud SQL resources.
+3. Review and apply the full Terraform plan to remove obsolete environment
+   values, outputs and the Redis admin grant, and change the Cloud SQL tier.
+   Removing the API from Terraform management leaves it enabled because
+   `disable_on_destroy = false`; no API-disable command is needed.
+4. Verify readiness (application readiness plus database), authenticated
+   dependency health (database plus AI), and rate-limit behavior. Monitor database
+   capacity, latency, cleanup warnings, and rate-limit-store failures.
+
+After Memorystore is removed, image rollback requires a PostgreSQL-capable Core
+revision. Older Redis-dependent revisions require restoring their infrastructure
+and configuration first. The additive V10 migration does not change existing
+application tables or database role contracts.
 
 ## First deployment prerequisites
 

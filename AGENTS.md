@@ -19,14 +19,14 @@ OfferTrack contains three applications:
 - `apps/core-api`: Java 21, Spring Boot, Spring Security, jOOQ, Flyway
 - `apps/ai-service`: Python 3.11, FastAPI, Pydantic, OpenAI integration
 
-PostgreSQL and Redis are shared infrastructure. Docker Compose is the local integration environment.
+PostgreSQL is the shared data store and rate-limit store. Docker Compose is the local integration environment.
 
-Staging runs on GCP using Terraform-managed Cloud Run services, Cloud SQL, Memorystore, Secret Manager, Artifact Registry, IAM, and Workload Identity Federation. Terraform owns infrastructure shape, IAM, networking, runtime configuration, and secret references. Deployment workflows update immutable images/revisions and traffic.
+Staging runs on GCP using Terraform-managed Cloud Run services, Cloud SQL, Secret Manager, Artifact Registry, IAM, and Workload Identity Federation. Terraform owns infrastructure shape, IAM, networking, runtime configuration, and secret references. Deployment workflows update immutable images/revisions and traffic.
 
 ## Security and Data Rules
 
 - Authentication currently uses signed access JWTs in Secure/HttpOnly cookies. Never store auth tokens in browser storage
-- Preserve CSRF protection, exact CORS behavior, cookie security, protected-profile fail-fast validation, request correlation and Redis-backed rate limiting
+- Preserve CSRF protection, exact CORS behavior, cookie security, protected-profile fail-fast validation, request correlation and PostgreSQL-backed rate limiting
 - Protected environments must fail closed where currently required
 - Never log or expose secrets, tokens, raw rate-limit subjects or sensitive identifiers
 - Enforce user ownership in backend queries. Missing or foreign user-owned resources should return 404

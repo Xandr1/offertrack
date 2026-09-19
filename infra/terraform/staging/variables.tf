@@ -45,7 +45,7 @@ variable "zone" {
 variable "cloud_sql_tier" {
   description = "The cost-sensitive Cloud SQL machine tier to review before apply."
   type        = string
-  default     = "db-g1-small"
+  default     = "db-f1-micro"
 
   validation {
     condition     = length(trimspace(var.cloud_sql_tier)) > 0
@@ -72,17 +72,6 @@ variable "cloud_sql_disk_autoresize_limit_gb" {
   validation {
     condition     = var.cloud_sql_disk_autoresize_limit_gb >= var.cloud_sql_disk_size_gb && floor(var.cloud_sql_disk_autoresize_limit_gb) == var.cloud_sql_disk_autoresize_limit_gb
     error_message = "cloud_sql_disk_autoresize_limit_gb must be an integer at least as large as cloud_sql_disk_size_gb."
-  }
-}
-
-variable "redis_memory_size_gb" {
-  description = "The cost-sensitive Memorystore capacity in GiB."
-  type        = number
-  default     = 1
-
-  validation {
-    condition     = var.redis_memory_size_gb >= 1 && floor(var.redis_memory_size_gb) == var.redis_memory_size_gb
-    error_message = "redis_memory_size_gb must be a positive integer."
   }
 }
 

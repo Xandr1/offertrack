@@ -169,7 +169,7 @@ dependency_health_key="$(gcloud secrets versions access "$health_secret_version"
 [[ -n "$dependency_health_key" ]] || fail "dependency health key is empty"
 
 # This group is deliberately detail-free. An UP result proves that Core reached
-# PostgreSQL and TLS Redis and authenticated to AI with both Cloud Run IAM and
+# PostgreSQL and authenticated to AI with both Cloud Run IAM and
 # the internal API key.
 retry_curl "$CORE_URL/actuator/health/dependencies" "$RUNTIME_DIR/core-dependencies.json" \
   --header "X-Dependency-Health-Key: $dependency_health_key"
