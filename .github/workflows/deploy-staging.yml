@@ -17,6 +17,7 @@ env:
   CORE_SERVICE: offertrack-stg-core
   MIGRATION_JOB: offertrack-stg-migrate
   WEB_SERVICE: offertrack-stg-web
+  STAGING_BASE_DOMAIN: ${{ vars.STAGING_BASE_DOMAIN }}
   OFFERTRACK_CODEGEN_PROJECT_NAME: offertrack-codegen-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
@@ -48,6 +49,9 @@ jobs:
           set -euo pipefail
           [[ "$APPROVED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$APPROVED_SHA" ]]
+          [[ "$STAGING_BASE_DOMAIN" =~ ^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$ ]]
+          [[ "$STAGING_BASE_DOMAIN" != *.run.app ]]
+          printf '%s\n' "CORE_PUBLIC_URL=https://api.staging.${STAGING_BASE_DOMAIN}" "WEB_PUBLIC_URL=https://staging.${STAGING_BASE_DOMAIN}" >> "$GITHUB_ENV"
           printf '%s\n' "DEPLOY_SHA=$APPROVED_SHA" >> "$GITHUB_ENV"
           printf '%s\n' "REVISION_SUFFIX=g${APPROVED_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
@@ -243,8 +247,8 @@ jobs:
         run: |
           set -euo pipefail
           expected_revision="${CORE_SERVICE}-${REVISION_SUFFIX}"
-          canonical_url="https://${CORE_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
-          candidate_url="https://candidate---${CORE_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          canonical_url="$CORE_PUBLIC_URL"
+          candidate_url="$CORE_PUBLIC_URL"
           response="$(mktemp "${RUNNER_TEMP%/}/offertrack-core-health.XXXXXX")"
           revision_config="$(mktemp "${RUNNER_TEMP%/}/offertrack-core-revision.XXXXXX")"
           trap 'unset dependency_health_key; rm -f -- "$response" "$revision_config"' EXIT
@@ -265,11 +269,20 @@ jobs:
           curl --fail --silent --show-error \
             --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output "$response" \
+            --header "X-OfferTrack-Route: candidate" \
             "$candidate_url/actuator/health/readiness"
           jq -e '.status == "UP"' "$response" >/dev/null
 
           gcloud run revisions describe "$expected_revision" \
             --project "$PROJECT_ID" --region "$REGION" --format=json > "$revision_config"
+          jq -e --arg web "$WEB_PUBLIC_URL" --arg core "$CORE_PUBLIC_URL" '
+            [.spec.containers[0].env[] | select(has("value")) | {key: .name, value: .value}] | from_entries |
+            .APP_WEB_URL == $web and .APP_CORE_URL == $core and .CORS_ALLOWED_ORIGINS == $web and
+            .GOOGLE_REDIRECT_URI == ($core + "/login/oauth2/code/google") and
+            .AUTH_COOKIE_SAME_SITE == "Lax" and .AUTH_COOKIE_DOMAIN == "" and
+            .JWT_ACCESS_TOKEN_TTL == "15m" and .AUTH_SESSION_INACTIVITY_TTL == "7d" and
+            .AUTH_SESSION_ABSOLUTE_TTL == "30d" and .AUTH_SESSION_MAX_ACTIVE == "10"
+          ' "$revision_config" >/dev/null
           health_secret_name="$(jq -er \
             '.spec.containers[0].env[] | select(.name == "DEPENDENCY_HEALTH_KEY") | .valueFrom.secretKeyRef.name' \
             "$revision_config")"
@@ -287,6 +300,7 @@ jobs:
             --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output "$response" \
             --header "X-Dependency-Health-Key: $dependency_health_key" \
+            --header "X-OfferTrack-Route: candidate" \
             "$candidate_url/actuator/health/dependencies"
           unset dependency_health_key
           jq -e '.status == "UP"' "$response" >/dev/null
@@ -307,22 +321,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          public_config_hash="$(printf '%s\n' "staging" "$CORE_URL" | sha256sum | cut -c1-16)"
+          WEB_BUILD_TAG="${DEPLOY_SHA}-${public_config_hash}"
+          printf '%s\n' "WEB_BUILD_TAG=$WEB_BUILD_TAG" >> "$GITHUB_ENV"
           bash scripts/containers/build-images.sh \
             --components web \
             --app-env staging \
             --next-public-api-url "$CORE_URL" \
-            --tag "$DEPLOY_SHA"
+            --tag "$WEB_BUILD_TAG"
 
       - name: Publish immutable Web image
         shell: bash
         run: |
           set -euo pipefail
           registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
-          tagged_ref="${registry}/web:$DEPLOY_SHA"
-          docker tag "offertrack/web:$DEPLOY_SHA" "$tagged_ref"
+          tagged_ref="${registry}/web:$WEB_BUILD_TAG"
+          docker tag "offertrack/web:$WEB_BUILD_TAG" "$tagged_ref"
           if gcloud artifacts docker images describe "$tagged_ref" \
             --project "$PROJECT_ID" --format='none' >/dev/null 2>&1; then
-            echo "Reusing the existing immutable Web tag for this commit."
+            echo "Reusing the immutable Web tag for this commit and public build configuration."
           else
             docker push "$tagged_ref"
           fi
@@ -338,8 +355,8 @@ jobs:
         run: |
           set -euo pipefail
           expected_revision="${WEB_SERVICE}-${REVISION_SUFFIX}"
-          canonical_url="https://${WEB_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
-          candidate_url="https://candidate---${WEB_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+          canonical_url="$WEB_PUBLIC_URL"
+          candidate_url="$WEB_PUBLIC_URL"
 
           gcloud run services update "$WEB_SERVICE" \
             --project "$PROJECT_ID" \
@@ -356,6 +373,7 @@ jobs:
           curl --fail --silent --show-error \
             --connect-timeout 5 --max-time 20 --retry 4 --retry-all-errors --retry-delay 2 \
             --output /dev/null \
+            --header "X-OfferTrack-Route: candidate" \
             "$candidate_url/login"
 
           gcloud run services update-traffic "$WEB_SERVICE" \

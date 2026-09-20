@@ -90,12 +90,12 @@ output "ai_service_url" {
 }
 
 output "core_service_url" {
-  description = "Canonical deterministic public Core API URL compiled into the staging Web image."
+  description = "Same-site public Core API URL compiled into the staging Web image."
   value       = local.core_service_url
 }
 
 output "web_service_url" {
-  description = "Canonical deterministic public staging Web URL used by Core CORS and cookie configuration."
+  description = "Same-site public staging Web URL used by Core CORS and cookie configuration."
   value       = local.web_service_url
 }
 
@@ -126,4 +126,18 @@ output "cloud_run_resource_names" {
 output "terraform_seed_images" {
   description = "Immutable image digests used to create the resources; later image-only revisions are intentionally ignored by Terraform."
   value       = var.initial_images
+}
+output "browser_ipv4_address" {
+  description = "Create DNS A records for staging.<domain> and api.staging.<domain> at the existing DNS provider."
+  value       = google_compute_global_address.browser.address
+}
+
+output "google_redirect_uri" {
+  description = "Register this exact redirect URI on the Google OAuth client."
+  value       = "${local.core_service_url}/login/oauth2/code/google"
+}
+
+output "auth_maintenance_enabled" {
+  description = "Must remain true until both new revisions and their public configuration are verified."
+  value       = var.auth_maintenance_enabled
 }

@@ -64,10 +64,12 @@ done
 [[ "$REGION" =~ ^[a-z]+-[a-z]+[0-9]$ ]] || fail "invalid region"
 [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "commit must be a full lowercase Git SHA"
 
-for url in "$AI_URL" "$CORE_URL" "$WEB_URL"; do
-  [[ "$url" =~ ^https://[a-z0-9-]+-[0-9]+\.[a-z0-9-]+\.run\.app$ ]] \
-    || fail "service URLs must be canonical HTTPS Cloud Run URLs"
-done
+[[ "$AI_URL" =~ ^https://[a-z0-9-]+-[0-9]+\.[a-z0-9-]+\.run\.app$ ]] \
+  || fail "AI URL must remain the canonical Cloud Run audience"
+[[ "$WEB_URL" =~ ^https://staging\.[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$ ]] \
+  && [[ "$WEB_URL" != *.run.app ]] \
+  && [[ "$CORE_URL" == "https://api.${WEB_URL#https://}" ]] \
+  || fail "Web and Core must use the selected same-site HTTPS hostnames"
 
 for component_and_image in \
   "ai-service=$AI_IMAGE" \

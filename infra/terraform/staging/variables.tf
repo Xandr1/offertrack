@@ -197,3 +197,19 @@ variable "mail_from" {
     error_message = "mail_from must be an explicit email address."
   }
 }
+variable "staging_base_domain" {
+  description = "Owned registrable domain, using the existing DNS provider. Creates staging.<domain> and api.staging.<domain>; DNS A records remain an operator prerequisite."
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = length(var.staging_base_domain) <= 240 && can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.staging_base_domain)) && !endswith(var.staging_base_domain, ".run.app")
+    error_message = "Supply a lowercase owned registrable DNS domain, without scheme, port, path or trailing dot."
+  }
+}
+
+variable "auth_maintenance_enabled" {
+  description = "Keep application traffic blocked until the session-aware Core and rebuilt Web have both been verified. Only exact GET deployment probes remain available."
+  type        = bool
+  default     = true
+}

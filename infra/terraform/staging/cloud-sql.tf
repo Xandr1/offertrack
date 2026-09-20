@@ -15,6 +15,25 @@ resource "google_sql_database_instance" "postgres" {
     disk_autoresize_limit       = var.cloud_sql_disk_autoresize_limit_gb
     deletion_protection_enabled = true
 
+    # Suppress SQL/bind-value logging without removing useful error diagnostics.
+    dynamic "database_flags" {
+      for_each = {
+        log_statement                     = "none"
+        log_min_duration_statement        = "-1"
+        log_parameter_max_length          = "0"
+        log_parameter_max_length_on_error = "0"
+        log_min_error_statement           = "error"
+        log_min_messages                  = "warning"
+        log_error_verbosity               = "default"
+        log_min_duration_sample           = "-1"
+        log_transaction_sample_rate       = "0"
+      }
+      content {
+        name  = database_flags.key
+        value = database_flags.value
+      }
+    }
+
     location_preference {
       zone = var.zone
     }

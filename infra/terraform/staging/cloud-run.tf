@@ -8,8 +8,8 @@ locals {
 
   ai_service_host   = "${local.cloud_run_names.ai}-${var.project_number}.${var.region}.run.app"
   ai_candidate_host = "candidate---${local.ai_service_host}"
-  core_service_host = "${local.cloud_run_names.core_api}-${var.project_number}.${var.region}.run.app"
-  web_service_host  = "${local.cloud_run_names.web}-${var.project_number}.${var.region}.run.app"
+  core_service_host = "api.staging.${var.staging_base_domain}"
+  web_service_host  = "staging.${var.staging_base_domain}"
   ai_service_url    = "https://${local.ai_service_host}"
   core_service_url  = "https://${local.core_service_host}"
   web_service_url   = "https://${local.web_service_host}"
@@ -62,17 +62,22 @@ locals {
     AI_SERVICE_AUDIENCE                                = local.ai_service_url
     AI_SERVICE_AUTH_MODE                               = "google-id-token"
     AI_SERVICE_BASE_URL                                = local.ai_service_url
+    APP_CORE_URL                                       = local.core_service_url
+    GOOGLE_REDIRECT_URI                                = "${local.core_service_url}/login/oauth2/code/google"
+    AUTH_SESSION_INACTIVITY_TTL                        = "7d"
+    AUTH_SESSION_ABSOLUTE_TTL                          = "30d"
+    AUTH_SESSION_MAX_ACTIVE                            = "10"
     APP_WEB_URL                                        = local.web_service_url
     AUTH_COOKIE_DOMAIN                                 = ""
     AUTH_COOKIE_NAME                                   = "access_token"
     AUTH_COOKIE_PATH                                   = "/"
-    AUTH_COOKIE_SAME_SITE                              = "None"
+    AUTH_COOKIE_SAME_SITE                              = "Lax"
     AUTH_COOKIE_SECURE                                 = "true"
     CORS_ALLOWED_ORIGINS                               = local.web_service_url
     DATABASE_URL                                       = local.database_url
     DB_USER                                            = "offertrack_app"
     GOOGLE_CLIENT_ID                                   = var.google_oauth_client_id == null ? "" : trimspace(var.google_oauth_client_id)
-    JWT_ACCESS_TOKEN_TTL                               = "48h"
+    JWT_ACCESS_TOKEN_TTL                               = "15m"
     MAIL_FROM                                          = var.mail_from == null ? "" : trimspace(var.mail_from)
     OFFERTRACK_RUN_MODE                                = "server"
     RATE_LIMIT_FAIL_OPEN                               = "false"
@@ -238,7 +243,7 @@ resource "google_cloud_run_v2_service" "ai" {
   }
 
   lifecycle {
-    ignore_changes = [template[0].containers[0].image]
+    ignore_changes = [template[0].containers[0].image, traffic]
   }
 
   depends_on = [
@@ -254,7 +259,8 @@ resource "google_cloud_run_v2_service" "core" {
   name                 = local.cloud_run_names.core_api
   location             = var.region
   deletion_protection  = true
-  ingress              = "INGRESS_TRAFFIC_ALL"
+  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  default_uri_disabled = true
   invoker_iam_disabled = true
 
   template {
@@ -356,7 +362,7 @@ resource "google_cloud_run_v2_service" "core" {
   }
 
   lifecycle {
-    ignore_changes = [template[0].containers[0].image]
+    ignore_changes = [template[0].containers[0].image, traffic]
   }
 
   depends_on = [
@@ -440,7 +446,8 @@ resource "google_cloud_run_v2_service" "web" {
   name                 = local.cloud_run_names.web
   location             = var.region
   deletion_protection  = true
-  ingress              = "INGRESS_TRAFFIC_ALL"
+  ingress              = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
+  default_uri_disabled = true
   invoker_iam_disabled = true
 
   template {
@@ -521,7 +528,7 @@ resource "google_cloud_run_v2_service" "web" {
   }
 
   lifecycle {
-    ignore_changes = [template[0].containers[0].image]
+    ignore_changes = [template[0].containers[0].image, traffic]
   }
 
   depends_on = [google_project_service.required["run.googleapis.com"]]
