@@ -414,7 +414,7 @@ capture_migration_state() {
     --tuples-only --no-align \
     --field-separator '|' \
     --command \
-      "select table_name, 'table' from information_schema.tables where table_schema = 'public' and table_name in ('users', 'job_applications', 'application_interviews') order by table_name;" \
+      "select table_name, 'table' from information_schema.tables where table_schema = 'public' and table_name in ('users', 'job_applications', 'application_interviews', 'user_identities', 'auth_sessions', 'auth_refresh_tokens') order by table_name;" \
     | tr -d '\r' >"$schema_file"
 }
 
@@ -438,7 +438,7 @@ MIGRATION_ROW_COUNT="${BASH_REMATCH[1]}"
 if (( MIGRATION_ROW_COUNT < 1 )); then
   fail "First migration run did not produce successful immutable Flyway state"
 fi
-for representative_table in users job_applications application_interviews; do
+for representative_table in users job_applications application_interviews user_identities auth_sessions auth_refresh_tokens; do
   grep -Fxq "${representative_table}|table" "$FIRST_SCHEMA" \
     || fail "First migration run did not create representative table $representative_table"
 done

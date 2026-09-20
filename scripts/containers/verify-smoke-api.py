@@ -273,7 +273,14 @@ def after_restart(base_url: str, cookie_path: Path, id_path: Path) -> None:
     )
     assert status == 200
     assert_application(json_body(payload), application_id)
-    print("PostgreSQL persistence check passed after Core restart.")
+    # The saved browser cookies authenticate through the persisted session after restart.
+    header, token = issue_csrf(opener, base_url, jar)
+    status, _, _ = request(opener, base_url, "/auth/refresh", method="POST",
+                           headers={header: token, "Origin": ALLOWED_ORIGIN})
+    assert status == 204, "Persisted refresh session did not rotate after Core restart"
+    status, _, _ = request(opener, base_url, "/api/me")
+    assert status == 200, "Rotated session did not authenticate"
+    print("PostgreSQL application/session persistence and refresh passed after Core restart.")
 
 
 def main() -> int:

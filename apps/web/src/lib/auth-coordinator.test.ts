@@ -54,6 +54,7 @@ it("uses Web Locks to serialize lifecycle operations across tabs", async () => {
 });
 
 it("elects one fallback owner and lets a waiting tab recheck after release", async () => {
+  jest.useRealTimers();
   const a = tab(), b = tab();
   let active = 0, maximum = 0, completed = 0;
   const work = async () => {
@@ -62,7 +63,6 @@ it("elects one fallback owner and lets a waiting tab recheck after release", asy
     active--; completed++;
   };
   const pending = Promise.all([a.withAuthLock(work, true), b.withAuthLock(work, true)]);
-  await jest.advanceTimersByTimeAsync(1000);
   await pending;
   expect(maximum).toBe(1);
   expect(completed).toBe(2);
@@ -89,4 +89,3 @@ it("propagates logout without sending credentials or account identifiers", async
   expect(b.authState().signedOut).toBe(true);
   expect(Bus.sent).toEqual([{ kind: "event", event: "signed-out" }]);
 });
-

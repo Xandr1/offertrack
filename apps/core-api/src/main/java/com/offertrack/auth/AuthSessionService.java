@@ -212,6 +212,11 @@ public class AuthSessionService {
     } catch (org.jooq.exception.DataAccessException
         | org.springframework.dao.DataAccessException
         | org.springframework.transaction.TransactionException exception) {
+      org.slf4j.LoggerFactory.getLogger(AuthSessionService.class)
+          .warn(
+              "auth_session_store_failed sql_state={} error_category={}",
+              AuthDatabaseDiagnostics.sqlState(exception),
+              AuthDatabaseDiagnostics.category(exception));
       throw new AuthServiceUnavailableException();
     }
   }

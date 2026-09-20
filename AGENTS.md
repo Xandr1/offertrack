@@ -33,7 +33,7 @@ Staging runs on GCP using Terraform-managed Cloud Run services, Cloud SQL, Secre
 - Do not weaken AI service authentication or Cloud Run IAM boundaries
 - Do not commit `.env`, credentials, secret values or production configuration
 
-The ADRs in `docs/adr/` describe proposed future architecture and must not be treated as implemented. Current AI URL validation does not fully prevent DNS rebinding and current authentication does not provide rotating refresh tokens, server-side sessions, replay detection, logout-all or general immediate JWT revocation.
+Read the status of each ADR in `docs/adr/`; a proposal is not evidence of implementation. Authentication uses PostgreSQL sessions with short-lived JWTs and strict refresh rotation (ADR 0002), and the same-site edge is defined in ADR 0003. Never roll back to a stateless Core after issuing session-aware tokens. Current AI URL validation does not fully prevent DNS rebinding.
 
 ## Database and Dependencies
 

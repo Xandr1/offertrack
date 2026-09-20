@@ -36,7 +36,10 @@ public class AuthSessionCleanup {
     try {
       transaction.executeWithoutResult(status -> cleanup());
     } catch (RuntimeException exception) {
-      log.warn("auth_session_cleanup_failed");
+      log.warn(
+          "auth_session_cleanup_failed sql_state={} error_category={}",
+          AuthDatabaseDiagnostics.sqlState(exception),
+          AuthDatabaseDiagnostics.category(exception));
     }
   }
 
@@ -49,7 +52,7 @@ public class AuthSessionCleanup {
         dsl.fetch(
             """
         select id from auth_sessions
-        where least(revoked_at, inactivity_expires_at, absolute_expires_at) < ?
+        where least(revoked_at, inactivity_expires_at, absolute_expires_at) < cast(? as timestamptz)
         order by least(revoked_at, inactivity_expires_at, absolute_expires_at), id
         limit 20 for update skip locked
         """,

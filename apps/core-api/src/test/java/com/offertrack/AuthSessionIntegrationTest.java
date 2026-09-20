@@ -446,25 +446,25 @@ class AuthSessionIntegrationTest {
                     "update user_identities set provider_subject = ? where user_id = ?",
                     "s".repeat(256),
                     user))
-        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     assertThatThrownBy(
             () ->
                 dsl.execute(
                     "update user_identities set provider_subject = ? where user_id = ?",
                     "  ",
                     user))
-        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     assertThatThrownBy(
             () ->
                 dsl.execute("update auth_sessions set revoked_at = now() where user_id = ?", user))
-        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     assertThatThrownBy(
             () ->
                 dsl.execute(
                     "update auth_sessions set revoked_at = now(), revocation_reason = ? where user_id = ?",
                     "unbounded-reason",
                     user))
-        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+        .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     google("CASE", "upper@example.com");
     google("case", "lower@example.com");
     assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("user_identities"))).isEqualTo(3);
