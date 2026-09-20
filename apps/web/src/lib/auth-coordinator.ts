@@ -108,7 +108,9 @@ const fallbackLock = async <T,>(work: () => Promise<T>, requireCoordination: boo
     }
     activeTicket = ticket;
     bus.postMessage({ kind: "held", ticket });
-    return await work();
+    const result = await work();
+    if (holder && holder !== ticket) throw new AuthCoordinationError();
+    return result;
   } finally {
     if (activeTicket === ticket) {
       activeTicket = null;

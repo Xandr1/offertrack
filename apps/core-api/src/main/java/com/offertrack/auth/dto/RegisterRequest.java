@@ -14,4 +14,9 @@ public record RegisterRequest(
             message =
                 "Password must contain at least 1 lowercase letter, 1 uppercase letter and 1 digit")
         String password,
-    @Size(max = 100, message = "Name must be at most 50 characters") String name) {}
+    @Size(max = 100, message = "Name must be at most 50 characters") String name) {
+  @Override
+  public String toString() {
+    return "RegisterRequest[redacted]";
+  }
+}

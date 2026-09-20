@@ -2,4 +2,9 @@ package com.offertrack.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record VerifyEmailRequest(@NotBlank(message = "Token is required") String token) {}
+public record VerifyEmailRequest(@NotBlank(message = "Token is required") String token) {
+  @Override
+  public String toString() {
+    return "VerifyEmailRequest[redacted]";
+  }
+}

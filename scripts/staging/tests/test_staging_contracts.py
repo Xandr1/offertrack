@@ -171,22 +171,14 @@ class CloudRunContractTest(unittest.TestCase):
         self.assertNotIn("readiness_probe", ai)
 
     def test_application_urls_and_oauth_configuration_remain_canonical(self) -> None:
-        for service, resource in (
-            ("ai", "ai"),
-            ("core", "core_api"),
-            ("web", "web"),
-        ):
-            with self.subTest(service=service):
-                self.assertIn(
-                    f'{service}_service_host = "${{local.cloud_run_names.{resource}}}-'
-                    '${var.project_number}.${var.region}.run.app"',
-                    " ".join(self.cloud_run.split()),
-                )
-                self.assertRegex(
-                    self.cloud_run,
-                    rf'(?m)^\s*{service}_service_url\s*=\s*'
-                    rf'"https://\${{local.{service}_service_host}}"$',
-                )
+        expected_hosts = {
+            "ai": '${local.cloud_run_names.ai}-${var.project_number}.${var.region}.run.app',
+            "core": 'api.staging.${var.staging_base_domain}',
+            "web": 'staging.${var.staging_base_domain}',
+        }
+        for service, host in expected_hosts.items():
+            self.assertIn(f'{service}_service_host = "{host}"', " ".join(self.cloud_run.split()))
+            self.assertRegex(self.cloud_run, rf'{service}_service_url\\s*=\\s*"https://\\$\\{{local.{service}_service_host\\}}"')
 
         core_environment = assignment_block(self.cloud_run, "core_environment")
         for name, url in (
@@ -202,7 +194,7 @@ class CloudRunContractTest(unittest.TestCase):
                 )
 
         self.assertIn(
-            "https://offertrack-stg-core-765846644391.europe-central2.run.app"
+            "https://api.staging.<domain>"
             "/login/oauth2/code/google",
             read("docs/gcp-staging-infrastructure.md"),
         )
@@ -583,16 +575,13 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
                     f"{label} candidate revision"
                 )
                 step = self.workflow[start : self.workflow.index(next_step, start)]
-                self.assertIn(
-                    f'canonical_url="https://${{{service}_SERVICE}}-'
-                    '${PROJECT_NUMBER}.${REGION}.run.app"',
-                    step,
-                )
-                self.assertIn(
-                    f'candidate_url="https://candidate---${{{service}_SERVICE}}-'
-                    '${PROJECT_NUMBER}.${REGION}.run.app"',
-                    step,
-                )
+                if service == "AI":
+                    self.assertIn('canonical_url="https://${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"', step)
+                    self.assertIn('candidate_url="https://candidate---${AI_SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"', step)
+                else:
+                    self.assertIn(f'canonical_url="${service}_PUBLIC_URL"', step)
+                    self.assertIn(f'candidate_url="${service}_PUBLIC_URL"', step)
+                    self.assertIn('--header "X-OfferTrack-Route: candidate"', step)
                 self.assertIn('[[ "$ready_revision" == "$expected_revision" ]]', step)
                 self.assertIn(f'"$candidate_url{health_path}"', step)
                 self.assertIn(f'"{service}_URL=$canonical_url"', step)
@@ -694,7 +683,8 @@ class SmokeTokenContractTest(unittest.TestCase):
         for service, component in (("ai", "ai-service"), ("core", "core-api"), ("web", "web")):
             args.extend([
                 f"--{service}-url",
-                f"https://offertrack-stg-{service}-765846644391.europe-central2.run.app",
+                ({"ai": "https://offertrack-stg-ai-765846644391.europe-central2.run.app",
+                  "core": "https://api.staging.example.com", "web": "https://staging.example.com"}[service]),
                 f"--{service}-image",
                 f"europe-central2-docker.pkg.dev/offertrack-staging/offertrack/{component}@sha256:{'b' * 64}",
                 f"--{service}-revision",

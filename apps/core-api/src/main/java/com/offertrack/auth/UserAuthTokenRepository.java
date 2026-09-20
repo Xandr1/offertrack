@@ -22,14 +22,17 @@ public class UserAuthTokenRepository {
       String tokenHash,
       OffsetDateTime expiresAt,
       OffsetDateTime createdAt) {
-    dsl.insertInto(USER_AUTH_TOKENS)
-        .set(USER_AUTH_TOKENS.ID, UUID.randomUUID())
-        .set(USER_AUTH_TOKENS.USER_ID, userId)
-        .set(USER_AUTH_TOKENS.PURPOSE, purpose.value())
-        .set(USER_AUTH_TOKENS.TOKEN_HASH, tokenHash)
-        .set(USER_AUTH_TOKENS.EXPIRES_AT, expiresAt)
-        .set(USER_AUTH_TOKENS.CREATED_AT, createdAt)
-        .execute();
+    int inserted =
+        dsl.insertInto(USER_AUTH_TOKENS)
+            .set(USER_AUTH_TOKENS.ID, UUID.randomUUID())
+            .set(USER_AUTH_TOKENS.USER_ID, userId)
+            .set(USER_AUTH_TOKENS.PURPOSE, purpose.value())
+            .set(USER_AUTH_TOKENS.TOKEN_HASH, tokenHash)
+            .set(USER_AUTH_TOKENS.EXPIRES_AT, expiresAt)
+            .set(USER_AUTH_TOKENS.CREATED_AT, createdAt)
+            .onConflictDoNothing()
+            .execute();
+    if (inserted != 1) throw new AuthServiceUnavailableException();
   }
 
   public Optional<UUID> consumeActiveToken(

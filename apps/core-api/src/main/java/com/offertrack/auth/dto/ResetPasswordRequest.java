@@ -12,4 +12,9 @@ public record ResetPasswordRequest(
             regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
             message =
                 "Password must contain at least 1 lowercase letter, 1 uppercase letter and 1 digit")
-        String newPassword) {}
+        String newPassword) {
+  @Override
+  public String toString() {
+    return "ResetPasswordRequest[redacted]";
+  }
+}
