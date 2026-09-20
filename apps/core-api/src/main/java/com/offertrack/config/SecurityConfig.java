@@ -20,14 +20,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -42,6 +40,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@org.springframework.context.annotation.Import(TimeConfig.class)
 @EnableConfigurationProperties({
   JwtProperties.class,
   AuthCookieProperties.class,
@@ -98,7 +97,16 @@ public class SecurityConfig {
         .exceptionHandling(
             exception ->
                 exception
-                    .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.FORBIDDEN))
+                    .authenticationEntryPoint(
+                        (request, response, authException) -> {
+                          if (DependencyHealthAuthenticationFilter.PATH.equals(
+                              request.getRequestURI())) {
+                            response.setStatus(403);
+                          } else {
+                            com.offertrack.auth.AuthenticationErrorWriter.write(
+                                objectMapper, request, response, false);
+                          }
+                        })
                     .accessDeniedHandler(new JsonCsrfAccessDeniedHandler(objectMapper)))
         .authorizeHttpRequests(
             auth ->
@@ -108,6 +116,7 @@ public class SecurityConfig {
                         "/auth/register",
                         "/auth/login",
                         "/auth/logout",
+                        "/auth/refresh",
                         "/auth/email/verify",
                         "/auth/email/verification/resend",
                         "/auth/password/forgot",
@@ -206,13 +215,15 @@ public class SecurityConfig {
       CookieService cookieService,
       CsrfTokenInvalidationService csrfTokenInvalidationService,
       CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository,
-      WebProperties webProperties) {
+      WebProperties webProperties,
+      com.offertrack.auth.AuthSessionCleanup cleanup) {
     return new GoogleOAuth2SuccessHandler(
         authService,
         cookieService,
         csrfTokenInvalidationService,
         oauth2AuthorizationRequestRepository,
-        webProperties.getUrl());
+        webProperties.getUrl(),
+        cleanup);
   }
 
   @Bean

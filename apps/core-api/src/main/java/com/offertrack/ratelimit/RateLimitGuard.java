@@ -117,6 +117,16 @@ public class RateLimitGuard {
                 properties.getAiUserDay())));
   }
 
+  public void checkRefresh(String remoteAddress) {
+    checkAll(
+        List.of(
+            attempt(
+                RateLimitPolicy.REFRESH_IP,
+                RateLimitSubjectType.IP,
+                normalizeRemoteAddress(remoteAddress),
+                properties.getRefreshIp())));
+  }
+
   private void checkAll(List<RateLimitAttempt> attempts) {
     List<DeniedAttempt> deniedAttempts = new ArrayList<>();
     boolean unavailable = false;

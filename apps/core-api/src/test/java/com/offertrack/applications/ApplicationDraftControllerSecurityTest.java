@@ -60,23 +60,31 @@ class ApplicationDraftControllerSecurityTest {
   @MockitoBean private AuthService authService;
   @MockitoBean private CookieService cookieService;
   @MockitoBean private JwtService jwtService;
+  @MockitoBean private com.offertrack.auth.AuthSessionService sessions;
+  @MockitoBean private com.offertrack.auth.AuthSessionCleanup cleanup;
   @MockitoBean private RateLimitGuard rateLimitGuard;
 
   @BeforeEach
   void setUpAuthentication() {
-    when(jwtService.isTokenValid(TEST_TOKEN)).thenReturn(true);
-    when(jwtService.extractUserId(TEST_TOKEN)).thenReturn(AUTHENTICATED_USER_ID);
-    when(jwtService.extractEmail(TEST_TOKEN)).thenReturn(AUTHENTICATED_USER_EMAIL);
+    when(jwtService.verify(TEST_TOKEN))
+        .thenReturn(
+            java.util.Optional.of(
+                new JwtService.AccessClaims(
+                    AUTHENTICATED_USER_ID,
+                    UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                    java.time.Instant.now(),
+                    java.time.Instant.now().plusSeconds(900))));
+    when(sessions.authenticates(org.mockito.ArgumentMatchers.any())).thenReturn(true);
   }
 
   @Test
-  void postDraftReturnsForbiddenWhenUnauthenticated() throws Exception {
+  void postDraftReturnsUnauthorizedWhenUnauthenticated() throws Exception {
     mockMvc
         .perform(
             post("/api/applications/draft")
                 .contentType(MediaType.APPLICATION_JSON_VALUE)
                 .content("{\"jobUrl\":\"https://example.com/jobs/123\"}"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isUnauthorized());
 
     verifyNoInteractions(applicationDraftService, rateLimitGuard);
   }

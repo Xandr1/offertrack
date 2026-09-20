@@ -1,13 +1,13 @@
 import { Suspense } from "react";
 import { pageStyles } from "@/lib/styles";
-import { ResetPasswordClient, ResetPasswordStatus } from "./reset-password-client";
+import { ResetPasswordClient } from "./reset-password-client";
 
 export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
         <main className={pageStyles.centered}>
-          <ResetPasswordStatus status="missing-token" />
+          Checking your reset link.
         </main>
       }
     >

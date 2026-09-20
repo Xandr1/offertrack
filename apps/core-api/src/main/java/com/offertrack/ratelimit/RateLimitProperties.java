@@ -29,6 +29,16 @@ public class RateLimitProperties {
   @Valid private Policy forgotPasswordIp = new Policy(20, Duration.ofHours(1));
   @Valid private Policy resetPasswordToken = new Policy(10, Duration.ofHours(1));
   @Valid private Policy resetPasswordIp = new Policy(20, Duration.ofHours(1));
+  @Valid private Policy refreshIp = new Policy(120, Duration.ofMinutes(15));
+
+  public Policy getRefreshIp() {
+    return refreshIp;
+  }
+
+  public void setRefreshIp(Policy value) {
+    refreshIp = value;
+  }
+
   @Valid private Policy aiUserMinute = new Policy(10, Duration.ofMinutes(1));
   @Valid private Policy aiUserDay = new Policy(100, Duration.ofDays(1));
 

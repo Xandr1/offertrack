@@ -1,8 +1,6 @@
 package com.offertrack.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -39,6 +37,7 @@ class GoogleOAuth2SuccessHandlerTest {
   private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
   @Mock private AuthService authService;
+  @Mock private AuthSessionCleanup cleanup;
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository =
       new CookieOAuth2AuthorizationRequestRepository("test-oauth-cookie-secret");
   private GoogleOAuth2SuccessHandler handler;
@@ -54,19 +53,25 @@ class GoogleOAuth2SuccessHandlerTest {
     handler =
         new GoogleOAuth2SuccessHandler(
             authService,
-            new CookieService(jwtProperties, new AuthCookieProperties()),
+            new CookieService(new AuthCookieProperties(), java.time.Clock.systemUTC()),
             new CsrfTokenInvalidationService(csrfTokenRepository),
             authorizationRequestRepository,
-            "http://localhost:3000/");
+            "http://localhost:3000/",
+            cleanup);
   }
 
   @Test
   void validOidcUserSetsAccessTokenClearsOAuthCookieAndRedirectsToDashboard() throws Exception {
     MockHttpServletResponse response = new MockHttpServletResponse();
-    when(authService.loginWithGoogle("user@example.com", "Google User", true))
+    when(authService.loginWithGoogle(
+            new GoogleIdentity("google-subject", "user@example.com", "Google User", true)))
         .thenReturn(
             new AuthService.AuthResult(
-                "jwt-token",
+                new SessionTokens(
+                    "jwt-token",
+                    "refresh-token",
+                    Instant.now().plusSeconds(900),
+                    Instant.now().plusSeconds(604800)),
                 new AuthResponse(
                     new AuthResponse.UserSummary(USER_ID, "user@example.com", "Google User"))));
 
@@ -79,27 +84,9 @@ class GoogleOAuth2SuccessHandlerTest {
     assertThat(hasAccessTokenCookie(response)).isTrue();
     assertThat(hasClearingOAuthCookie(response)).isTrue();
     assertThat(hasClearingCsrfCookie(response)).isTrue();
-    verify(authService).loginWithGoogle("user@example.com", "Google User", true);
-  }
-
-  @Test
-  void blankEmailFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(googleAuthentication(oidcUser(" ", true)), false);
-  }
-
-  @Test
-  void missingEmailFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(googleAuthentication(oidcUser(null, true)), false);
-  }
-
-  @Test
-  void unverifiedEmailFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(googleAuthentication(oidcUser("user@example.com", false)), false);
-  }
-
-  @Test
-  void nullEmailVerifiedFailsWithoutSettingAccessToken() throws Exception {
-    expectFailure(googleAuthentication(oidcUser("user@example.com", null)), false);
+    verify(authService)
+        .loginWithGoogle(
+            new GoogleIdentity("google-subject", "user@example.com", "Google User", true));
   }
 
   @Test
@@ -126,7 +113,7 @@ class GoogleOAuth2SuccessHandlerTest {
 
   @Test
   void serviceFailureLogsOnlySafeOAuthFields(CapturedOutput output) throws Exception {
-    when(authService.loginWithGoogle(anyString(), anyString(), anyBoolean()))
+    when(authService.loginWithGoogle(org.mockito.ArgumentMatchers.any(GoogleIdentity.class)))
         .thenThrow(
             new IllegalStateException(
                 "provider-message-marker oauth-code-marker oauth-token-marker oauth-state-marker"));

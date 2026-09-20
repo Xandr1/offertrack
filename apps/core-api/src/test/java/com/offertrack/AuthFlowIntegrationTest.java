@@ -137,7 +137,7 @@ class AuthFlowIntegrationTest {
 
     SimpleMailMessage message = captureOnlyMessage();
     assertThat(message.getTo()).containsExactly(email);
-    assertThat(message.getText()).contains("/verify-email?token=");
+    assertThat(message.getText()).contains("/verify-email#token=");
   }
 
   @Test
@@ -195,7 +195,9 @@ class AuthFlowIntegrationTest {
   @Test
   void googleLoginCreatesVerifiedOauthUserWithNullPasswordHash() {
     AuthService.AuthResult result =
-        authService.loginWithGoogle("  New.Google@Example.COM ", "Google User", true);
+        authService.loginWithGoogle(
+            new com.offertrack.auth.GoogleIdentity(
+                "test-subject", "  New.Google@Example.COM ", "Google User", true));
 
     User user = userRepository.findByEmail("new.google@example.com").orElseThrow();
     assertThat(result.response().user().id()).isEqualTo(user.id());
@@ -223,7 +225,8 @@ class AuthFlowIntegrationTest {
                             ready.countDown();
                             start.await();
                             return authService.loginWithGoogle(
-                                "Race.Google@Example.com", "Race User", true);
+                                new com.offertrack.auth.GoogleIdentity(
+                                    "race-subject", "Race.Google@Example.com", "Race User", true));
                           }))
               .toList();
 
@@ -253,7 +256,9 @@ class AuthFlowIntegrationTest {
     User existingUser = createVerifiedUser("same@example.com");
 
     AuthService.AuthResult result =
-        authService.loginWithGoogle(" SAME@example.com ", "Google Name", true);
+        authService.loginWithGoogle(
+            new com.offertrack.auth.GoogleIdentity(
+                "test-subject", " SAME@example.com ", "Google Name", true));
 
     assertThat(result.response().user().id()).isEqualTo(existingUser.id());
     assertThat(dsl.fetchCount(USERS, USERS.EMAIL.eq("same@example.com"))).isEqualTo(1);
@@ -266,12 +271,14 @@ class AuthFlowIntegrationTest {
     User existingUser = createUnverifiedUser("unverified-google@example.com");
 
     AuthService.AuthResult result =
-        authService.loginWithGoogle("unverified-google@example.com", "Google Name", true);
+        authService.loginWithGoogle(
+            new com.offertrack.auth.GoogleIdentity(
+                "test-subject", "unverified-google@example.com", "Google Name", true));
 
     User updatedUser = userRepository.findByEmail("unverified-google@example.com").orElseThrow();
     assertThat(result.response().user().id()).isEqualTo(existingUser.id());
     assertThat(updatedUser.emailVerifiedAt()).isNotNull();
-    assertThat(updatedUser.passwordHash()).isEqualTo(existingUser.passwordHash());
+    assertThat(updatedUser.passwordHash()).isNull();
   }
 
   @Test
@@ -279,16 +286,30 @@ class AuthFlowIntegrationTest {
     User existingUser = createUnverifiedUser("unchanged-google@example.com");
     int userCountBefore = dsl.fetchCount(USERS);
 
-    assertThatThrownBy(() -> authService.loginWithGoogle(null, "Missing Email", true))
-        .isInstanceOf(IllegalArgumentException.class);
-    assertThatThrownBy(() -> authService.loginWithGoogle(" ", "Missing Email", true))
-        .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(
-            () -> authService.loginWithGoogle("new-unverified-google@example.com", "Name", false))
-        .isInstanceOf(IllegalArgumentException.class);
+            () ->
+                authService.loginWithGoogle(
+                    new com.offertrack.auth.GoogleIdentity(
+                        "test-subject", null, "Missing Email", true)))
+        .isInstanceOf(com.offertrack.auth.AuthenticationRequiredException.class);
     assertThatThrownBy(
-            () -> authService.loginWithGoogle("unchanged-google@example.com", "Name", false))
-        .isInstanceOf(IllegalArgumentException.class);
+            () ->
+                authService.loginWithGoogle(
+                    new com.offertrack.auth.GoogleIdentity(
+                        "test-subject", " ", "Missing Email", true)))
+        .isInstanceOf(com.offertrack.auth.AuthenticationRequiredException.class);
+    assertThatThrownBy(
+            () ->
+                authService.loginWithGoogle(
+                    new com.offertrack.auth.GoogleIdentity(
+                        "test-subject", "new-unverified-google@example.com", "Name", false)))
+        .isInstanceOf(com.offertrack.auth.AuthenticationRequiredException.class);
+    assertThatThrownBy(
+            () ->
+                authService.loginWithGoogle(
+                    new com.offertrack.auth.GoogleIdentity(
+                        "test-subject", "unchanged-google@example.com", "Name", false)))
+        .isInstanceOf(com.offertrack.auth.AuthenticationRequiredException.class);
 
     User unchangedUser = userRepository.findByEmail("unchanged-google@example.com").orElseThrow();
     assertThat(dsl.fetchCount(USERS)).isEqualTo(userCountBefore);
@@ -351,7 +372,7 @@ class AuthFlowIntegrationTest {
 
     SimpleMailMessage resetMessage = captureOnlyMessage();
     assertThat(resetMessage.getTo()).containsExactly(baseEmail);
-    assertThat(resetMessage.getText()).contains("/reset-password?token=");
+    assertThat(resetMessage.getText()).contains("/reset-password#token=");
 
     resetPasswordViaApi(extractToken(resetMessage), NEW_PASSWORD);
 
@@ -529,7 +550,7 @@ class AuthFlowIntegrationTest {
 
     SimpleMailMessage message = captureOnlyMessage();
     assertThat(message.getTo()).containsExactly("forgot@example.com");
-    assertThat(message.getText()).contains("/reset-password?token=");
+    assertThat(message.getText()).contains("/reset-password#token=");
   }
 
   @Test

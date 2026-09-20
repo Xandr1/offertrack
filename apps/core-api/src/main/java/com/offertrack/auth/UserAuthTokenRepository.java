@@ -13,7 +13,7 @@ public class UserAuthTokenRepository {
   private final DSLContext dsl;
 
   public UserAuthTokenRepository(DSLContext dsl) {
-    this.dsl = dsl;
+    this.dsl = dsl.configuration().deriveSettings(s -> s.withExecuteLogging(false)).dsl();
   }
 
   public void create(
@@ -42,6 +42,22 @@ public class UserAuthTokenRepository {
         .and(USER_AUTH_TOKENS.EXPIRES_AT.gt(consumedAt))
         .returning(USER_AUTH_TOKENS.USER_ID)
         .fetchOptional(record -> record.get(USER_AUTH_TOKENS.USER_ID));
+  }
+
+  public Optional<UUID> findUser(AuthTokenPurpose purpose, String hash) {
+    return dsl.select(USER_AUTH_TOKENS.USER_ID)
+        .from(USER_AUTH_TOKENS)
+        .where(USER_AUTH_TOKENS.PURPOSE.eq(purpose.value()))
+        .and(USER_AUTH_TOKENS.TOKEN_HASH.eq(hash))
+        .fetchOptional(USER_AUTH_TOKENS.USER_ID);
+  }
+
+  public void consumeAllForUser(UUID userId, OffsetDateTime now) {
+    dsl.update(USER_AUTH_TOKENS)
+        .set(USER_AUTH_TOKENS.CONSUMED_AT, now)
+        .where(USER_AUTH_TOKENS.USER_ID.eq(userId))
+        .and(USER_AUTH_TOKENS.CONSUMED_AT.isNull())
+        .execute();
   }
 
   public int consumeActiveTokensForUser(

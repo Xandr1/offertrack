@@ -10,6 +10,7 @@ import {
   Settings,
   getSettings,
   logout,
+  logoutAll,
   updateSettings,
 } from "@/lib/api";
 import type { UserSummary } from "@/lib/api";
@@ -41,7 +42,9 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [signedOut, setSignedOut] = useState(false);
   const settingsQuery = useQuery({
+    enabled: !signedOut,
     queryKey: queryKeys.settings,
     queryFn: getSettings,
     retry: false,
@@ -50,22 +53,30 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
     settingsQuery.error,
   );
 
-  async function handleLogout() {
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  async function handleLogout(all = false) {
+    setSigningOut(true);
+    setLogoutError(null);
     try {
-      await logout();
-    } finally {
+      await (all ? logoutAll() : logout());
+      setSignedOut(true);
       clearAuthSessionQueries(queryClient);
       router.replace("/login");
-    }
+    } catch (error) {
+      setLogoutError(getRequestErrorMessage(error));
+    } finally { setSigningOut(false); }
   }
 
-  if (isRedirectingToLogin) {
+  if (signedOut || isRedirectingToLogin) {
     return null;
   }
 
   return (
     <div className={layoutStyles.container}>
-        <SettingsPageHeader email={user.email} onSignOut={handleLogout} />
+        <SettingsPageHeader email={user.email} disabled={signingOut}
+          onSignOut={() => void handleLogout()} onSignOutAll={() => void handleLogout(true)} />
+        {logoutError && <p role="alert" className={formStyles.error}>{logoutError}</p>}
 
         <section className={layoutStyles.section}>
           {settingsQuery.isPending && !settingsQuery.data ? (

@@ -6,61 +6,73 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
-import org.springframework.mock.web.MockHttpServletResponse;
 
 class JwtServiceTest {
   private static final String SECRET =
       "test-secret-test-secret-test-secret-test-secret-test-secret";
+  private static final Instant NOW = Instant.parse("2026-09-20T12:00:00Z");
+  private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
-  @Test
-  void generatesAccessTokenThatExpiresAfterFortyEightHours() {
-    JwtProperties properties = properties(Duration.ofHours(48));
-    JwtService service = new JwtService(properties);
-
-    Instant beforeIssue = Instant.now();
-    Claims claims = claims(service.generateAccessToken(UUID.randomUUID(), "user@example.com"));
-    Instant afterIssue = Instant.now();
-
-    assertThat(claims.getExpiration().toInstant())
-        .isBetween(
-            beforeIssue.plus(Duration.ofHours(48)).minusSeconds(1),
-            afterIssue.plus(Duration.ofHours(48)).plusSeconds(1));
-  }
-
-  @Test
-  void jwtAndCookieUseTheSameConfiguredDuration() {
-    Duration configuredTtl = Duration.ofMinutes(90);
-    JwtProperties properties = properties(configuredTtl);
-    JwtService jwtService = new JwtService(properties);
-    CookieService cookieService = new CookieService(properties, new AuthCookieProperties());
-    MockHttpServletResponse response = new MockHttpServletResponse();
-
-    Claims claims = claims(jwtService.generateAccessToken(UUID.randomUUID(), "user@example.com"));
-    cookieService.addAccessTokenCookie(response, "token");
-
-    assertThat(
-            Duration.between(claims.getIssuedAt().toInstant(), claims.getExpiration().toInstant()))
-        .isEqualTo(configuredTtl);
-    assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).contains("Max-Age=5400");
-  }
-
-  private static Claims claims(String token) {
-    return Jwts.parser()
-        .verifyWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
-        .build()
-        .parseSignedClaims(token)
-        .getPayload();
-  }
-
-  private static JwtProperties properties(Duration ttl) {
+  private JwtService service() {
     JwtProperties properties = new JwtProperties();
     properties.setSecret(SECRET);
-    properties.setAccessTokenTtl(ttl);
-    return properties;
+    return new JwtService(properties, clock);
+  }
+
+  @Test
+  void issuesOnlyFiveClaimsForFifteenMinutes() {
+    UUID user = UUID.randomUUID(), session = UUID.randomUUID();
+    var issued = service().generateAccessToken(user, session, NOW.plusSeconds(86400));
+    Claims claims =
+        Jwts.parser()
+            .verifyWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+            .clock(() -> Date.from(NOW))
+            .build()
+            .parseSignedClaims(issued.token())
+            .getPayload();
+    assertThat(claims.keySet()).containsExactlyInAnyOrder("sub", "sid", "iat", "exp", "jti");
+    assertThat(claims.getSubject()).isEqualTo(user.toString());
+    assertThat(claims.get("sid")).isEqualTo(session.toString());
+    assertThat(issued.expiresAt()).isEqualTo(NOW.plusSeconds(900));
+    assertThat(service().verify(issued.token()))
+        .hasValueSatisfying(value -> assertThat(value.sessionId()).isEqualTo(session));
+  }
+
+  @Test
+  void capsAccessAtSessionExpiry() {
+    var issued =
+        service().generateAccessToken(UUID.randomUUID(), UUID.randomUUID(), NOW.plusSeconds(45));
+    assertThat(issued.expiresAt()).isEqualTo(NOW.plusSeconds(45));
+  }
+
+  @Test
+  void rejectsLegacyClaimsAndMalformedIdentifiers() {
+    String legacy =
+        Jwts.builder()
+            .subject(UUID.randomUUID().toString())
+            .claim("email", "test@example.com")
+            .issuedAt(Date.from(NOW))
+            .expiration(Date.from(NOW.plusSeconds(172800)))
+            .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+            .compact();
+    assertThat(service().verify(legacy)).isEmpty();
+    assertThat(service().verify("invalid")).isEmpty();
+    assertThat(service().verify(null)).isEmpty();
+    String malformed =
+        Jwts.builder()
+            .subject("not-a-uuid")
+            .claim("sid", UUID.randomUUID().toString())
+            .id(UUID.randomUUID().toString())
+            .issuedAt(Date.from(NOW))
+            .expiration(Date.from(NOW.plusSeconds(900)))
+            .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+            .compact();
+    assertThat(service().verify(malformed)).isEmpty();
   }
 }

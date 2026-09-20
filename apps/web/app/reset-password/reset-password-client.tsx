@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRecoveryToken } from "@/lib/auth/use-recovery-token";
 import { resetPassword } from "@/lib/api";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ type ResetPasswordFormProps = {
 };
 
 export const ResetPasswordClient = () => {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token")?.trim() ?? "";
+  const { ready, token } = useRecoveryToken();
+  if (!ready) return <main className={pageStyles.centered}>Checking your reset link.</main>;
 
   return (
     <main className={pageStyles.centered}>

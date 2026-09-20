@@ -1,5 +1,6 @@
 package com.offertrack.auth;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -9,78 +10,78 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-  private static final String AUTHORIZATION_HEADER = "Authorization";
-  private static final String BEARER_PREFIX = "Bearer ";
-
   private final JwtService jwtService;
   private final AuthCookieProperties cookieProperties;
+  private final AuthSessionService sessions;
+  private final ObjectMapper mapper;
 
-  public JwtAuthenticationFilter(JwtService jwtService, AuthCookieProperties cookieProperties) {
+  public JwtAuthenticationFilter(
+      JwtService jwtService,
+      AuthCookieProperties cookieProperties,
+      AuthSessionService sessions,
+      ObjectMapper mapper) {
     this.jwtService = jwtService;
     this.cookieProperties = cookieProperties;
+    this.sessions = sessions;
+    this.mapper = mapper;
+  }
+
+  @Override
+  protected boolean shouldNotFilter(HttpServletRequest request) {
+    String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
+    return (path.startsWith("/auth/") && !path.equals("/auth/logout-all"))
+        || path.startsWith("/oauth2/")
+        || path.startsWith("/login/oauth2/")
+        || path.startsWith("/actuator/");
   }
 
   @Override
   protected void doFilterInternal(
       @NonNull HttpServletRequest request,
       @NonNull HttpServletResponse response,
-      @NonNull FilterChain filterChain)
+      @NonNull FilterChain chain)
       throws ServletException, IOException {
-    Optional<String> maybeToken = extractToken(request);
-
-    if (maybeToken.isEmpty()) {
-      filterChain.doFilter(request, response);
-      return;
+    Optional<JwtService.AccessClaims> claims = extractToken(request).flatMap(jwtService::verify);
+    if (claims.isPresent()) {
+      try {
+        if (sessions.authenticates(claims.get())) {
+          CurrentUser user = new CurrentUser(claims.get().userId(), claims.get().sessionId());
+          SecurityContextHolder.getContext()
+              .setAuthentication(new UsernamePasswordAuthenticationToken(user, null, List.of()));
+        }
+      } catch (AuthServiceUnavailableException exception) {
+        SecurityContextHolder.clearContext();
+        AuthenticationErrorWriter.write(mapper, request, response, true);
+        return;
+      }
     }
-
-    String token = maybeToken.get();
-
-    if (!jwtService.isTokenValid(token)) {
-      filterChain.doFilter(request, response);
-      return;
-    }
-
-    UUID userId = jwtService.extractUserId(token);
-    String email = jwtService.extractEmail(token);
-
-    CurrentUser currentUser = new CurrentUser(userId, email);
-
-    UsernamePasswordAuthenticationToken authentication =
-        new UsernamePasswordAuthenticationToken(currentUser, null, List.of());
-
-    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-    SecurityContextHolder.getContext().setAuthentication(authentication);
-
-    filterChain.doFilter(request, response);
+    chain.doFilter(request, response);
   }
 
-  private Optional<String> extractToken(HttpServletRequest request) {
-    String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
-
-    if (authorizationHeader != null && authorizationHeader.startsWith(BEARER_PREFIX)) {
-      return Optional.of(authorizationHeader.substring(BEARER_PREFIX.length()));
+  public Optional<String> extractToken(HttpServletRequest request) {
+    String authorization = request.getHeader("Authorization");
+    if (authorization != null && authorization.startsWith("Bearer ")) {
+      return Optional.of(authorization.substring(7));
     }
+    return cookie(request, cookieProperties.getName());
+  }
 
+  public static Optional<String> cookie(HttpServletRequest request, String name) {
     Cookie[] cookies = request.getCookies();
-
-    if (cookies == null) {
-      return Optional.empty();
-    }
-
-    return Arrays.stream(cookies)
-        .filter(cookie -> cookieProperties.getName().equals(cookie.getName()))
-        .map(Cookie::getValue)
-        .findFirst();
+    return cookies == null
+        ? Optional.empty()
+        : Arrays.stream(cookies)
+            .filter(cookie -> name.equals(cookie.getName()))
+            .map(Cookie::getValue)
+            .findFirst();
   }
 }

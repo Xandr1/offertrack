@@ -9,7 +9,6 @@ import com.offertrack.applications.AiServiceConfigurationException;
 import com.offertrack.applications.AiServiceEndpointNormalizer;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
@@ -37,6 +36,22 @@ final class WebSecurityConfigurationRules {
     requireText(configuration.corsAllowedOrigins(), "app.cors.allowed-origins");
     Arrays.stream(configuration.corsAllowedOrigins().split(",", -1))
         .forEach(WebSecurityConfigurationRules::validateCorsOrigin);
+    if (!configuration.webUrl().equals(configuration.corsAllowedOrigins())) {
+      invalid("app.cors.allowed-origins");
+    }
+    URI core =
+        HostValidation.parseHttpUrl(configuration.corePublicUrl(), "app.core.public-url", true);
+    HostValidation.requireNonLoopbackHost(core.getHost(), "app.core.public-url");
+    if (core.getRawQuery() != null
+        || core.getRawFragment() != null
+        || (core.getRawPath() != null && !core.getRawPath().isEmpty())
+        || !core.getHost().equals("api." + webUri.getHost())) {
+      invalid("app.core.public-url");
+    }
+    if (!(configuration.corePublicUrl() + "/login/oauth2/code/google")
+        .equals(configuration.googleRedirectUri())) {
+      invalid("spring.security.oauth2.client.registration.google.redirect-uri");
+    }
   }
 
   private static void validateAiService(ProtectedConfigurationSnapshot configuration) {
@@ -88,7 +103,7 @@ final class WebSecurityConfigurationRules {
     }
 
     requireText(configuration.accessCookiePath(), "app.auth.cookie.path");
-    if (!isValidCookiePath(configuration.accessCookiePath())) {
+    if (!"/".equals(configuration.accessCookiePath())) {
       invalid("app.auth.cookie.path");
     }
 
@@ -97,18 +112,12 @@ final class WebSecurityConfigurationRules {
     }
 
     requireText(configuration.accessCookieSameSite(), "app.auth.cookie.same-site");
-    if (Set.of("strict", "lax", "none").stream()
-        .noneMatch(value -> value.equalsIgnoreCase(configuration.accessCookieSameSite()))) {
+    if (!"Lax".equals(configuration.accessCookieSameSite())) {
       invalid("app.auth.cookie.same-site");
     }
 
     if (StringUtils.hasText(configuration.accessCookieDomain())) {
-      String domain = configuration.accessCookieDomain().trim();
-      String withoutLeadingDot = domain.startsWith(".") ? domain.substring(1) : domain;
-      if (HostValidation.isLoopbackHost(domain)
-          || !HostValidation.isExplicitHostname(withoutLeadingDot)) {
-        invalid("app.auth.cookie.domain");
-      }
+      invalid("app.auth.cookie.domain");
     }
   }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { API_URL, clearCsrfToken, request } from "./client";
+import { API_URL, clearCsrfToken, ensureFreshAuthentication, request } from "./client";
+import { authState, AuthCoordinationError, emitAuthEvent, withAuthLock } from "../auth-coordinator";
 import {
   authResponseSchema,
   genericSuccessResponseSchema,
@@ -29,6 +30,7 @@ export const register = (payload: RegisterRequest): Promise<RegisterResponse> =>
 };
 
 export const login = async (payload: LoginRequest): Promise<AuthResponse> => {
+  return withAuthLock(async () => {
   const response = await request<AuthResponse>(
     "/auth/login",
     authResponseSchema,
@@ -39,7 +41,9 @@ export const login = async (payload: LoginRequest): Promise<AuthResponse> => {
   );
 
   clearCsrfToken();
+  emitAuthEvent("signed-in");
   return response;
+  });
 };
 
 export const getGoogleLoginUrl = (): string => {
@@ -47,11 +51,26 @@ export const getGoogleLoginUrl = (): string => {
 };
 
 export const logout = async (): Promise<void> => {
+  return withAuthLock(async () => {
   await request<void>("/auth/logout", z.undefined(), {
     method: "POST",
   });
 
   clearCsrfToken();
+  emitAuthEvent("signed-out");
+  });
+};
+
+export const logoutAll = async (): Promise<void> => {
+  // Refresh takes the lifecycle lock itself; never nest Web Locks.
+  const generation = authState().generation;
+  await ensureFreshAuthentication();
+  return withAuthLock(async () => {
+    if (authState().generation !== generation) throw new AuthCoordinationError();
+    await request<void>("/auth/logout-all", z.undefined(), { method: "POST" });
+    clearCsrfToken();
+    emitAuthEvent("signed-out");
+  });
 };
 
 export const verifyEmail = (
@@ -102,6 +121,6 @@ export const resetPassword = (
   );
 };
 
-export const getCurrentUser = (): Promise<UserSummary> => {
-  return request<UserSummary>("/api/me", userSummarySchema);
+export const getCurrentUser = (allowRefresh = true): Promise<UserSummary> => {
+  return request<UserSummary>("/api/me", userSummarySchema, {}, allowRefresh);
 };

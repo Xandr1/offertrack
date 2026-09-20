@@ -39,7 +39,7 @@ spring:
               - openid
               - email
               - profile
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            redirect-uri: "${GOOGLE_REDIRECT_URI:http://localhost:8080/login/oauth2/code/google}"
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}
@@ -67,8 +67,12 @@ app:
     dependency-health-key: ${DEPENDENCY_HEALTH_KEY:}
   jwt:
     secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me}
-    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:48h}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
   auth:
+    session:
+      inactivity-ttl: ${AUTH_SESSION_INACTIVITY_TTL:7d}
+      absolute-ttl: ${AUTH_SESSION_ABSOLUTE_TTL:30d}
+      max-active: ${AUTH_SESSION_MAX_ACTIVE:10}
     cookie:
       name: ${AUTH_COOKIE_NAME:access_token}
       path: ${AUTH_COOKIE_PATH:/}
@@ -83,6 +87,8 @@ app:
     authorization-request-cookie-signing-secret: ${OAUTH_COOKIE_SECRET:${app.jwt.secret}}
   web:
     url: ${APP_WEB_URL:http://localhost:3000}
+  core:
+    public-url: ${APP_CORE_URL:http://localhost:8080}
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
     internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:local-dev-ai-service-key}
@@ -121,6 +127,9 @@ app:
     reset-password-ip:
       max-attempts: ${RATE_LIMIT_RESET_PASSWORD_IP_MAX_ATTEMPTS:20}
       window: ${RATE_LIMIT_RESET_PASSWORD_IP_WINDOW:1h}
+    refresh-ip:
+      max-attempts: ${RATE_LIMIT_REFRESH_IP_MAX_ATTEMPTS:120}
+      window: ${RATE_LIMIT_REFRESH_IP_WINDOW:15m}
     ai-user-minute:
       max-attempts: ${RATE_LIMIT_AI_USER_MINUTE_MAX_ATTEMPTS:10}
       window: ${RATE_LIMIT_AI_USER_MINUTE_WINDOW:1m}
@@ -149,6 +158,7 @@ spring:
           google:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
+            redirect-uri: ${GOOGLE_REDIRECT_URI:}
 
 server:
   forward-headers-strategy: ${SERVER_FORWARD_HEADERS_STRATEGY:}
@@ -183,6 +193,8 @@ app:
     authorization-request-cookie-signing-secret: ${OAUTH_COOKIE_SECRET:}
   web:
     url: ${APP_WEB_URL:}
+  core:
+    public-url: ${APP_CORE_URL:}
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:}
     internal-api-key: ${AI_SERVICE_INTERNAL_API_KEY:}

@@ -23,7 +23,7 @@ public class AuthEmailService {
   }
 
   public void sendVerificationEmail(User user, String token) {
-    String verificationUrl = normalizedWebUrl() + "/verify-email?token=" + token;
+    String verificationUrl = normalizedWebUrl() + "/verify-email#token=" + token;
 
     SimpleMailMessage message = new SimpleMailMessage();
     message.setFrom(mailFrom);
@@ -43,7 +43,7 @@ public class AuthEmailService {
   }
 
   public void sendPasswordResetEmail(User user, String token) {
-    String resetUrl = normalizedWebUrl() + "/reset-password?token=" + token;
+    String resetUrl = normalizedWebUrl() + "/reset-password#token=" + token;
 
     SimpleMailMessage message = new SimpleMailMessage();
     message.setFrom(mailFrom);

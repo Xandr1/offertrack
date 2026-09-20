@@ -79,6 +79,17 @@ public class AuthTokenService {
         AuthTokenPurpose.PASSWORD_RESET, userId, OffsetDateTime.now(clock));
   }
 
+  public UUID findUser(String token, AuthTokenPurpose purpose) {
+    if (!RefreshTokenCodec.isValidShape(token)) throw new InvalidAuthTokenException();
+    return userAuthTokenRepository
+        .findUser(purpose, hashToken(token))
+        .orElseThrow(InvalidAuthTokenException::new);
+  }
+
+  public void consumeAllForUser(UUID userId) {
+    userAuthTokenRepository.consumeAllForUser(userId, OffsetDateTime.now(clock));
+  }
+
   private String generateToken() {
     byte[] bytes = new byte[TOKEN_BYTES];
     secureRandom.nextBytes(bytes);

@@ -1,15 +1,10 @@
 package com.offertrack.auth;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
+import com.offertrack.auth.dto.*;
 import com.offertrack.users.User;
 import com.offertrack.users.UserRepository;
 import java.time.Clock;
@@ -21,7 +16,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -30,185 +24,135 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class AuthServiceTest {
   private static final Clock CLOCK =
-      Clock.fixed(Instant.parse("2026-06-13T10:15:30Z"), ZoneOffset.UTC);
+      Clock.fixed(Instant.parse("2026-09-20T10:15:30Z"), ZoneOffset.UTC);
   private static final OffsetDateTime NOW = OffsetDateTime.now(CLOCK);
-  private static final UUID USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
-
-  @Mock private UserRepository userRepository;
-  @Mock private PasswordService passwordService;
-  @Mock private JwtService jwtService;
-  @Mock private AuthTokenService authTokenService;
-  @Mock private AuthEmailService authEmailService;
-
-  private AuthService authService;
+  private static final UUID USER_ID = UUID.randomUUID();
+  @Mock UserRepository users;
+  @Mock PasswordService passwords;
+  @Mock AuthSessionService sessions;
+  @Mock UserIdentityRepository identities;
+  @Mock AuthTokenService tokens;
+  @Mock AuthEmailService mail;
+  AuthService service;
 
   @BeforeEach
-  void setUp() {
-    authService =
-        new AuthService(
-            userRepository, passwordService, jwtService, authTokenService, authEmailService, CLOCK);
+  void setup() {
+    service = new AuthService(users, passwords, sessions, identities, tokens, mail, CLOCK);
   }
 
   @Test
-  void googleLoginUsesInsertedUserWhenInsertSucceeds() {
-    User insertedUser = verifiedUser("new@example.com", "Google User");
-
-    when(userRepository.insertVerifiedOAuthUserIfAbsent("new@example.com", "Google User", NOW))
-        .thenReturn(Optional.of(insertedUser));
-    when(jwtService.generateAccessToken(USER_ID, "new@example.com")).thenReturn("jwt-token");
-
-    AuthService.AuthResult result =
-        authService.loginWithGoogle(" New@Example.COM ", "Google User", true);
-
-    assertThat(result.accessToken()).isEqualTo("jwt-token");
-    assertThat(result.response().user().id()).isEqualTo(USER_ID);
-    assertThat(result.response().user().email()).isEqualTo("new@example.com");
-    verify(userRepository, never()).findByEmail(anyString());
+  void existingSubjectIgnoresEmailAndUsesLinkedUser() {
+    User user = user(true);
+    when(identities.findGoogleUser("subject")).thenReturn(Optional.of(USER_ID));
+    when(users.lockById(USER_ID)).thenReturn(Optional.of(user));
+    var result =
+        service.loginWithGoogle(new GoogleIdentity("subject", "changed@example.com", null, false));
+    assertThat(result.response().user().email()).isEqualTo(user.email());
+    verify(users, never()).lockByEmail(anyString());
+    verify(sessions).create(USER_ID);
   }
 
   @Test
-  void googleLoginFetchesExistingVerifiedUserWhenInsertDoesNothing() {
-    User existingUser = verifiedUser("race@example.com", "Race User");
-
-    when(userRepository.insertVerifiedOAuthUserIfAbsent("race@example.com", "Race User", NOW))
-        .thenReturn(Optional.empty());
-    when(userRepository.findByEmail("race@example.com")).thenReturn(Optional.of(existingUser));
-    when(jwtService.generateAccessToken(USER_ID, "race@example.com")).thenReturn("jwt-token");
-
-    AuthService.AuthResult result =
-        authService.loginWithGoogle("Race@Example.com", "Race User", true);
-
-    assertThat(result.accessToken()).isEqualTo("jwt-token");
-    assertThat(result.response().user().id()).isEqualTo(USER_ID);
-    verify(userRepository, never()).markEmailVerified(any(UUID.class), any(OffsetDateTime.class));
+  void unverifiedClaimClearsPasswordInvalidatesTokensAndSessions() {
+    when(users.lockByEmail("user@example.com")).thenReturn(Optional.of(user(false)));
+    when(users.claimUnverified(USER_ID, NOW))
+        .thenReturn(new User(USER_ID, "user@example.com", null, "User", NOW, NOW, NOW));
+    when(identities.linkGoogle(USER_ID, "subject", NOW)).thenReturn(true);
+    service.loginWithGoogle(
+        new GoogleIdentity("subject", " USER@example.com ", "Google User", true));
+    var order = inOrder(users, sessions, tokens, identities);
+    order.verify(users).claimUnverified(USER_ID, NOW);
+    order.verify(sessions).revokeAllLocked(USER_ID, SessionRevocationReason.OAUTH_ACCOUNT_CLAIM);
+    order.verify(tokens).consumeAllForUser(USER_ID);
+    order.verify(identities).linkGoogle(USER_ID, "subject", NOW);
+    order.verify(sessions).create(USER_ID);
   }
 
   @Test
-  void googleLoginMarksExistingUnverifiedUserVerifiedAndRefetches() {
-    User unverifiedUser =
-        new User(
-            USER_ID,
-            "unverified@example.com",
-            "password-hash",
-            "Existing User",
-            null,
-            NOW.minusDays(1),
-            NOW.minusDays(1));
-    User verifiedUser =
-        new User(
-            USER_ID,
-            "unverified@example.com",
-            "password-hash",
-            "Existing User",
-            NOW,
-            NOW.minusDays(1),
-            NOW);
-
-    when(userRepository.insertVerifiedOAuthUserIfAbsent(
-            "unverified@example.com", "Google User", NOW))
-        .thenReturn(Optional.empty());
-    when(userRepository.findByEmail("unverified@example.com"))
-        .thenReturn(Optional.of(unverifiedUser), Optional.of(verifiedUser));
-    when(jwtService.generateAccessToken(USER_ID, "unverified@example.com")).thenReturn("jwt-token");
-
-    AuthService.AuthResult result =
-        authService.loginWithGoogle("unverified@example.com", "Google User", true);
-
-    assertThat(result.accessToken()).isEqualTo("jwt-token");
-    assertThat(result.response().user().id()).isEqualTo(USER_ID);
-    verify(userRepository).markEmailVerified(USER_ID, NOW);
-  }
-
-  @Test
-  void googleLoginTrimsDisplayNameBeforeInsert() {
-    assertGoogleDisplayNameNormalized("  Google User  ", "Google User");
-  }
-
-  @Test
-  void googleLoginStoresBlankDisplayNameAsNull() {
-    assertGoogleDisplayNameNormalized("   ", null);
-  }
-
-  @Test
-  void googleLoginCapsDisplayNameBeforeInsert() {
-    assertGoogleDisplayNameNormalized("a".repeat(300), "a".repeat(255));
-  }
-
-  @Test
-  void verificationSendFailureIsSafelyLoggedAndStillPropagated(CapturedOutput output) {
-    User user = unverifiedUser("verify@example.com");
-    when(userRepository.findByEmail("verify@example.com")).thenReturn(Optional.of(user));
-    when(authTokenService.createEmailVerificationToken(USER_ID))
-        .thenReturn("email-verification-token-marker");
-    org.mockito.Mockito.doThrow(
-            new IllegalStateException(
-                "provider-message-marker smtp-password-marker email-verification-token-marker"))
-        .when(authEmailService)
-        .sendVerificationEmail(user, "email-verification-token-marker");
-
+  void verifiedUserKeepsPasswordAndRejectsSecondGoogleSubject() {
+    when(users.lockByEmail("user@example.com")).thenReturn(Optional.of(user(true)));
+    when(identities.hasGoogleIdentity(USER_ID)).thenReturn(true);
     assertThatThrownBy(
             () ->
-                authService.resendVerificationEmail(
-                    new com.offertrack.auth.dto.ResendVerificationRequest("verify@example.com")))
-        .isInstanceOf(IllegalStateException.class);
-
-    assertThat(output.getOut())
-        .contains("email_verification_send_failed error_type=IllegalStateException")
-        .doesNotContain(
-            USER_ID.toString(),
-            "provider-message-marker",
-            "smtp-password-marker",
-            "email-verification-token-marker");
+                service.loginWithGoogle(
+                    new GoogleIdentity("other", "user@example.com", null, true)))
+        .isInstanceOf(AuthenticationRequiredException.class);
+    verify(users, never()).claimUnverified(any(), any());
+    verifyNoInteractions(sessions);
   }
 
   @Test
-  void passwordResetSendFailureIsSafelyLoggedAndStillSwallowed(CapturedOutput output) {
-    User user = verifiedUser("reset@example.com", "Reset User");
-    when(userRepository.findByEmail("reset@example.com")).thenReturn(Optional.of(user));
-    when(authTokenService.createPasswordResetToken(USER_ID))
-        .thenReturn("password-reset-token-marker");
-    org.mockito.Mockito.doThrow(
-            new IllegalStateException(
-                "provider-message-marker smtp-password-marker password-reset-token-marker"))
-        .when(authEmailService)
-        .sendPasswordResetEmail(user, "password-reset-token-marker");
-
-    assertThatCode(
+  void rejectsUnverifiedEmailForNewSubject() {
+    assertThatThrownBy(
             () ->
-                authService.forgotPassword(
-                    new com.offertrack.auth.dto.ForgotPasswordRequest("reset@example.com")))
+                service.loginWithGoogle(new GoogleIdentity("new", "user@example.com", null, false)))
+        .isInstanceOf(AuthenticationRequiredException.class);
+    verifyNoInteractions(users, sessions);
+  }
+
+  @Test
+  void normalizesAndBoundsDisplayNameWithoutUsingSubject() {
+    when(users.lockByEmail("user@example.com")).thenReturn(Optional.of(user(true)));
+    when(identities.linkGoogle(USER_ID, "subject", NOW)).thenReturn(true);
+    service.loginWithGoogle(
+        new GoogleIdentity("subject", "user@example.com", "  " + "a".repeat(300) + "  ", true));
+    verify(users).insertVerifiedOAuthUserIfAbsent("user@example.com", "a".repeat(255), NOW);
+  }
+
+  @Test
+  void concurrentCredentialChangeRejectsPreviouslyVerifiedPassword() {
+    when(users.findByEmail("user@example.com")).thenReturn(Optional.of(user(true)));
+    when(passwords.matches("Password1", "password-hash")).thenReturn(true);
+    when(users.lockById(USER_ID))
+        .thenReturn(
+            Optional.of(new User(USER_ID, "user@example.com", null, "User", NOW, NOW, NOW)));
+    assertThatThrownBy(() -> service.login(new LoginRequest("user@example.com", "Password1")))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    verifyNoInteractions(sessions);
+  }
+
+  @Test
+  void verificationSendFailureIsSanitized(CapturedOutput output) {
+    when(users.lockByEmail("user@example.com")).thenReturn(Optional.of(user(false)));
+    when(tokens.createEmailVerificationToken(USER_ID)).thenReturn("token-marker");
+    doThrow(new IllegalStateException("password-marker token-marker"))
+        .when(mail)
+        .sendVerificationEmail(any(), any());
+    assertThatThrownBy(
+            () ->
+                service.resendVerificationEmail(new ResendVerificationRequest("user@example.com")))
+        .isInstanceOf(AuthServiceUnavailableException.class)
+        .hasMessageNotContaining("marker");
+    assertThat(output.getAll())
+        .contains("email_verification_send_failed")
+        .doesNotContain("password-marker", "token-marker", USER_ID.toString());
+  }
+
+  @Test
+  void resetSendFailureRemainsGeneric(CapturedOutput output) {
+    when(users.lockByEmail("user@example.com")).thenReturn(Optional.of(user(true)));
+    when(tokens.createPasswordResetToken(USER_ID)).thenReturn("reset-marker");
+    doThrow(new IllegalStateException("provider-marker"))
+        .when(mail)
+        .sendPasswordResetEmail(any(), any());
+    assertThatCode(() -> service.forgotPassword(new ForgotPasswordRequest("user@example.com")))
         .doesNotThrowAnyException();
-
-    assertThat(output.getOut())
-        .contains("password_reset_send_failed error_type=IllegalStateException")
-        .doesNotContain(
-            USER_ID.toString(),
-            "provider-message-marker",
-            "smtp-password-marker",
-            "password-reset-token-marker");
+    assertThat(output.getAll())
+        .contains("password_reset_send_failed")
+        .doesNotContain("provider-marker", "reset-marker");
   }
 
-  private void assertGoogleDisplayNameNormalized(String inputName, String expectedName) {
-    User insertedUser = verifiedUser("name@example.com", expectedName);
-    ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
-
-    when(userRepository.insertVerifiedOAuthUserIfAbsent(
-            eq("name@example.com"), nameCaptor.capture(), eq(NOW)))
-        .thenReturn(Optional.of(insertedUser));
-    when(jwtService.generateAccessToken(USER_ID, "name@example.com")).thenReturn("jwt-token");
-
-    AuthService.AuthResult result =
-        authService.loginWithGoogle("Name@Example.com", inputName, true);
-
-    assertThat(result.accessToken()).isEqualTo("jwt-token");
-    assertThat(nameCaptor.getValue()).isEqualTo(expectedName);
+  @Test
+  void subjectBoundRejectsRatherThanTruncates() {
+    assertThat(new GoogleIdentity("a".repeat(255), null, null, false).subject()).hasSize(255);
+    for (String value : new String[] {"", " ", "a".repeat(256), "ż", "\u0000"}) {
+      assertThatThrownBy(() -> new GoogleIdentity(value, null, null, false))
+          .isInstanceOf(IllegalArgumentException.class);
+    }
   }
 
-  private static User verifiedUser(String email, String name) {
-    return new User(USER_ID, email, null, name, NOW, NOW, NOW);
-  }
-
-  private static User unverifiedUser(String email) {
-    return new User(USER_ID, email, "password-hash", "User", null, NOW, NOW);
+  private User user(boolean verified) {
+    return new User(
+        USER_ID, "user@example.com", "password-hash", "User", verified ? NOW : null, NOW, NOW);
   }
 }

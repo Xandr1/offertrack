@@ -7,6 +7,7 @@ import type { UserSummary } from "@/lib/api";
 import { clearProtectedDataQueries } from "@/lib/auth-session-cache";
 import { queryKeys } from "@/lib/query-keys";
 import { isAuthError } from "@/lib/request-errors";
+import { authState } from "@/lib/auth-coordinator";
 
 type FreshAuthSessionResult =
   | { status: "verifying" }
@@ -42,6 +43,7 @@ export const useFreshAuthSession = (): FreshAuthSession => {
     refetchOnMount: "always",
     retry: false,
     staleTime: 0,
+    enabled: !authState().signedOut,
   });
 
   const retry = useCallback(() => {
@@ -60,7 +62,7 @@ export const useFreshAuthSession = (): FreshAuthSession => {
   const hasCompletedError =
     Boolean(sessionQuery.error) && !isFetching;
 
-  if (hasCompletedError && isAuthError(sessionQuery.error)) {
+  if (authState().signedOut || (hasCompletedError && isAuthError(sessionQuery.error))) {
     result = { status: "unauthenticated" };
   } else if (hasVerifiedUser && sessionQuery.data) {
     result = {

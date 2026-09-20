@@ -15,7 +15,6 @@ import com.offertrack.applications.AiServiceClient;
 import com.offertrack.applications.ApplicationStage;
 import com.offertrack.applications.dto.ApplicationDraftResponse;
 import com.offertrack.auth.CookieService;
-import com.offertrack.auth.JwtService;
 import com.offertrack.ratelimit.RateLimitGuard;
 import java.util.List;
 import java.util.UUID;
@@ -39,7 +38,7 @@ class ApplicationDraftIntegrationTest {
   private static final String AUTHENTICATED_USER_EMAIL = "user@example.com";
 
   @Autowired private MockMvc mockMvc;
-  @Autowired private JwtService jwtService;
+  @Autowired private com.offertrack.auth.AuthService authService;
   @Autowired private DSLContext dsl;
 
   @MockitoBean private AiServiceClient aiServiceClient;
@@ -87,6 +86,10 @@ class ApplicationDraftIntegrationTest {
   private jakarta.servlet.http.Cookie accessTokenCookie() {
     return new jakarta.servlet.http.Cookie(
         CookieService.ACCESS_TOKEN_COOKIE_NAME,
-        jwtService.generateAccessToken(AUTHENTICATED_USER_ID, AUTHENTICATED_USER_EMAIL));
+        authService
+            .loginWithGoogle(
+                new com.offertrack.auth.GoogleIdentity(
+                    "draft-subject", AUTHENTICATED_USER_EMAIL, "User", true))
+            .accessToken());
   }
 }
