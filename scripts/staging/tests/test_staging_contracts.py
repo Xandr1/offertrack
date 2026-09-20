@@ -642,7 +642,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
 
     def test_images_are_commit_tagged_and_deployed_by_digest(self) -> None:
         self.assertIn('offertrack/${component}:$DEPLOY_SHA', self.workflow)
-        self.assertIn('${registry}/web:$DEPLOY_SHA', self.workflow)
+        self.assertIn('${registry}/web:$WEB_BUILD_TAG', self.workflow)
         self.assertIn("image_summary.fully_qualified_digest", self.workflow)
         self.assertNotRegex(self.workflow, r"(?i)/(?:web|core-api|ai-service):latest")
         self.assertIn("--next-public-api-url \"$CORE_URL\"", self.workflow)
