@@ -469,4 +469,36 @@ class AuthSessionIntegrationTest {
     google("case", "lower@example.com");
     assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("user_identities"))).isEqualTo(3);
   }
+
+  @Test
+  void commitFailureNeverWritesAuthenticationCookies() throws Exception {
+    var user = users.createUser("commit@example.com", passwords.hash("Password1"), "User");
+    users.markEmailVerified(user.id(), OffsetDateTime.now());
+    dsl.execute(
+        """
+      create function auth_test_reject_commit() returns trigger language plpgsql as
+      $$ begin raise exception 'synthetic transaction rejection'; end $$
+      """);
+    dsl.execute(
+        """
+      create constraint trigger auth_test_reject_commit after insert on auth_refresh_tokens
+      deferrable initially deferred for each row execute function auth_test_reject_commit()
+      """);
+    try {
+      mvc.perform(
+              post("/auth/login")
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content("{\"email\":\"commit@example.com\",\"password\":\"Password1\"}"))
+          .andExpect(status().is5xxServerError())
+          .andExpect(cookie().doesNotExist("access_token"))
+          .andExpect(cookie().doesNotExist("refresh_token"))
+          .andExpect(header().exists("X-Request-Id"));
+      assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("auth_sessions"))).isZero();
+      assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("auth_refresh_tokens"))).isZero();
+    } finally {
+      dsl.execute("drop trigger auth_test_reject_commit on auth_refresh_tokens");
+      dsl.execute("drop function auth_test_reject_commit()");
+    }
+  }
 }
