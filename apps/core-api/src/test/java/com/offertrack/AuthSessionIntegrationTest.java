@@ -38,6 +38,7 @@ class AuthSessionIntegrationTest {
   @Autowired AuthSessionCleanup cleanup;
   @Autowired DSLContext dsl;
   @Autowired MockMvc mvc;
+  @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
   @MockitoBean RateLimitGuard rateLimits;
 
   @BeforeEach
@@ -318,5 +319,154 @@ class AuthSessionIntegrationTest {
         .andExpect(cookie().httpOnly("refresh_token", true))
         .andExpect(cookie().path("refresh_token", "/auth"))
         .andExpect(cookie().path("access_token", "/"));
+  }
+
+  @Test
+  void absoluteExpiryCapsRotationAndRejectsTheExpiredSession() throws Exception {
+    var initial = google("absolute-subject", "absolute@example.com").tokens();
+    UUID id = sessionId(initial);
+    dsl.execute(
+        """
+      update auth_sessions set created_at = now() - interval '29 days',
+      absolute_expires_at = now() + interval '30 seconds',
+      inactivity_expires_at = now() + interval '30 seconds' where id = ?
+      """,
+        id);
+    var rotated = sessions.refresh(initial.refreshToken()).orElseThrow();
+    var absolute =
+        dsl.fetchOne("select absolute_expires_at from auth_sessions where id = ?", id)
+            .get(0, OffsetDateTime.class)
+            .toInstant();
+    assertThat(rotated.refreshExpiresAt()).isEqualTo(absolute);
+    assertThat(rotated.accessExpiresAt()).isBeforeOrEqualTo(absolute);
+    dsl.execute(
+        """
+      update auth_sessions set created_at = now() - interval '31 days',
+      last_refreshed_at = now() - interval '2 days',
+      inactivity_expires_at = now() - interval '1 day',
+      absolute_expires_at = now() - interval '1 day' where id = ?
+      """,
+        id);
+    assertThat(sessions.refresh(rotated.refreshToken())).isEmpty();
+    mvc.perform(get("/api/me").cookie(access(rotated))).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void cleanupIsBoundedAndRetainsActiveReplayHistory() {
+    var terminal = google("terminal-subject", "terminal@example.com").tokens();
+    UUID id = sessionId(terminal);
+    dsl.execute(
+        """
+      update auth_sessions set created_at = now() - interval '90 days',
+      last_refreshed_at = now() - interval '80 days',
+      inactivity_expires_at = now() - interval '73 days',
+      absolute_expires_at = now() - interval '60 days' where id = ?
+      """,
+        id);
+    dsl.execute("update auth_refresh_tokens set consumed_at = now() where session_id = ?", id);
+    dsl.execute(
+        """
+      insert into auth_refresh_tokens (id, session_id, token_hash, issued_at, expires_at, consumed_at)
+      select gen_random_uuid(), ?, decode(md5(n::text) || md5(('cleanup-' || n)::text), 'hex'),
+        now() - interval '90 days', now() - interval '83 days', now() - interval '89 days'
+      from generate_series(1, 101) n
+      """,
+        id);
+    var active = google("active-subject", "active@example.com").tokens();
+    sessions.refresh(active.refreshToken()).orElseThrow();
+    dsl.execute(
+        """
+      update auth_refresh_tokens set issued_at = now() - interval '50 days',
+      expires_at = now() - interval '40 days' where session_id = ? and consumed_at is not null
+      """,
+        sessionId(active));
+    var firstInstance =
+        new AuthSessionCleanup(dsl, java.time.Clock.systemUTC(), transactionManager);
+    firstInstance.afterAuthOperation();
+    assertThat(
+            dsl.fetchCount(
+                org.jooq.impl.DSL.table("auth_refresh_tokens"),
+                org.jooq.impl.DSL.field("session_id").eq(id)))
+        .isEqualTo(2);
+    firstInstance.afterAuthOperation(); // five-minute throttle
+    assertThat(
+            dsl.fetchCount(
+                org.jooq.impl.DSL.table("auth_refresh_tokens"),
+                org.jooq.impl.DSL.field("session_id").eq(id)))
+        .isEqualTo(2);
+    new AuthSessionCleanup(dsl, java.time.Clock.systemUTC(), transactionManager)
+        .afterAuthOperation();
+    assertThat(
+            dsl.fetchCount(
+                org.jooq.impl.DSL.table("auth_sessions"), org.jooq.impl.DSL.field("id").eq(id)))
+        .isZero();
+    assertThat(sessions.refresh(active.refreshToken())).isEmpty();
+    assertThat(
+            dsl.fetchOne(
+                    "select revocation_reason from auth_sessions where id = ?", sessionId(active))
+                .get(0, String.class))
+        .isEqualTo("refresh_replay");
+  }
+
+  @Test
+  void differentSubjectsRacingForOneEmailCannotBothLink() throws Exception {
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var start = new CountDownLatch(1);
+      var attempts =
+          IntStream.range(0, 2)
+              .mapToObj(
+                  index ->
+                      pool.submit(
+                          () -> {
+                            start.await();
+                            try {
+                              google("racing-subject-" + index, "shared@example.com");
+                              return true;
+                            } catch (AuthenticationRequiredException rejected) {
+                              return false;
+                            }
+                          }))
+              .toList();
+      start.countDown();
+      int successes = 0;
+      for (var attempt : attempts) if (attempt.get(10, TimeUnit.SECONDS)) successes++;
+      assertThat(successes).isEqualTo(1);
+      assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("user_identities"))).isEqualTo(1);
+      assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("auth_sessions"))).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void databaseEnforcesSubjectBoundsAndRevocationReasonPairing() {
+    var owner = google("s".repeat(255), "bounds@example.com");
+    UUID user = owner.response().user().id();
+    assertThatThrownBy(
+            () ->
+                dsl.execute(
+                    "update user_identities set provider_subject = ? where user_id = ?",
+                    "s".repeat(256),
+                    user))
+        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+    assertThatThrownBy(
+            () ->
+                dsl.execute(
+                    "update user_identities set provider_subject = ? where user_id = ?",
+                    "  ",
+                    user))
+        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+    assertThatThrownBy(
+            () ->
+                dsl.execute("update auth_sessions set revoked_at = now() where user_id = ?", user))
+        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+    assertThatThrownBy(
+            () ->
+                dsl.execute(
+                    "update auth_sessions set revoked_at = now(), revocation_reason = ? where user_id = ?",
+                    "unbounded-reason",
+                    user))
+        .isInstanceOf(org.jooq.exception.DataAccessException.class);
+    google("CASE", "upper@example.com");
+    google("case", "lower@example.com");
+    assertThat(dsl.fetchCount(org.jooq.impl.DSL.table("user_identities"))).isEqualTo(3);
   }
 }

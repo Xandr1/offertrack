@@ -178,7 +178,7 @@ class CloudRunContractTest(unittest.TestCase):
         }
         for service, host in expected_hosts.items():
             self.assertIn(f'{service}_service_host = "{host}"', " ".join(self.cloud_run.split()))
-            self.assertRegex(self.cloud_run, rf'{service}_service_url\\s*=\\s*"https://\\$\\{{local.{service}_service_host\\}}"')
+            self.assertIn(f'{service}_service_url = "https://${{local.{service}_service_host}}"', " ".join(self.cloud_run.split()))
 
         core_environment = assignment_block(self.cloud_run, "core_environment")
         for name, url in (
