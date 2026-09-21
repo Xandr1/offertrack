@@ -1,58 +1,34 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useRecoveryToken } from "@/lib/auth/use-recovery-token";
 import { verifyEmail } from "@/lib/api";
-import { queryKeys } from "@/lib/query-keys";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { buttonStyles, formStyles, pageStyles, textStyles } from "@/lib/styles";
 import { Card } from "@/components/ui/card";
 
 export const VerifyEmailClient = () => {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token")?.trim() ?? "";
-
-  const verificationQuery = useQuery({
-    queryKey: queryKeys.emailVerification(token),
-    queryFn: () => verifyEmail({ token }),
-    enabled: Boolean(token),
-    retry: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-  });
-
-  if (!token) {
-    return (
-      <main className={pageStyles.centered}>
-        <VerifyEmailStatus status="missing-token" />
-      </main>
+  const { ready, token } = useRecoveryToken();
+  const pending = useRef<Promise<unknown> | null>(null);
+  const [status, setStatus] = useState<VerifyEmailStatusType>("verifying");
+  const [errorMessage, setErrorMessage] = useState<string>();
+  useEffect(() => {
+    if (!ready || !token) return;
+    // React effect replay shares the same promise; never consume the link twice.
+    pending.current ??= verifyEmail({ token });
+    let mounted = true;
+    void pending.current.then(
+      () => { if (mounted) setStatus("success"); },
+      error => {
+        if (mounted) { setStatus("error"); setErrorMessage(getRequestErrorMessage(error)); }
+      },
     );
-  }
-
-  if (verificationQuery.isSuccess) {
-    return (
-      <main className={pageStyles.centered}>
-        <VerifyEmailStatus status="success" />
-      </main>
-    );
-  }
-
-  if (verificationQuery.error) {
-    return (
-      <main className={pageStyles.centered}>
-        <VerifyEmailStatus
-          errorMessage={getRequestErrorMessage(verificationQuery.error)}
-          status="error"
-        />
-      </main>
-    );
-  }
+    return () => { mounted = false; };
+  }, [ready, token]);
 
   return (
     <main className={pageStyles.centered}>
-      <VerifyEmailStatus status="verifying" />
+      <VerifyEmailStatus status={!ready ? "verifying" : !token ? "missing-token" : status} errorMessage={errorMessage} />
     </main>
   );
 };

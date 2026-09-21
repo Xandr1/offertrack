@@ -40,21 +40,52 @@ export class ResponseValidationError extends Error {
   }
 }
 
-export const getApiErrorCode = (error: unknown): string | null => {
+const parseApiError = (error: unknown) => {
   if (!(error instanceof ApiError)) {
     return null;
   }
 
   try {
     const parsed = apiErrorResponseSchema.safeParse(JSON.parse(error.body));
-    return parsed.success ? parsed.data.code : null;
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
 };
 
+export const getApiErrorCode = (error: unknown): string | null =>
+  parseApiError(error)?.code ?? null;
+
 export const hasApiErrorCode = (error: unknown, code: string): boolean => {
   return getApiErrorCode(error) === code;
+};
+
+const validationMessages = (
+  fields: { field: string; message: string }[],
+  passwordLength?: number,
+): string => [...new Set(fields.map(({ field, message }) => {
+  if (field !== "password" && field !== "newPassword") return message;
+  switch (message) {
+    case "Password must be between 8 and 64 characters":
+      if (passwordLength !== undefined && passwordLength < 8) return "Password must be at least 8 characters.";
+      if (passwordLength !== undefined && passwordLength > 64) return "Password must be at most 64 characters.";
+      return "Password must be between 8 and 64 characters.";
+    case "Password must contain at least 1 lowercase letter, 1 uppercase letter and 1 digit":
+      return "Password must include an uppercase letter, a lowercase letter, and a number.";
+    case "Password must be at most 72 UTF-8 bytes":
+      return "Password is too long.";
+    default:
+      return message;
+  }
+}))].join(" ");
+
+/** Formats server validation feedback without changing which passwords are accepted. */
+export const getPasswordValidationMessage = (error: unknown, passwordLength: number): string | null => {
+  if (!(error instanceof ApiError) || error.status !== 400) return null;
+  const response = parseApiError(error);
+  return response?.code === "VALIDATION_ERROR" && response.fieldErrors?.length
+    ? validationMessages(response.fieldErrors, passwordLength)
+    : null;
 };
 
 export const getErrorMessage = (error: unknown): string => {
@@ -67,7 +98,8 @@ export const getErrorMessage = (error: unknown): string => {
   }
 
   if (error instanceof ApiError) {
-    const code = getApiErrorCode(error);
+    const response = parseApiError(error);
+    const code = response?.code;
 
     if (code === EMAIL_NOT_VERIFIED_ERROR_CODE) {
       return "Please verify your email before signing in.";
@@ -82,6 +114,9 @@ export const getErrorMessage = (error: unknown): string => {
     }
 
     if (error.status === 400) {
+      if (code === "VALIDATION_ERROR" && response?.fieldErrors?.length) {
+        return validationMessages(response.fieldErrors);
+      }
       return "Please check the form fields.";
     }
 

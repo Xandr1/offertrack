@@ -27,6 +27,22 @@ public class GlobalExceptionHandler {
   private static final String INTERNAL_ERROR_MESSAGE =
       "Something went wrong on the server. Try again.";
 
+  @ExceptionHandler(com.offertrack.auth.AuthenticationRequiredException.class)
+  public ResponseEntity<ApiErrorResponse> handleAuthenticationRequired(HttpServletRequest request) {
+    return buildResponse(
+        HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED", "Authentication required.", request);
+  }
+
+  @ExceptionHandler(com.offertrack.auth.AuthServiceUnavailableException.class)
+  public ResponseEntity<ApiErrorResponse> handleAuthUnavailable(HttpServletRequest request) {
+    log.error("auth_service_unavailable request_id={}", RequestIdFilter.requestId(request));
+    return buildResponse(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "AUTH_SERVICE_UNAVAILABLE",
+        "Authentication service is temporarily unavailable.",
+        request);
+  }
+
   @ExceptionHandler(RateLimitExceededException.class)
   public ResponseEntity<ApiErrorResponse> handleRateLimitExceeded(
       RateLimitExceededException exception, HttpServletRequest request) {

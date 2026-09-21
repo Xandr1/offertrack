@@ -519,7 +519,7 @@ class ProtectedConfigurationRulesTest {
                 "spring.security.oauth2.client.registration.google.client-secret",
                 "google-client-secret")
             .withProperty("app.jwt.secret", jwtSecret())
-            .withProperty("app.jwt.access-token-ttl", "48h")
+            .withProperty("app.jwt.access-token-ttl", "15m")
             .withProperty(
                 "app.oauth.authorization-request-cookie-signing-secret",
                 "oauth-cookie-signing-secret-which-is-long-enough")
@@ -530,12 +530,19 @@ class ProtectedConfigurationRulesTest {
                 "dependency-health-key-which-is-long-enough-and-distinct")
             .withProperty("app.rate-limit.fail-open", "false")
             .withProperty("app.web.url", "https://app.example.com")
+            .withProperty("app.core.public-url", "https://api.app.example.com")
+            .withProperty(
+                "spring.security.oauth2.client.registration.google.redirect-uri",
+                "https://api.app.example.com/login/oauth2/code/google")
+            .withProperty("app.auth.session.inactivity-ttl", "7d")
+            .withProperty("app.auth.session.absolute-ttl", "30d")
+            .withProperty("app.auth.session.max-active", "10")
             .withProperty("app.cors.allowed-origins", "https://app.example.com")
             .withProperty("app.auth.cookie.name", "access_token")
             .withProperty("app.auth.cookie.path", "/")
-            .withProperty("app.auth.cookie.domain", ".example.com")
+            .withProperty("app.auth.cookie.domain", "")
             .withProperty("app.auth.cookie.secure", "true")
-            .withProperty("app.auth.cookie.same-site", "None")
+            .withProperty("app.auth.cookie.same-site", "Lax")
             .withProperty("app.ai-service.base-url", "https://ai-service.example.com")
             .withProperty(
                 "app.ai-service.internal-api-key", "ai-service-internal-key-which-is-long-enough")
@@ -555,6 +562,7 @@ class ProtectedConfigurationRulesTest {
           "forgot-password-ip",
           "reset-password-token",
           "reset-password-ip",
+          "refresh-ip",
           "ai-user-minute",
           "ai-user-day"
         }) {

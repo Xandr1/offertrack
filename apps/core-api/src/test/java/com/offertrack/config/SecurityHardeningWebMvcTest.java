@@ -75,14 +75,22 @@ class SecurityHardeningWebMvcTest {
 
   @MockitoBean private AuthService authService;
   @MockitoBean private JwtService jwtService;
+  @MockitoBean private com.offertrack.auth.AuthSessionService sessions;
+  @MockitoBean private com.offertrack.auth.AuthSessionCleanup cleanup;
   @MockitoBean private SettingsService settingsService;
   @MockitoBean private RateLimitGuard rateLimitGuard;
 
   @BeforeEach
   void configureJwt() {
-    when(jwtService.isTokenValid(ACCESS_TOKEN)).thenReturn(true);
-    when(jwtService.extractUserId(ACCESS_TOKEN)).thenReturn(USER_ID);
-    when(jwtService.extractEmail(ACCESS_TOKEN)).thenReturn("user@example.com");
+    when(jwtService.verify(ACCESS_TOKEN))
+        .thenReturn(
+            java.util.Optional.of(
+                new JwtService.AccessClaims(
+                    USER_ID,
+                    UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                    java.time.Instant.now(),
+                    java.time.Instant.now().plusSeconds(900))));
+    when(sessions.authenticates(org.mockito.ArgumentMatchers.any())).thenReturn(true);
     when(settingsService.updateSettings(eq(USER_ID), any()))
         .thenReturn(new UserSettings(USER_ID, 7, 7, 2, "Backend Engineer"));
   }
@@ -125,8 +133,8 @@ class SecurityHardeningWebMvcTest {
     mockMvc
         .perform(
             put("/api/settings").contentType(MediaType.APPLICATION_JSON).content(SETTINGS_JSON))
-        .andExpect(status().isForbidden())
-        .andExpect(content().string(""));
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
 
     mockMvc
         .perform(
@@ -134,8 +142,8 @@ class SecurityHardeningWebMvcTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(SETTINGS_JSON))
-        .andExpect(status().isForbidden())
-        .andExpect(content().string(""));
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
 
     mockMvc
         .perform(
@@ -162,7 +170,11 @@ class SecurityHardeningWebMvcTest {
     when(authService.login(any()))
         .thenReturn(
             new AuthService.AuthResult(
-                ACCESS_TOKEN,
+                new com.offertrack.auth.SessionTokens(
+                    ACCESS_TOKEN,
+                    "refresh-test-token",
+                    java.time.Instant.now().plusSeconds(900),
+                    java.time.Instant.now().plusSeconds(604800)),
                 new AuthResponse(
                     new AuthResponse.UserSummary(USER_ID, "user@example.com", "OfferTrack User"))));
 
@@ -308,7 +320,11 @@ class SecurityHardeningWebMvcTest {
     when(authService.login(any()))
         .thenReturn(
             new AuthService.AuthResult(
-                ACCESS_TOKEN,
+                new com.offertrack.auth.SessionTokens(
+                    ACCESS_TOKEN,
+                    "refresh-test-token",
+                    java.time.Instant.now().plusSeconds(900),
+                    java.time.Instant.now().plusSeconds(604800)),
                 new AuthResponse(
                     new AuthResponse.UserSummary(USER_ID, "user@example.com", "OfferTrack User"))));
 

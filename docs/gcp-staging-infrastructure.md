@@ -88,8 +88,8 @@ number:
 
 ```text
 https://offertrack-stg-ai-765846644391.europe-central2.run.app
-https://offertrack-stg-core-765846644391.europe-central2.run.app
-https://offertrack-stg-web-765846644391.europe-central2.run.app
+https://api.staging.<domain>
+https://staging.<domain>
 ```
 
 Terraform exposes these canonical application URLs and the Cloud Run
@@ -332,7 +332,7 @@ bash scripts/containers/build-images.sh \
   --components web \
   --app-env staging \
   --next-public-api-url \
-    https://offertrack-stg-core-765846644391.europe-central2.run.app \
+    https://api.staging.<domain> \
   --tag "$GIT_SHA"
 ```
 
@@ -487,7 +487,7 @@ Before enabling the deployment workflow:
    Web as usable. A first environment has no prior application revision to
    preserve; subsequent releases must use the workflow.
 9. In Google OAuth, register the exact callback
-   `https://offertrack-stg-core-765846644391.europe-central2.run.app/login/oauth2/code/google`
+   `https://api.staging.<domain>/login/oauth2/code/google`
    and the exact staging Web origin where the OAuth client requires it.
 10. Run the workflow or equivalent candidate rollout once, then complete the
     real-browser OAuth/cookie/CSRF acceptance check.

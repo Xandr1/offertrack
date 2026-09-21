@@ -49,7 +49,7 @@ export const shouldRedirectToLoginAfterError = async (
   }
 
   try {
-    await getCurrentUser();
+    await getCurrentUser(false);
     return false;
   } catch (currentUserError) {
     return isAuthError(currentUserError);

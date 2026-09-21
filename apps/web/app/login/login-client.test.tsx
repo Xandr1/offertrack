@@ -3,6 +3,7 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ApiError, getCurrentUser } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { LoginClient } from "./login-client";
@@ -52,5 +53,25 @@ describe("LoginClient session verification", () => {
     expect(queryClient.getQueryData(queryKeys.dashboardSummary)).toBeUndefined();
     expect(mockReplace).not.toHaveBeenCalledWith("/dashboard");
     expect(mockPush).not.toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("does not recheck the session when typing into the login form", async () => {
+    mockedGetCurrentUser.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <LoginClient />
+      </QueryClientProvider>,
+    );
+
+    const emailInput = await screen.findByLabelText("Email");
+    await waitFor(() => expect(mockedGetCurrentUser).toHaveBeenCalled());
+    const sessionChecksBeforeTyping = mockedGetCurrentUser.mock.calls.length;
+    await userEvent.type(emailInput, "person@example.com");
+
+    expect(mockedGetCurrentUser).toHaveBeenCalledTimes(sessionChecksBeforeTyping);
   });
 });

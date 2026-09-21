@@ -31,16 +31,25 @@ public class AuthController {
   private final CookieService cookieService;
   private final CsrfTokenInvalidationService csrfTokenInvalidationService;
   private final RateLimitGuard rateLimitGuard;
+  private final AuthSessionService sessions;
+  private final AuthSessionCleanup cleanup;
+  private final JwtAuthenticationFilter jwtFilter;
 
   public AuthController(
       AuthService authService,
       CookieService cookieService,
       CsrfTokenInvalidationService csrfTokenInvalidationService,
-      RateLimitGuard rateLimitGuard) {
+      RateLimitGuard rateLimitGuard,
+      AuthSessionService sessions,
+      AuthSessionCleanup cleanup,
+      JwtAuthenticationFilter jwtFilter) {
     this.authService = authService;
     this.cookieService = cookieService;
     this.csrfTokenInvalidationService = csrfTokenInvalidationService;
     this.rateLimitGuard = rateLimitGuard;
+    this.sessions = sessions;
+    this.cleanup = cleanup;
+    this.jwtFilter = jwtFilter;
   }
 
   @GetMapping("/auth/csrf")
@@ -71,15 +80,47 @@ public class AuthController {
     rateLimitGuard.checkLogin(request.email(), httpRequest.getRemoteAddr());
     AuthService.AuthResult result = authService.login(request);
     csrfTokenInvalidationService.invalidate(httpRequest, response);
-    cookieService.addAccessTokenCookie(response, result.accessToken());
+    cleanup.afterAuthOperation();
+    cookieService.addSessionCookies(response, result.tokens());
 
     return result.response();
   }
 
   @PostMapping("/auth/logout")
   public void logout(HttpServletRequest request, HttpServletResponse response) {
+    sessions.logout(
+        jwtFilter.extractToken(request).orElse(null),
+        JwtAuthenticationFilter.cookie(request, CookieService.REFRESH_TOKEN_COOKIE_NAME)
+            .orElse(null));
+    cleanup.afterAuthOperation();
     csrfTokenInvalidationService.invalidate(request, response);
-    cookieService.clearAccessTokenCookie(response);
+    cookieService.clearSessionCookies(response);
+  }
+
+  @PostMapping("/auth/refresh")
+  public ResponseEntity<Void> refresh(HttpServletRequest request, HttpServletResponse response) {
+    rateLimitGuard.checkRefresh(request.getRemoteAddr());
+    var result =
+        sessions.refresh(
+            JwtAuthenticationFilter.cookie(request, CookieService.REFRESH_TOKEN_COOKIE_NAME)
+                .orElse(null));
+    cleanup.afterAuthOperation();
+    // refresh() has committed, including replay revocation, before this exception is thrown.
+    SessionTokens tokens = result.orElseThrow(AuthenticationRequiredException::new);
+    cookieService.addSessionCookies(response, tokens);
+    return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+  }
+
+  @PostMapping("/auth/logout-all")
+  public ResponseEntity<Void> logoutAll(
+      @org.springframework.security.core.annotation.AuthenticationPrincipal CurrentUser user,
+      HttpServletRequest request,
+      HttpServletResponse response) {
+    sessions.logoutAll(user);
+    cleanup.afterAuthOperation();
+    csrfTokenInvalidationService.invalidate(request, response);
+    cookieService.clearSessionCookies(response);
+    return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
   }
 
   @PostMapping("/auth/email/verify")
@@ -105,6 +146,8 @@ public class AuthController {
   public GenericSuccessResponse resetPassword(
       @Valid @RequestBody ResetPasswordRequest request, HttpServletRequest httpRequest) {
     rateLimitGuard.checkPasswordReset(request.token(), httpRequest.getRemoteAddr());
-    return authService.resetPassword(request);
+    GenericSuccessResponse result = authService.resetPassword(request);
+    cleanup.afterAuthOperation();
+    return result;
   }
 }

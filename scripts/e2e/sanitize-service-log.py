@@ -40,13 +40,13 @@ SENSITIVE_KEY_VALUE = re.compile(
     r"(?P<prefix>[\"']?(?:"
     r"[a-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|apikey|csrf|"
     r"client[_-]?id|credential|private[_-]?key)"
-    r"[a-z0-9_.-]*|(?:user|session|application|subject)[_-]?id"
+    r"[a-z0-9_.-]*|(?:user|session|application|subject)[_-]?id|provider[_-]?subject|sub|sid|jti|state|token[_-]?hash"
     r")[\"']?\s*[:=]\s*)"
     r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;}\]]+)",
     re.IGNORECASE,
 )
 SENSITIVE_QUERY_VALUE = re.compile(
-    r"(?P<prefix>[?&](?:access_token|refresh_token|reset_token|token|code|"
+    r"(?P<prefix>[?&#](?:state|access_token|refresh_token|reset_token|token|code|"
     r"api[_-]?key|key|csrf|password|passwd|secret|client[_-]?id|"
     r"client[_-]?secret|username|user|email)\s*=)[^&#\s]+",
     re.IGNORECASE,

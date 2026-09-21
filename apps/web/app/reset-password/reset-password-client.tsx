@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { resetPassword } from "@/lib/api";
+import { useRecoveryToken } from "@/lib/auth/use-recovery-token";
+import { getPasswordValidationMessage, resetPassword } from "@/lib/api";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,8 +14,8 @@ type ResetPasswordFormProps = {
 };
 
 export const ResetPasswordClient = () => {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token")?.trim() ?? "";
+  const { ready, token } = useRecoveryToken();
+  if (!ready) return <main className={pageStyles.centered}>Checking your reset link.</main>;
 
   return (
     <main className={pageStyles.centered}>
@@ -51,7 +51,7 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
       await resetPassword({ token, newPassword });
       setIsReset(true);
     } catch (requestError) {
-      setError(getRequestErrorMessage(requestError));
+      setError(getPasswordValidationMessage(requestError, newPassword.length) ?? getRequestErrorMessage(requestError));
     } finally {
       setIsSubmitting(false);
     }
@@ -79,14 +79,16 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
           </label>
           <Input
             id="reset-password-new"
+            autoComplete="new-password"
+            aria-describedby="reset-password-help"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             type="password"
             variant="auth"
             required
           />
-          <p className={textStyles.helper}>
-            At least 8 characters, with uppercase, lowercase, and a digit.
+          <p className={textStyles.helper} id="reset-password-help">
+            Use 8–64 characters, including an uppercase letter, a lowercase letter, and a number.
           </p>
         </div>
 
@@ -96,6 +98,7 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
           </label>
           <Input
             id="reset-password-confirm"
+            autoComplete="new-password"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             type="password"
@@ -104,7 +107,7 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
           />
         </div>
 
-        {error && <div className={formStyles.error}>{error}</div>}
+        {error && <div className={formStyles.error} role="alert">{error}</div>}
 
         <Button variant="primary" disabled={isSubmitting} type="submit">
           {isSubmitting ? "Resetting..." : "Reset password"}

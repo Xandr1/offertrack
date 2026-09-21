@@ -16,6 +16,8 @@ public final class BrowserCsrfRequestMatcher implements RequestMatcher {
           "/auth/register",
           "/auth/login",
           "/auth/logout",
+          "/auth/refresh",
+          "/auth/logout-all",
           "/auth/email/verify",
           "/auth/email/verification/resend",
           "/auth/password/forgot",
@@ -41,6 +43,10 @@ public final class BrowserCsrfRequestMatcher implements RequestMatcher {
     Cookie[] cookies = request.getCookies();
     return cookies != null
         && Arrays.stream(cookies)
-            .anyMatch(cookie -> accessTokenCookieName.equals(cookie.getName()));
+            .anyMatch(
+                cookie ->
+                    accessTokenCookieName.equals(cookie.getName())
+                        || com.offertrack.auth.CookieService.REFRESH_TOKEN_COOKIE_NAME.equals(
+                            cookie.getName()));
   }
 }

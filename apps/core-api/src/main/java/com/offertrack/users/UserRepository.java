@@ -13,7 +13,7 @@ public class UserRepository {
   private final DSLContext dsl;
 
   public UserRepository(DSLContext dsl) {
-    this.dsl = dsl;
+    this.dsl = dsl.configuration().deriveSettings(s -> s.withExecuteLogging(false)).dsl();
   }
 
   public User createUser(String email, String passwordHash, String name) {
@@ -27,6 +27,7 @@ public class UserRepository {
         .set(USERS.NAME, name)
         .set(USERS.CREATED_AT, now)
         .set(USERS.UPDATED_AT, now)
+        .onConflictDoNothing()
         .returning(
             USERS.ID,
             USERS.EMAIL,
@@ -84,6 +85,28 @@ public class UserRepository {
         .from(USERS)
         .where(USERS.EMAIL.eq(email))
         .fetchOptional(this::mapUser);
+  }
+
+  public Optional<User> lockById(UUID id) {
+    return dsl.selectFrom(USERS).where(USERS.ID.eq(id)).forUpdate().fetchOptional(this::mapUser);
+  }
+
+  public Optional<User> lockByEmail(String email) {
+    return dsl.selectFrom(USERS)
+        .where(USERS.EMAIL.eq(email))
+        .forUpdate()
+        .fetchOptional(this::mapUser);
+  }
+
+  public User claimUnverified(UUID id, OffsetDateTime now) {
+    return dsl.update(USERS)
+        .set(USERS.PASSWORD_HASH, (String) null)
+        .set(USERS.EMAIL_VERIFIED_AT, now)
+        .set(USERS.UPDATED_AT, now)
+        .where(USERS.ID.eq(id))
+        .and(USERS.EMAIL_VERIFIED_AT.isNull())
+        .returning()
+        .fetchOne(this::mapUser);
   }
 
   public Optional<User> findById(UUID id) {

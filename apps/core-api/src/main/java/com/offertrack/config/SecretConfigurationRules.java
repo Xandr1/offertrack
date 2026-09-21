@@ -35,6 +35,29 @@ final class SecretConfigurationRules {
         "app.management.dependency-health-key",
         MINIMUM_SECRET_BYTES);
     requirePositiveDuration(configuration.jwtAccessTokenTtl(), "app.jwt.access-token-ttl");
+    requirePositiveDuration(
+        configuration.sessionInactivityTtl(), "app.auth.session.inactivity-ttl");
+    requirePositiveDuration(configuration.sessionAbsoluteTtl(), "app.auth.session.absolute-ttl");
+    java.time.Duration access =
+        org.springframework.boot.convert.DurationStyle.detectAndParse(
+            configuration.jwtAccessTokenTtl());
+    java.time.Duration idle =
+        org.springframework.boot.convert.DurationStyle.detectAndParse(
+            configuration.sessionInactivityTtl());
+    java.time.Duration absolute =
+        org.springframework.boot.convert.DurationStyle.detectAndParse(
+            configuration.sessionAbsoluteTtl());
+    if (access.compareTo(java.time.Duration.ofMinutes(15)) > 0) invalid("app.jwt.access-token-ttl");
+    if (idle.compareTo(java.time.Duration.ofDays(7)) > 0)
+      invalid("app.auth.session.inactivity-ttl");
+    if (absolute.compareTo(idle) < 0 || absolute.compareTo(java.time.Duration.ofDays(30)) > 0)
+      invalid("app.auth.session.absolute-ttl");
+    try {
+      int maximum = Integer.parseInt(configuration.sessionMaxActive());
+      if (maximum < 1 || maximum > 10) invalid("app.auth.session.max-active");
+    } catch (NumberFormatException exception) {
+      invalid("app.auth.session.max-active");
+    }
 
     if (configuration.jwtSecret().trim().equals(configuration.oauthCookieSecret().trim())) {
       invalid("app.oauth.authorization-request-cookie-signing-secret");

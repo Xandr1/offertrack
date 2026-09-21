@@ -22,17 +22,20 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository;
   private final String dashboardRedirectUrl;
   private final String failureRedirectUrl;
+  private final AuthSessionCleanup cleanup;
 
   public GoogleOAuth2SuccessHandler(
       AuthService authService,
       CookieService cookieService,
       CsrfTokenInvalidationService csrfTokenInvalidationService,
       CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository,
-      String appWebUrl) {
+      String appWebUrl,
+      AuthSessionCleanup cleanup) {
     this.authService = authService;
     this.cookieService = cookieService;
     this.csrfTokenInvalidationService = csrfTokenInvalidationService;
     this.authorizationRequestRepository = authorizationRequestRepository;
+    this.cleanup = cleanup;
 
     String normalizedWebUrl = appWebUrl.replaceAll("/+$", "");
     this.dashboardRedirectUrl = normalizedWebUrl + "/dashboard";
@@ -47,11 +50,15 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
     try {
       OidcUser oidcUser = requireGoogleOidcUser(authentication);
-      String email = requireEmail(oidcUser);
-      boolean emailVerified = requireVerifiedEmail(oidcUser);
       String name = displayName(oidcUser);
 
-      result = authService.loginWithGoogle(email, name, emailVerified);
+      result =
+          authService.loginWithGoogle(
+              new GoogleIdentity(
+                  oidcUser.getSubject(),
+                  oidcUser.getEmail(),
+                  name,
+                  Boolean.TRUE.equals(oidcUser.getEmailVerified())));
     } catch (RuntimeException exception) {
       log.warn(
           "oauth_login_failed operation=google_oauth_login error_type={}",
@@ -61,7 +68,8 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     }
 
     csrfTokenInvalidationService.invalidate(request, response);
-    cookieService.addAccessTokenCookie(response, result.accessToken());
+    cleanup.afterAuthOperation();
+    cookieService.addSessionCookies(response, result.tokens());
     authorizationRequestRepository.clearAuthorizationRequestCookie(response);
     response.sendRedirect(dashboardRedirectUrl);
   }
@@ -82,32 +90,12 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     return oidcUser;
   }
 
-  private String requireEmail(OidcUser oidcUser) {
-    String email = oidcUser.getEmail();
-
-    if (!StringUtils.hasText(email)) {
-      throw new IllegalArgumentException("Google email must not be blank");
-    }
-
-    return email;
-  }
-
-  private boolean requireVerifiedEmail(OidcUser oidcUser) {
-    Boolean emailVerified = oidcUser.getEmailVerified();
-
-    if (!Boolean.TRUE.equals(emailVerified)) {
-      throw new IllegalArgumentException("Google email must be verified");
-    }
-
-    return true;
-  }
-
   private String displayName(OidcUser oidcUser) {
     if (StringUtils.hasText(oidcUser.getFullName())) {
       return oidcUser.getFullName();
     }
 
-    return StringUtils.hasText(oidcUser.getName()) ? oidcUser.getName() : null;
+    return null;
   }
 
   private void redirectToFailure(HttpServletResponse response) throws IOException {

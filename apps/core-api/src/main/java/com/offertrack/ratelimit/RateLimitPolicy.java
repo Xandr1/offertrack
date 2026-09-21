@@ -11,6 +11,7 @@ public enum RateLimitPolicy {
   FORGOT_PASSWORD_IP("forgot-password-ip"),
   RESET_PASSWORD_TOKEN("reset-password-token"),
   RESET_PASSWORD_IP("reset-password-ip"),
+  REFRESH_IP("refresh-ip"),
   AI_USER_MINUTE("ai-user-minute"),
   AI_USER_DAY("ai-user-day");
 

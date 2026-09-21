@@ -38,7 +38,12 @@ public record ProtectedConfigurationSnapshot(
     String aiServiceAuthMode,
     String aiServiceAudience,
     String forwardHeadersStrategy,
-    List<RateLimitPolicyValue> rateLimitPolicies) {
+    List<RateLimitPolicyValue> rateLimitPolicies,
+    String corePublicUrl,
+    String googleRedirectUri,
+    String sessionInactivityTtl,
+    String sessionAbsoluteTtl,
+    String sessionMaxActive) {
   private static final List<String> RATE_LIMIT_POLICY_NAMES =
       List.of(
           "login-email",
@@ -51,6 +56,7 @@ public record ProtectedConfigurationSnapshot(
           "forgot-password-ip",
           "reset-password-token",
           "reset-password-ip",
+          "refresh-ip",
           "ai-user-minute",
           "ai-user-day");
 
@@ -99,7 +105,12 @@ public record ProtectedConfigurationSnapshot(
                       environment.getProperty(prefix + ".max-attempts"),
                       environment.getProperty(prefix + ".window"));
                 })
-            .toList());
+            .toList(),
+        environment.getProperty("app.core.public-url"),
+        environment.getProperty("spring.security.oauth2.client.registration.google.redirect-uri"),
+        environment.getProperty("app.auth.session.inactivity-ttl"),
+        environment.getProperty("app.auth.session.absolute-ttl"),
+        environment.getProperty("app.auth.session.max-active"));
   }
 
   public record RateLimitPolicyValue(String propertyPrefix, String maxAttempts, String window) {}

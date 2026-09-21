@@ -1074,7 +1074,27 @@ const protectedRouteScenarios = [
 ] as const;
 
 for (const { account, route } of protectedRouteScenarios) {
-  test(`${route} never renders its protected shell after access expires`, async ({
+  test(`${route} recovers removed access through its valid refresh session`, async ({
+    context,
+    page,
+  }) => {
+    await login(page, account);
+    await page.goto(route);
+    await expect(page.locator(PROTECTED_SHELL_MARKER)).toBeVisible();
+
+    await context.clearCookies({ name: "access_token" });
+    const refreshed = page.waitForResponse(
+      response => new URL(response.url()).pathname === "/auth/refresh"
+        && response.request().method() === "POST",
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    expect((await refreshed).status()).toBe(204);
+    await expect(page).toHaveURL(new RegExp(`${route}(?:\\?.*)?$`));
+    await expect(page.locator(PROTECTED_SHELL_MARKER)).toBeVisible();
+  });
+
+  test(`${route} never renders its protected shell without access or refresh credentials`, async ({
     context,
     page,
   }) => {
@@ -1090,6 +1110,7 @@ for (const { account, route } of protectedRouteScenarios) {
     });
     await installProtectedShellObserver(page);
     await context.clearCookies({ name: "access_token" });
+    await context.clearCookies({ name: "refresh_token" });
     await page.reload({ waitUntil: "domcontentloaded" });
 
     await expect(page).toHaveURL(/\/login$/);
@@ -1106,7 +1127,7 @@ for (const { account, route } of protectedRouteScenarios) {
 test("logout persists across direct protected navigation", async ({ page }) => {
   await login(page, accounts.logout);
   await page.getByRole("link", { name: "Settings" }).click();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   await expect(page).toHaveURL(/\/login$/);
   await page.goto("/applications");

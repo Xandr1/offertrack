@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emitAuthEvent } from "../auth-coordinator";
 import { login, logout } from "./auth";
 import { ApiError } from "./errors";
 import { clearCsrfToken, request } from "./client";
@@ -30,6 +31,7 @@ describe("API client CSRF handling", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     clearCsrfToken();
+    emitAuthEvent("signed-in");
   });
 
   it("does not fetch or send a CSRF token for GET", async () => {

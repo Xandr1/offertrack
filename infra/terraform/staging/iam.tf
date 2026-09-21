@@ -3,6 +3,8 @@ locals {
     "roles/artifactregistry.admin",
     "roles/cloudsql.admin",
     "roles/compute.networkAdmin",
+    "roles/compute.loadBalancerAdmin",
+    "roles/logging.configWriter",
     "roles/iam.roleViewer",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.workloadIdentityPoolAdmin",

@@ -4,11 +4,13 @@ import { layoutStyles, textStyles } from "@/lib/styles";
 type SettingsPageHeaderProps = {
   email: string;
   onSignOut: () => void;
+  disabled?: boolean;
 };
 
 export const SettingsPageHeader = ({
   email,
   onSignOut,
+  disabled = false,
 }: SettingsPageHeaderProps) => (
   <header className={layoutStyles.splitHeader}>
     <div>
@@ -25,7 +27,7 @@ export const SettingsPageHeader = ({
         </p>
         <p className="break-all text-sm font-medium text-zinc-950">{email}</p>
       </div>
-      <Button className="ml-auto" onClick={onSignOut} variant="ghost">
+      <Button className="ml-auto" disabled={disabled} onClick={onSignOut} variant="ghost">
         Sign out
       </Button>
     </div>

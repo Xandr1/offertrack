@@ -10,6 +10,7 @@ import {
   Settings,
   getSettings,
   logout,
+  logoutAll,
   updateSettings,
 } from "@/lib/api";
 import type { UserSummary } from "@/lib/api";
@@ -20,7 +21,8 @@ import {
   getRequestErrorMessage,
   redirectToLoginIfProtectedRoute,
 } from "@/lib/request-errors";
-import { formStyles, layoutStyles, pageStyles, textStyles } from "@/lib/styles";
+import { formStyles, layoutStyles, modalStyles, pageStyles, textStyles } from "@/lib/styles";
+import { ApplicationModal } from "../applications/components/application-modal";
 import { SettingsPageHeader } from "./components/settings-page-header";
 import { SettingsForm } from "./components/settings-form";
 import {
@@ -41,7 +43,9 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [signedOut, setSignedOut] = useState(false);
   const settingsQuery = useQuery({
+    enabled: !signedOut,
     queryKey: queryKeys.settings,
     queryFn: getSettings,
     retry: false,
@@ -50,22 +54,31 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
     settingsQuery.error,
   );
 
-  async function handleLogout() {
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [isLogoutAllConfirmationOpen, setIsLogoutAllConfirmationOpen] = useState(false);
+  async function handleLogout(all = false) {
+    setSigningOut(true);
+    setLogoutError(null);
     try {
-      await logout();
-    } finally {
+      await (all ? logoutAll() : logout());
+      setSignedOut(true);
       clearAuthSessionQueries(queryClient);
       router.replace("/login");
-    }
+    } catch (error) {
+      setLogoutError(getRequestErrorMessage(error));
+    } finally { setSigningOut(false); }
   }
 
-  if (isRedirectingToLogin) {
+  if (signedOut || isRedirectingToLogin) {
     return null;
   }
 
   return (
     <div className={layoutStyles.container}>
-        <SettingsPageHeader email={user.email} onSignOut={handleLogout} />
+        <SettingsPageHeader email={user.email} disabled={signingOut}
+          onSignOut={() => void handleLogout()} />
+        {logoutError && <p role="alert" className={formStyles.error}>{logoutError}</p>}
 
         <section className={layoutStyles.section}>
           {settingsQuery.isPending && !settingsQuery.data ? (
@@ -96,6 +109,39 @@ const SettingsPageContent = ({ user }: { user: UserSummary }) => {
             </Card>
           )}
         </section>
+
+        <section className={layoutStyles.section} aria-labelledby="settings-security-title">
+          <Card className="max-w-4xl space-y-3 p-4 sm:p-5">
+            <h2 className={textStyles.sectionTitle} id="settings-security-title">Security</h2>
+            <p className={textStyles.description}>
+              Sign out of OfferTrack on every device, including this one.
+            </p>
+            <Button disabled={signingOut} onClick={() => setIsLogoutAllConfirmationOpen(true)} variant="secondary">
+              Sign out all devices
+            </Button>
+          </Card>
+        </section>
+
+        <ApplicationModal
+          description="This will sign you out everywhere, including this device."
+          initialFocusSelector="[data-logout-all-cancel]"
+          isOpen={isLogoutAllConfirmationOpen}
+          title="Sign out on all devices?"
+          variant="compact"
+          onClose={() => setIsLogoutAllConfirmationOpen(false)}
+        >
+          <div className={modalStyles.softFooterBleedCompact}>
+            <Button data-logout-all-cancel onClick={() => setIsLogoutAllConfirmationOpen(false)} variant="secondarySoft">
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setIsLogoutAllConfirmationOpen(false);
+              void handleLogout(true);
+            }} variant="primarySoft">
+              Sign out all devices
+            </Button>
+          </div>
+        </ApplicationModal>
     </div>
   );
 };

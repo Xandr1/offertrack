@@ -38,6 +38,8 @@ printf '%s\n' \
   'unlabelled eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkaXNwb3NhYmxlIn0.disposable-signature' \
   'GOOGLE_CLIENT_ID=disposable-oauth-client' \
   'session_id=opaque-session applicationId=opaque-application subject-id=opaque-subject' \
+  'provider_subject=opaque-provider sub=opaque-sub sid=opaque-sid jti=opaque-jti state=opaque-state token_hash=opaque-hash' \
+  'target=https://example.test/reset#token=fragment-credential&state=fragment-state' \
   'DATABASE_URL=jdbc:postgresql://db-user:jdbc-password@192.0.2.20:5432/private-db?sslmode=require' \
   'postgres_uri=postgresql://pg-user:postgres-password@database.example.test:5432/private-db' \
   'redis_uri=rediss://cache-user:redis-password@cache.example.test:6380/0' \
@@ -68,6 +70,14 @@ for sensitive_value in \
   'opaque-session' \
   'opaque-application' \
   'opaque-subject' \
+  'opaque-provider' \
+  'opaque-sub' \
+  'opaque-sid' \
+  'opaque-jti' \
+  'opaque-state' \
+  'opaque-hash' \
+  'fragment-credential' \
+  'fragment-state' \
   'db-user' \
   'jdbc-password' \
   'private-db' \

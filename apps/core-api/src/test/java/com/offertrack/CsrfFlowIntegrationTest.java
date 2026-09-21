@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.auth.CookieService;
-import com.offertrack.auth.JwtService;
 import com.offertrack.auth.PasswordService;
 import com.offertrack.ratelimit.RateLimitGuard;
 import com.offertrack.users.User;
@@ -39,7 +38,7 @@ import org.springframework.test.web.servlet.ResultActions;
 class CsrfFlowIntegrationTest {
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
-  @Autowired private JwtService jwtService;
+  @Autowired private com.offertrack.auth.AuthService authService;
   @Autowired private PasswordService passwordService;
   @Autowired private UserRepository userRepository;
   @Autowired private DSLContext dsl;
@@ -57,7 +56,11 @@ class CsrfFlowIntegrationTest {
   @Test
   void issuedMaskedJsonTokenSucceedsUnchangedOnCookieAuthenticatedMutation() throws Exception {
     User user = userRepository.createUser("csrf-flow@example.com", "unused-password-hash", "User");
-    String accessToken = jwtService.generateAccessToken(user.id(), user.email());
+    String accessToken =
+        authService
+            .loginWithGoogle(
+                new com.offertrack.auth.GoogleIdentity("csrf-subject", user.email(), "User", true))
+            .accessToken();
 
     MvcResult csrfResult =
         mockMvc
