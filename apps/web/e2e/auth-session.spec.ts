@@ -50,7 +50,7 @@ test("exact CORS, explicit authentication errors, and selector-only candidate ro
 test("refresh-cookie-only CSRF, cross-tab refresh, and logout propagation", async ({ page, context }) => {
   test.skip(!email || !password, "Requires an authorized disposable staging account.");
   await login(page);
-  const cookies = (await context.cookies(api)).map(({ name, domain, path, secure, httpOnly, sameSite }) =>
+  const cookies = (await context.cookies(api + "/auth/refresh")).map(({ name, domain, path, secure, httpOnly, sameSite }) =>
     ({ name, domain, path, secure, httpOnly, sameSite }));
   for (const [name, path] of [["access_token", "/"], ["refresh_token", "/auth"]]) {
     expect(cookies.find(cookie => cookie.name === name)).toMatchObject({
@@ -76,7 +76,7 @@ test("refresh-cookie-only CSRF, cross-tab refresh, and logout propagation", asyn
   await expect(second.locator('[data-testid="protected-page-shell"]')).toHaveCount(0);
 });
 
-test("logout-all invalidates another browser session and expired refresh leads to login", async ({ page, browser, baseURL }) => {
+test("logout-all invalidates another browser session and missing refresh leads to login", async ({ page, browser, baseURL }) => {
   test.skip(!email || !password, "Requires an authorized disposable staging account.");
   await login(page);
   const other = await browser.newContext({ baseURL });
