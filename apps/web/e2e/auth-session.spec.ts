@@ -76,6 +76,21 @@ test("refresh-cookie-only CSRF, cross-tab refresh, and logout propagation", asyn
   await expect(second.locator('[data-testid="protected-page-shell"]')).toHaveCount(0);
 });
 
+test("without Web Locks, removed access requires reauthentication without rotating refresh", async ({ page, context }) => {
+  test.skip(!email || !password, "Requires an authorized disposable staging account.");
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "locks", { configurable: true, value: undefined });
+  });
+  await login(page);
+  let rotations = 0;
+  context.on("request", request => { if (new URL(request.url()).pathname === "/auth/refresh") rotations++; });
+  await context.clearCookies({ name: "access_token" });
+  await page.reload();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.locator('[data-testid="protected-page-shell"]')).toHaveCount(0);
+  expect(rotations).toBe(0);
+});
+
 test("logout-all invalidates another browser session and missing refresh leads to login", async ({ page, browser, baseURL }) => {
   test.skip(!email || !password, "Requires an authorized disposable staging account.");
   await login(page);

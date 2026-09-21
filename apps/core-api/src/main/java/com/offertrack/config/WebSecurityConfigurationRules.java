@@ -120,17 +120,4 @@ final class WebSecurityConfigurationRules {
       invalid("app.auth.cookie.domain");
     }
   }
-
-  private static boolean isValidCookiePath(String path) {
-    if (!path.startsWith("/")) {
-      return false;
-    }
-    for (int index = 0; index < path.length(); index++) {
-      char character = path.charAt(index);
-      if (character < 0x20 || character > 0x7e || character == ';') {
-        return false;
-      }
-    }
-    return true;
-  }
 }

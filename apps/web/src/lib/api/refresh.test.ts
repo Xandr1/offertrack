@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authState, emitAuthEvent } from "../auth-coordinator";
+import { AuthCoordinationError, authState, emitAuthEvent, subscribeAuthEvents } from "../auth-coordinator";
 import { ApiError } from "./errors";
 import { request } from "./client";
 
@@ -11,6 +11,9 @@ const fetchMock = jest.fn<Promise<Response>, Parameters<typeof fetch>>();
 beforeEach(() => {
   fetchMock.mockReset();
   global.fetch = fetchMock;
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+    locks: { request: (_name: string, _options: unknown, work: () => Promise<unknown>) => work() },
+  } });
   emitAuthEvent("signed-in");
 });
 
@@ -46,6 +49,47 @@ it("does not rotate after a probe with an unrelated 401", async () => {
   await expect(request("/api/a", schema)).rejects.toBeInstanceOf(ApiError);
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(authState().signedOut).toBe(true);
+});
+
+it("requires reauthentication without Web Locks and never sends a refresh or replay", async () => {
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {} });
+  const listener = jest.fn();
+  const unsubscribe = subscribeAuthEvents(listener);
+  try {
+    fetchMock.mockImplementation(async () => required());
+    const results = await Promise.allSettled([request("/api/a", schema), request("/api/b", schema)]);
+    expect(results).toEqual([
+      { status: "rejected", reason: expect.any(AuthCoordinationError) },
+      { status: "rejected", reason: expect.any(AuthCoordinationError) },
+    ]);
+    expect(authState().signedOut).toBe(true);
+    expect(listener.mock.calls).toEqual([["signed-out"]]);
+    await expect(request("/api/c", schema)).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual(["/api/a", "/api/b"]);
+  } finally { unsubscribe(); }
+});
+
+it.each(["signed-in", "signed-out"] as const)("does not refresh or replay a mutation after %s while waiting for the lock", async event => {
+  let started!: () => void;
+  let release!: () => void;
+  const waiting = new Promise<void>(resolve => { started = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+    locks: { request: async (_name: string, _options: unknown, work: () => Promise<unknown>) => {
+      started();
+      await gate;
+      return work();
+    } },
+  } });
+  fetchMock.mockResolvedValueOnce(json({ token: "masked", headerName: "X-XSRF-TOKEN" }))
+    .mockResolvedValueOnce(required());
+  const pending = request("/api/a", schema, { method: "POST", body: "{}" });
+  await waiting;
+  emitAuthEvent(event);
+  release();
+  await expect(pending).rejects.toBeInstanceOf(ApiError);
+  expect(authState().signedOut).toBe(event === "signed-out");
+  expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual(["/auth/csrf", "/api/a"]);
 });
 
 it("never retries an ambiguous refresh and discards later protected work", async () => {

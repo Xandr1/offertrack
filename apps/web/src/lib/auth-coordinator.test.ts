@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 type Coordinator = typeof import("./auth-coordinator");
 
 class Bus {
@@ -23,12 +22,12 @@ beforeEach(() => {
   Bus.peers = []; Bus.sent = [];
   Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: {} });
-  Object.defineProperty(globalThis, "crypto", { configurable: true, value: { randomUUID } });
   Object.defineProperty(globalThis, "BroadcastChannel", { configurable: true, value: Bus });
 });
 afterEach(() => { jest.useRealTimers(); });
 
-it("uses Web Locks to serialize lifecycle operations across tabs", async () => {
+it.each([true, false])("uses Web Locks across tabs with BroadcastChannel available=%s", async available => {
+  if (!available) Object.defineProperty(globalThis, "BroadcastChannel", { configurable: true, value: undefined });
   let queue = Promise.resolve();
   const request = jest.fn((_name, _options, callback: () => Promise<void>) => {
     const result = queue.then(callback);
@@ -51,41 +50,101 @@ it("uses Web Locks to serialize lifecycle operations across tabs", async () => {
   await Promise.all([first, second]);
   expect(order).toEqual(["first-start", "first-end", "second"]);
   expect(request).toHaveBeenCalledTimes(2);
+  expect(Bus.sent).toEqual([]);
+  expect(jest.getTimerCount()).toBe(0);
 });
 
-it("elects one fallback owner and lets a waiting tab recheck after release", async () => {
-  jest.useRealTimers();
-  const a = tab(), b = tab();
-  let active = 0, maximum = 0, completed = 0;
-  const work = async () => {
-    active++; maximum = Math.max(maximum, active);
-    await new Promise(resolve => setTimeout(resolve, 100));
-    active--; completed++;
-  };
-  const pending = Promise.all([a.withAuthLock(work, true), b.withAuthLock(work, true)]);
-  await pending;
-  expect(maximum).toBe(1);
-  expect(completed).toBe(2);
-});
-
-it("bounds fallback waiting and never takes over an ambiguous owner", async () => {
-  const a = tab(), b = tab();
+it("serializes explicit lifecycle work in one tab without Web Locks, including after failure", async () => {
+  const coordinator = tab();
+  const order: string[] = [];
   let release!: () => void;
-  const first = a.withAuthLock(() => new Promise<void>(resolve => { release = resolve; }), true);
-  await jest.advanceTimersByTimeAsync(250);
+  const first = coordinator.withAuthLock(async () => {
+    order.push("first-start");
+    await new Promise<void>(resolve => { release = resolve; });
+    throw new Error("Operation failed");
+  });
+  const rejected = expect(first).rejects.toThrow("Operation failed");
+  const second = coordinator.withAuthLock(async () => { order.push("second"); return "signed-in"; });
+  await jest.advanceTimersByTimeAsync(1);
+  expect(order).toEqual(["first-start"]);
+  release();
+  await rejected;
+  await expect(second).resolves.toBe("signed-in");
+  expect(order).toEqual(["first-start", "second"]);
+  expect(Bus.sent).toEqual([]);
+});
+
+it.each([true, false])("rejects required coordination without Web Locks with BroadcastChannel available=%s", async available => {
+  if (!available) Object.defineProperty(globalThis, "BroadcastChannel", { configurable: true, value: undefined });
+  const coordinator = tab();
   const work = jest.fn(async () => undefined);
-  const second = b.withAuthLock(work, true);
-  const rejected = expect(second).rejects.toThrow("Authentication could not be confirmed");
-  await jest.advanceTimersByTimeAsync(10_100);
+  await expect(coordinator.withAuthLock(work, true)).rejects.toBeInstanceOf(coordinator.AuthCoordinationError);
+  expect(work).not.toHaveBeenCalled();
+  expect(Bus.sent).toEqual([]);
+  expect(jest.getTimerCount()).toBe(0);
+  // The rejected refresh must not block a subsequent explicit sign-in.
+  await expect(coordinator.withAuthLock(async () => "signed-in")).resolves.toBe("signed-in");
+});
+
+it("bounds Web Lock waiting without running the work or falling back", async () => {
+  const request = jest.fn((_name: string, { signal }: { signal: AbortSignal }) => new Promise((_, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+  }));
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { locks: { request } } });
+  const coordinator = tab();
+  const work = jest.fn(async () => undefined);
+  const rejected = expect(coordinator.withAuthLock(work, true)).rejects.toBeInstanceOf(coordinator.AuthCoordinationError);
+  await jest.advanceTimersByTimeAsync(10_000);
   await rejected;
   expect(work).not.toHaveBeenCalled();
-  release(); await first;
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(Bus.sent).toEqual([]);
+  expect(jest.getTimerCount()).toBe(0);
 });
 
-it("propagates logout without sending credentials or account identifiers", async () => {
+it("does not run unlocked work when Web Locks rejects the request", async () => {
+  const failure = new Error("Lock unavailable");
+  const request = jest.fn().mockRejectedValue(failure);
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { locks: { request } } });
+  const coordinator = tab();
+  const work = jest.fn(async () => undefined);
+  await expect(coordinator.withAuthLock(work, true)).rejects.toBe(failure);
+  expect(work).not.toHaveBeenCalled();
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(Bus.sent).toEqual([]);
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+it("propagates auth state events without credentials or account identifiers", async () => {
   const a = tab(), b = tab();
+  const listener = jest.fn();
+  b.subscribeAuthEvents(listener);
   a.emitAuthEvent("signed-out");
   await jest.advanceTimersByTimeAsync(1);
-  expect(b.authState().signedOut).toBe(true);
-  expect(Bus.sent).toEqual([{ kind: "event", event: "signed-out" }]);
+  expect(b.authState()).toEqual({ generation: 1, signedOut: true, refreshVersion: 0 });
+  a.emitAuthEvent("signed-in");
+  await jest.advanceTimersByTimeAsync(1);
+  expect(b.authState()).toEqual({ generation: 2, signedOut: false, refreshVersion: 0 });
+  a.emitAuthEvent("refreshed");
+  await jest.advanceTimersByTimeAsync(1);
+  expect(b.authState()).toEqual({ generation: 2, signedOut: false, refreshVersion: 1 });
+  expect(listener.mock.calls).toEqual([["signed-out"], ["signed-in"], ["refreshed"]]);
+  expect(Bus.sent).toEqual([
+    { kind: "event", event: "signed-out" },
+    { kind: "event", event: "signed-in" },
+    { kind: "event", event: "refreshed" },
+  ]);
+});
+
+it("ignores messages other than recognized auth state events", async () => {
+  tab();
+  const receiver = tab();
+  const listener = jest.fn();
+  receiver.subscribeAuthEvents(listener);
+  for (const data of [null, {}, { kind: "unknown", event: "signed-in" }, { kind: "event", event: "unknown" }]) {
+    Bus.peers[0].postMessage(data);
+  }
+  await jest.advanceTimersByTimeAsync(1);
+  expect(listener).not.toHaveBeenCalled();
+  expect(receiver.authState()).toEqual({ generation: 0, signedOut: false, refreshVersion: 0 });
 });

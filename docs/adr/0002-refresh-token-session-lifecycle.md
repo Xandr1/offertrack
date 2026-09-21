@@ -85,13 +85,17 @@ invalidate CSRF; refresh preserves it to avoid cross-tab races.
 
 The Web client keeps credentials out of browser storage. Automatic refresh
 requires exactly `401 AUTHENTICATION_REQUIRED`, including its coordination
-probe. Auth/recovery operations are excluded. In-tab single flight, Web Locks,
-and a bounded BroadcastChannel election reduce races; none weaken server replay
-detection. Ambiguous outcomes require reauthentication, never blind rotation
-retry. A confirmed refresh permits at most one replay, sharing the existing CSRF
-replay budget. A generation change discards late responses and prevents mutation
-replay under another account. Logout/account change cancels and removes protected
-TanStack queries. Focus, reconnect, and reload revalidate through the server.
+probe. Auth/recovery operations are excluded. In-tab single flight and Web Locks
+serialize auth lifecycle work; BroadcastChannel carries only signed-in,
+signed-out, and refreshed events. Without Web Locks, automatic refresh fails
+closed and requires reauthentication; explicit sign-in/out remain available
+through the tab-local queue. No distributed lock emulation or change to server
+replay detection. Ambiguous outcomes require reauthentication, never blind
+rotation retry. A confirmed refresh permits at most one replay, sharing the
+existing CSRF replay budget. A generation change discards late responses and
+prevents mutation replay under another account. Logout/account change cancels
+and removes protected TanStack queries. Focus, reconnect, and reload revalidate
+through the server.
 
 ## Cleanup and diagnostics
 
