@@ -11,14 +11,21 @@ from app.openai_extractor import OpenAiTimeoutError
 from app.settings import Settings
 
 TEST_INTERNAL_API_KEY = "test-internal-key"
+PUBLIC_TEST_IP = "93.184.216.34"
 
 
 class FakeFetcher:
-    def __init__(self, body: bytes) -> None:
+    def __init__(self, body: bytes, redirect_count: int = 0) -> None:
         self.body = body
+        self.redirect_count = redirect_count
 
     async def fetch(self, job_url: str) -> FetchResult:
-        return FetchResult(url=job_url, body=self.body, content_type="text/html")
+        return FetchResult(
+            url=job_url,
+            body=self.body,
+            content_type="text/html",
+            redirect_count=self.redirect_count,
+        )
 
 
 class FailingFetcher:
@@ -226,6 +233,7 @@ def test_preserves_safe_request_id_in_logs(caplog) -> None:
 
     assert response.status_code == 200
     assert "request_id=safe.request-id_123:abc" in caplog.text
+    assert "redirect_count=0" in caplog.text
 
 
 def test_replaces_invalid_request_id_before_logging(caplog) -> None:
@@ -366,6 +374,7 @@ def test_logs_fetch_failure_diagnostics(caplog) -> None:
                 status_code=403,
                 content_type="text/html; charset=utf-8",
                 redirect_target_host="jobs.example.com",
+                redirect_count=2,
             )
         )
     )
@@ -378,6 +387,42 @@ def test_logs_fetch_failure_diagnostics(caplog) -> None:
     assert "status_code=403" in caplog.text
     assert "content_type=text/html; charset=utf-8" in caplog.text
     assert "redirect_target_host=jobs.example.com" in caplog.text
+    assert "redirect_count=2" in caplog.text
+
+
+def test_logs_exclude_urls_paths_queries_ips_credentials_and_tokens(caplog) -> None:
+    sensitive_url = (
+        "https://user:password@example.com/private/path?token=query-secret&key=api-secret"
+    )
+    client = _client_with_fetcher(
+        FailingFetcher(
+            JobFetchError(
+                f"failed fetching {sensitive_url} via {PUBLIC_TEST_IP}",
+                reason="http_client_error",
+                redirect_target_host=PUBLIC_TEST_IP,
+                redirect_count=1,
+            )
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="app.main")
+
+    response = _post_parse(client, job_url=sensitive_url)
+
+    assert response.status_code == 502
+    assert "url_host=example.com" in caplog.text
+    assert "redirect_target_host=ip-literal" in caplog.text
+    assert "redirect_count=1" in caplog.text
+    for sensitive_value in (
+        sensitive_url,
+        "/private/path",
+        "query-secret",
+        "api-secret",
+        "user",
+        "password",
+        PUBLIC_TEST_IP,
+        TEST_INTERNAL_API_KEY,
+    ):
+        assert sensitive_value not in caplog.text
 
 
 def test_replaces_ip_literal_hosts_in_logs(caplog) -> None:
