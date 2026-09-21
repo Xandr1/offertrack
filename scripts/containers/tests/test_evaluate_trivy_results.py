@@ -73,8 +73,8 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
 
     def complete_scans(
         self, **overrides: tuple[Path, str]
-    ) -> list[tuple[str, Path, str]]:
-        scans: list[tuple[str, Path, str]] = []
+    ) -> list[tuple[str, str, Path, str]]:
+        scans: list[tuple[str, str, Path, str]] = []
         for scan_name in IMAGE_REPOSITORIES:
             path, outcome = overrides.get(
                 scan_name,
@@ -85,18 +85,19 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
                     "success",
                 ),
             )
-            scans.append((scan_name, path, outcome))
+            scans.append(
+                (scan_name, f"{IMAGE_REPOSITORIES[scan_name]}:{IMAGE_TAG}", path, outcome)
+            )
         return scans
 
     def run_evaluator(
         self,
-        *scans: tuple[str, Path, str],
-        image_tag: str = IMAGE_TAG,
+        *scans: tuple[str, str, Path, str],
         summary_path: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        command = [sys.executable, str(EVALUATOR), "--image-tag", image_tag]
-        for name, path, outcome in scans:
-            command.extend(("--scan", name, str(path), outcome))
+        command = [sys.executable, str(EVALUATOR)]
+        for name, expected_image_ref, path, outcome in scans:
+            command.extend(("--scan", name, expected_image_ref, str(path), outcome))
         environment = os.environ.copy()
         environment.pop("GITHUB_STEP_SUMMARY", None)
         if summary_path is not None:
@@ -129,7 +130,9 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         scans = self.complete_scans()
         unexpected = self.write_json("unexpected.json", report("web", results=[]))
 
-        result = self.run_evaluator(*scans, ("worker", unexpected, "success"))
+        result = self.run_evaluator(
+            *scans, ("worker", "offertrack/worker:test", unexpected, "success")
+        )
 
         self.assertEqual(1, result.returncode)
         self.assertIn("unexpected scan name&#58; worker", result.stdout)
@@ -140,20 +143,23 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
             "duplicate.json", report("web", vulnerability("CVE-DUPLICATE"))
         )
 
-        result = self.run_evaluator(*scans, ("web", duplicate, "failure"))
+        result = self.run_evaluator(
+            *scans, ("web", "offertrack/web:test", duplicate, "failure")
+        )
 
         self.assertEqual(1, result.returncode)
         self.assertIn("duplicate scan name&#58; web &#40;2 entries&#41;", result.stdout)
         self.assertIn("web&#58; scanner outcome is 'failure'", result.stdout)
         self.assertIn("CVE-DUPLICATE", result.stdout)
 
-    def test_invalid_image_tag_blocks(self) -> None:
+    def test_invalid_expected_image_reference_blocks(self) -> None:
         scans = self.complete_scans()
-        for invalid_tag in ("bad/tag", "x" * 129):
-            with self.subTest(invalid_tag=invalid_tag):
-                result = self.run_evaluator(*scans, image_tag=invalid_tag)
+        for invalid_ref in ("", "wrong/component:test", "offertrack/web:test\nother"):
+            with self.subTest(invalid_ref=invalid_ref):
+                scans[0] = ("web", invalid_ref, scans[0][2], scans[0][3])
+                result = self.run_evaluator(*scans)
                 self.assertEqual(1, result.returncode)
-                self.assertIn("invalid image tag", result.stdout)
+                self.assertIn("expected image reference is invalid", result.stdout)
 
     def test_artifact_name_mismatch_blocks(self) -> None:
         wrong = self.write_json(
@@ -184,9 +190,9 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         web = self.write_json("web.json", report("web", results=[]))
 
         result = self.run_evaluator(
-            ("web", web, "success"),
-            ("core-api", web, "success"),
-            ("ai-service", web, "success"),
+            ("web", "offertrack/web:test", web, "success"),
+            ("core-api", "offertrack/core-api:test", web, "success"),
+            ("ai-service", "offertrack/ai-service:test", web, "success"),
         )
 
         self.assertEqual(1, result.returncode)
@@ -308,8 +314,8 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
 
     def test_failed_or_skipped_scanner_blocks_even_with_valid_reports(self) -> None:
         scans = self.complete_scans()
-        scans[0] = (scans[0][0], scans[0][1], "failure")
-        scans[1] = (scans[1][0], scans[1][1], "skipped")
+        scans[0] = (*scans[0][:3], "failure")
+        scans[1] = (*scans[1][:3], "skipped")
 
         result = self.run_evaluator(*scans)
 

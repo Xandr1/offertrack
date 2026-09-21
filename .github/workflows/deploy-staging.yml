@@ -116,50 +116,155 @@ jobs:
           chmod +x apps/core-api/mvnw scripts/containers/build-images.sh scripts/staging/smoke.sh
           printf '%s\n' "OFFERTRACK_CONTAINER_TEMP_ROOT=$resolved_temp" >> "$GITHUB_ENV"
 
-      # The verified successful CI push workflow for DEPLOY_SHA ran frontend, Core,
-      # AI, production-container smoke, Trivy, and Terraform validation. This
-      # build deliberately reuses the same production image path after that
-      # exact-commit gate instead of maintaining a second image definition.
-      - name: Build production Core and AI images
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/containers/build-images.sh \
-            --components core-api,ai-service \
-            --tag "$DEPLOY_SHA"
-
-      - name: Publish immutable Core and AI images
+      # Immutable tags are reused when present. Missing variants are built once,
+      # published, resolved to registry digests, and then scanned before any
+      # candidate or migration operation can start.
+      - name: Prepare immutable deployment images
+        id: deployment_images
         shell: bash
         run: |
           set -euo pipefail
           registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
+          public_config_hash="$(printf '%s\n' "staging" "$CORE_PUBLIC_URL" | sha256sum | cut -c1-16)"
+          web_build_tag="${DEPLOY_SHA}-${public_config_hash}"
 
-          publish_image() {
+          image_exists() {
             local component="$1"
-            local source_ref="offertrack/${component}:$DEPLOY_SHA"
-            local tagged_ref="${registry}/${component}:$DEPLOY_SHA"
-            local digest_ref
+            local tag="$2"
+            gcloud artifacts docker images describe "${registry}/${component}:${tag}" \
+              --project "$PROJECT_ID" --format='none' >/dev/null 2>&1
+          }
 
-            docker tag "$source_ref" "$tagged_ref"
-            if gcloud artifacts docker images describe "$tagged_ref" \
-              --project "$PROJECT_ID" --format='none' >/dev/null 2>&1; then
+          missing_components=()
+          for component in core-api ai-service; do
+            if image_exists "$component" "$DEPLOY_SHA"; then
               echo "Reusing the existing immutable $component tag for this commit." >&2
             else
-              docker push "$tagged_ref" >&2
+              missing_components+=("$component")
             fi
+          done
+
+          if ((${#missing_components[@]} > 0)); then
+            component_list="$(IFS=,; echo "${missing_components[*]}")"
+            bash scripts/containers/build-images.sh \
+              --components "$component_list" \
+              --tag "$DEPLOY_SHA"
+            for component in "${missing_components[@]}"; do
+              tagged_ref="${registry}/${component}:${DEPLOY_SHA}"
+              docker tag "offertrack/${component}:${DEPLOY_SHA}" "$tagged_ref"
+              docker push "$tagged_ref" >&2
+            done
+          fi
+
+          if image_exists web "$web_build_tag"; then
+            echo "Reusing the immutable Web tag for this commit and public build configuration." >&2
+          else
+            bash scripts/containers/build-images.sh \
+              --components web \
+              --app-env staging \
+              --next-public-api-url "$CORE_PUBLIC_URL" \
+              --tag "$web_build_tag"
+            web_tagged_ref="${registry}/web:${web_build_tag}"
+            docker tag "offertrack/web:${web_build_tag}" "$web_tagged_ref"
+            docker push "$web_tagged_ref" >&2
+          fi
+
+          resolve_digest() {
+            local component="$1"
+            local tag="$2"
+            local tagged_ref="${registry}/${component}:${tag}"
+            local expected_prefix="${registry}/${component}@sha256:"
+            local digest_ref
 
             digest_ref="$(gcloud artifacts docker images describe "$tagged_ref" \
               --project "$PROJECT_ID" \
               --format='value(image_summary.fully_qualified_digest)')"
-            [[ "$digest_ref" == "${registry}/${component}@sha256:"* ]]
-            [[ "${digest_ref##*@sha256:}" =~ ^[0-9a-f]{64}$ ]]
+            [[ -n "$digest_ref" ]]
+            [[ "$digest_ref" != *$'\n'* ]]
+            [[ "$digest_ref" == "$expected_prefix"* ]]
+            [[ "${digest_ref#"$expected_prefix"}" =~ ^[0-9a-f]{64}$ ]]
             printf '%s' "$digest_ref"
           }
 
-          core_image="$(publish_image core-api)"
-          ai_image="$(publish_image ai-service)"
-          printf '%s\n' "CORE_IMAGE=$core_image" >> "$GITHUB_ENV"
-          printf '%s\n' "AI_IMAGE=$ai_image" >> "$GITHUB_ENV"
+          core_image="$(resolve_digest core-api "$DEPLOY_SHA")"
+          ai_image="$(resolve_digest ai-service "$DEPLOY_SHA")"
+          web_image="$(resolve_digest web "$web_build_tag")"
+          printf '%s\n' \
+            "CORE_IMAGE=$core_image" \
+            "AI_IMAGE=$ai_image" \
+            "WEB_IMAGE=$web_image" \
+            "WEB_BUILD_TAG=$web_build_tag" >> "$GITHUB_ENV"
+          printf '%s\n' \
+            "core_image=$core_image" \
+            "ai_image=$ai_image" \
+            "web_image=$web_image" >> "$GITHUB_OUTPUT"
+
+      - name: Scan exact Web deployment image
+        id: trivy_web
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.70.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: ${{ steps.deployment_images.outputs.web_image }}
+          format: json
+          output: ${{ runner.temp }}/offertrack-container-${{ github.run_id }}-${{ github.run_attempt }}/trivy-staging-web.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "0"
+          hide-progress: "true"
+          list-all-pkgs: "false"
+          timeout: 5m0s
+
+      - name: Scan exact Core deployment image
+        id: trivy_core
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.70.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: ${{ steps.deployment_images.outputs.core_image }}
+          format: json
+          output: ${{ runner.temp }}/offertrack-container-${{ github.run_id }}-${{ github.run_attempt }}/trivy-staging-core.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "0"
+          hide-progress: "true"
+          list-all-pkgs: "false"
+          timeout: 5m0s
+
+      - name: Scan exact AI deployment image
+        id: trivy_ai
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.70.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: ${{ steps.deployment_images.outputs.ai_image }}
+          format: json
+          output: ${{ runner.temp }}/offertrack-container-${{ github.run_id }}-${{ github.run_attempt }}/trivy-staging-ai.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: "false"
+          exit-code: "0"
+          hide-progress: "true"
+          list-all-pkgs: "false"
+          timeout: 5m0s
+
+      - name: Apply exact deployment image scan policy
+        if: always() && steps.deployment_images.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/containers/evaluate-trivy-results.py \
+            --scan web "${{ steps.deployment_images.outputs.web_image }}" "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-staging-web.json" "${{ steps.trivy_web.outcome }}" \
+            --scan core-api "${{ steps.deployment_images.outputs.core_image }}" "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-staging-core.json" "${{ steps.trivy_core.outcome }}" \
+            --scan ai-service "${{ steps.deployment_images.outputs.ai_image }}" "$OFFERTRACK_CONTAINER_TEMP_ROOT/trivy-staging-ai.json" "${{ steps.trivy_ai.outcome }}"
 
       - name: Deploy the AI candidate revision
         shell: bash
@@ -316,39 +421,6 @@ jobs:
           rm -f -- "$response" "$revision_config"
           trap - EXIT
           printf '%s\n' "CORE_URL=$canonical_url" "CORE_REVISION=$expected_revision" >> "$GITHUB_ENV"
-
-      - name: Build the Web image with the canonical Core URL
-        shell: bash
-        run: |
-          set -euo pipefail
-          public_config_hash="$(printf '%s\n' "staging" "$CORE_URL" | sha256sum | cut -c1-16)"
-          WEB_BUILD_TAG="${DEPLOY_SHA}-${public_config_hash}"
-          printf '%s\n' "WEB_BUILD_TAG=$WEB_BUILD_TAG" >> "$GITHUB_ENV"
-          bash scripts/containers/build-images.sh \
-            --components web \
-            --app-env staging \
-            --next-public-api-url "$CORE_URL" \
-            --tag "$WEB_BUILD_TAG"
-
-      - name: Publish immutable Web image
-        shell: bash
-        run: |
-          set -euo pipefail
-          registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
-          tagged_ref="${registry}/web:$WEB_BUILD_TAG"
-          docker tag "offertrack/web:$WEB_BUILD_TAG" "$tagged_ref"
-          if gcloud artifacts docker images describe "$tagged_ref" \
-            --project "$PROJECT_ID" --format='none' >/dev/null 2>&1; then
-            echo "Reusing the immutable Web tag for this commit and public build configuration."
-          else
-            docker push "$tagged_ref"
-          fi
-          web_image="$(gcloud artifacts docker images describe "$tagged_ref" \
-            --project "$PROJECT_ID" \
-            --format='value(image_summary.fully_qualified_digest)')"
-          [[ "$web_image" == "${registry}/web@sha256:"* ]]
-          [[ "${web_image##*@sha256:}" =~ ^[0-9a-f]{64}$ ]]
-          printf '%s\n' "WEB_IMAGE=$web_image" >> "$GITHUB_ENV"
 
       - name: Deploy and verify the Web candidate revision
         shell: bash

@@ -55,6 +55,7 @@ resource "google_sql_database_instance" "postgres" {
       ipv4_enabled       = false
       private_network    = google_compute_network.staging.id
       allocated_ip_range = google_compute_global_address.private_services.name
+      ssl_mode           = "ENCRYPTED_ONLY"
     }
 
     user_labels = local.common_labels

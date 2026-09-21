@@ -17,6 +17,8 @@ public final class DatabaseConfigurationValidator {
   private static final Pattern IPV4_CANDIDATE = Pattern.compile("[0-9.]+");
   private static final Set<String> URL_CREDENTIAL_PROPERTIES =
       Set.of("user", "password", "sslpassword");
+  private static final Set<String> PROTECTED_SSL_MODES =
+      Set.of("require", "verify-ca", "verify-full");
 
   private DatabaseConfigurationValidator() {}
 
@@ -28,6 +30,7 @@ public final class DatabaseConfigurationValidator {
 
     if (policy == Policy.PROTECTED) {
       requireProtectedHost(databaseUri.getHost(), properties.url());
+      requireProtectedSslMode(databaseUri.getRawQuery(), properties.url());
       if (databaseUri.getPort() < 1 || databaseUri.getPort() > 65535) {
         throw invalid(properties.url());
       }
@@ -103,6 +106,29 @@ public final class DatabaseConfigurationValidator {
       }
     }
     return false;
+  }
+
+  private static void requireProtectedSslMode(String rawQuery, String property) {
+    if (rawQuery == null) {
+      throw invalid(property);
+    }
+
+    String sslMode = null;
+    for (String parameter : rawQuery.split("[&;]", -1)) {
+      String[] pair = parameter.split("=", 2);
+      String name = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
+      if (!"sslmode".equalsIgnoreCase(name)) {
+        continue;
+      }
+      if (sslMode != null || pair.length != 2) {
+        throw invalid(property);
+      }
+      sslMode = URLDecoder.decode(pair[1], StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+    }
+
+    if (!PROTECTED_SSL_MODES.contains(sslMode)) {
+      throw invalid(property);
+    }
   }
 
   private static void requireProtectedHost(String host, String property) {

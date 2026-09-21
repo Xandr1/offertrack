@@ -33,7 +33,7 @@ locals {
     smtp_password         = null
   } : var.secret_versions
 
-  database_url = "jdbc:postgresql://${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.offertrack.name}"
+  database_url = "jdbc:postgresql://${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.offertrack.name}?sslmode=require"
 
   ai_environment = {
     AI_SERVICE_ALLOWED_HOSTS         = "localhost,${local.ai_service_host},${local.ai_candidate_host}"
@@ -74,6 +74,7 @@ locals {
     AUTH_COOKIE_SAME_SITE                              = "Lax"
     AUTH_COOKIE_SECURE                                 = "true"
     CORS_ALLOWED_ORIGINS                               = local.web_service_url
+    CORE_MAX_REQUEST_BODY_BYTES                       = "262144"
     DATABASE_URL                                       = local.database_url
     DB_USER                                            = "offertrack_app"
     GOOGLE_CLIENT_ID                                   = var.google_oauth_client_id == null ? "" : trimspace(var.google_oauth_client_id)
