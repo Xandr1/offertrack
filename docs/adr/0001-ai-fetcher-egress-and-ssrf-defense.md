@@ -53,8 +53,9 @@ host while the TCP connection uses the pinned address.
 
 A fresh HTTPX client and transport are created for each address attempt. No pool can therefore
 reuse a connection across logical authorities that happen to share an address. Later validated
-addresses may be attempted only after connection-establishment failures. Responses, status codes,
-protocol/read failures, and body reads are not retried, and DNS is not repeated within a hop.
+addresses may be attempted only after connection-establishment failures, with at most four address
+attempts per answer set. Responses, status codes, protocol/read failures, and body reads are not
+retried, and DNS is not repeated within a hop.
 
 ### Redirects, proxies, and headers
 
@@ -75,7 +76,8 @@ each HTTPX attempt, and an outer cancellation boundary prevents any phase from r
 budget. Responses and clients are closed in shielded `finally` cleanup before timeout or other
 errors are propagated; cleanup cannot start another lookup, connection, retry, or body read.
 
-Requests explicitly send `Accept-Encoding: identity`. Any non-empty content encoding other than
+Requests explicitly send `Accept-Encoding: identity`. Redirect bodies are not read, so their
+content encoding is ignored. For non-redirect responses, any non-empty content encoding other than
 `identity` is rejected before reading the body. The fetcher streams raw bytes and enforces
 `AI_SERVICE_MAX_RESPONSE_BYTES`, currently 10,000,000 bytes. `Content-Length` is only an early
 rejection hint; streamed and chunked responses are counted independently.
@@ -86,10 +88,10 @@ Application logs retain sanitized reason categories, upstream status, content ty
 count, duration, and request correlation. They do not include full URLs, paths, query strings,
 resolved addresses, DNS answer sets, credentials, cookies, authorization values, or tokens.
 
-The `httpx` and `httpcore` logger namespaces, including existing child loggers, use non-propagating
-null handlers with levels above `CRITICAL`. This prevents their request and connection diagnostics
-from exposing pinned IP URLs or user-controlled paths and queries. Application-owned sanitized
-diagnostics remain enabled.
+The `httpx` and `httpcore` logger namespaces are set to `WARNING`. This suppresses routine request
+and connection diagnostics that could expose pinned IP URLs or user-controlled paths and queries,
+while preserving warning and error diagnostics. Application-owned sanitized diagnostics remain
+enabled.
 
 ## Infrastructure defense in depth
 

@@ -36,19 +36,8 @@ from app.settings import Settings
 
 
 def _suppress_http_client_logging() -> None:
-    namespace_names = {"httpx", "httpcore"}
-    namespace_names.update(
-        name
-        for name in logging.root.manager.loggerDict
-        if name.startswith("httpx.") or name.startswith("httpcore.")
-    )
-
-    for name in namespace_names:
-        http_logger = logging.getLogger(name)
-        http_logger.handlers.clear()
-        http_logger.addHandler(logging.NullHandler())
-        http_logger.propagate = False
-        http_logger.setLevel(logging.CRITICAL + 1)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 _suppress_http_client_logging()

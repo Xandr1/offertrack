@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import logging
 import socket
 import threading
@@ -271,7 +272,9 @@ def test_accepts_ipv4_mapped_public_address() -> None:
         )
     )
 
-    assert target.addresses == ("::ffff:5db8:d822",)
+    assert tuple(ipaddress.ip_address(address) for address in target.addresses) == (
+        ipaddress.ip_address(f"::ffff:{PUBLIC_IP}"),
+    )
 
 
 def test_rejects_entire_mixed_public_and_private_answer_set() -> None:
@@ -446,6 +449,26 @@ def test_only_connection_failures_try_another_validated_address() -> None:
         PUBLIC_IP,
         SECOND_PUBLIC_IP,
     ]
+    assert all(transport.closed for transport in factory.transports)
+
+
+def test_large_public_answer_set_has_bounded_connection_attempts() -> None:
+    addresses = [f"8.8.8.{last_octet}" for last_octet in range(1, 11)]
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connect failed", request=request)
+
+    fetcher, factory = _fetcher_for_handler(
+        handler,
+        resolver=_resolver_for(addresses),
+    )
+
+    with pytest.raises(JobFetchError) as exception_info:
+        asyncio.run(fetcher.fetch("https://jobs.example/role"))
+
+    assert exception_info.value.reason == "http_client_error"
+    assert len(factory.transports) == 4
+    assert [transport.requests[0].url.host for transport in factory.transports] == addresses[:4]
     assert all(transport.closed for transport in factory.transports)
 
 
@@ -773,6 +796,33 @@ def test_rejects_non_identity_content_encoding_without_reading(encoding: str) ->
     assert not stream.iterated
 
 
+@pytest.mark.parametrize("encoding", ["gzip", "br", "deflate"])
+def test_redirect_ignores_unused_body_content_encoding(encoding: str) -> None:
+    redirect_stream = AsyncBytesStream(b"unused")
+    requests = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        if requests == 1:
+            return httpx.Response(
+                302,
+                headers={
+                    "location": "https://two.example/final",
+                    "content-encoding": encoding,
+                },
+                stream=redirect_stream,
+            )
+        return httpx.Response(200, stream=AsyncBytesStream(b"final"))
+
+    fetcher, _ = _fetcher_for_handler(handler)
+    result = asyncio.run(fetcher.fetch("https://one.example/start"))
+
+    assert result.body == b"final"
+    assert not redirect_stream.iterated
+    assert redirect_stream.closed
+
+
 def test_identity_content_encoding_streams_raw_bytes() -> None:
     body = b"not-compressed"
     fetcher, _ = _fetcher_for_response(
@@ -799,7 +849,7 @@ def test_env_configured_low_response_limit_is_enforced(monkeypatch) -> None:
     assert exception_info.value.reason == "response_too_large"
 
 
-def test_http_client_request_logging_is_suppressed(caplog) -> None:
+def test_routine_http_client_request_logging_is_suppressed(caplog) -> None:
     from app.main import _suppress_http_client_logging
 
     _suppress_http_client_logging()
@@ -811,11 +861,13 @@ def test_http_client_request_logging_is_suppressed(caplog) -> None:
     fetcher, _ = _fetcher_for_handler(handler)
     asyncio.run(fetcher.fetch("https://jobs.example/private/path?token=secret"))
 
-    logging.getLogger("httpx").critical("GET https://93.184.216.34/private/path?token=secret")
-    logging.getLogger("httpcore.connection").critical("connect_tcp host=93.184.216.34 token=secret")
+    logging.getLogger("httpx").info("GET https://93.184.216.34/private/path?token=secret")
+    logging.getLogger("httpcore.connection").debug("connect_tcp host=93.184.216.34 token=secret")
+    logging.getLogger("httpx").warning("preserved-http-warning")
 
     assert "93.184.216.34" not in caplog.text
     assert "token=secret" not in caplog.text
+    assert "preserved-http-warning" in caplog.text
 
 
 def _fetcher_for_response(

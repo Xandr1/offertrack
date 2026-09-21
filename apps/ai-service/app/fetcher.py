@@ -19,6 +19,7 @@ SAFE_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,text/plain;q=0.8,*/*;q=0.1",
     "Accept-Encoding": "identity",
 }
+MAX_ADDRESS_ATTEMPTS = 4
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 SUPPORTED_CONTENT_TYPES = (
     "text/html",
@@ -250,7 +251,7 @@ class JobPageFetcher:
         last_connect_error: httpx.ConnectError | httpx.ConnectTimeout | None = None
         saw_connect_timeout = False
 
-        for address in target.addresses:
+        for address in target.addresses[:MAX_ADDRESS_ATTEMPTS]:
             remaining = _remaining_seconds(deadline, self.clock)
 
             try:
@@ -312,16 +313,6 @@ class JobPageFetcher:
             response = await client.send(request, stream=True)
 
             content_type = response.headers.get("content-type")
-            content_encoding = response.headers.get("content-encoding")
-            if not _is_identity_content_encoding(content_encoding):
-                raise JobFetchError(
-                    "Job URL returned an unsupported content encoding.",
-                    reason="unsupported_content_encoding",
-                    status_code=response.status_code,
-                    content_type=content_type,
-                    redirect_count=redirect_count,
-                )
-
             if response.status_code in REDIRECT_STATUSES:
                 location = response.headers.get("location")
                 if not location:
@@ -338,6 +329,16 @@ class JobPageFetcher:
                     body=None,
                     content_type=content_type,
                     status_code=response.status_code,
+                )
+
+            content_encoding = response.headers.get("content-encoding")
+            if not _is_identity_content_encoding(content_encoding):
+                raise JobFetchError(
+                    "Job URL returned an unsupported content encoding.",
+                    reason="unsupported_content_encoding",
+                    status_code=response.status_code,
+                    content_type=content_type,
+                    redirect_count=redirect_count,
                 )
 
             if not 200 <= response.status_code < 300:
