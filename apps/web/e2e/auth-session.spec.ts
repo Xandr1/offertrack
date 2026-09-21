@@ -100,6 +100,13 @@ test("logout-all invalidates another browser session and missing refresh leads t
     await login(otherPage);
     await page.goto("/settings");
     await page.getByRole("button", { name: "Sign out all devices" }).click();
+    const confirmation = page.getByRole("dialog", { name: "Sign out on all devices?" });
+    await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await otherPage.reload();
+    await expect(otherPage.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Sign out all devices" }).click();
+    await confirmation.getByRole("button", { name: "Sign out all devices", exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await otherPage.reload();
     await expect(otherPage).toHaveURL(/\/login$/);
@@ -110,6 +117,25 @@ test("logout-all invalidates another browser session and missing refresh leads t
     await expect(otherPage).toHaveURL(/\/login$/);
   } finally { await other.close(); }
 });
+
+for (const reset of [false, true]) {
+  test(`${reset ? "password reset" : "registration"} shows human-readable password validation`, async ({ page }) => {
+    await page.goto(reset ? "/reset-password#token=" + "r".repeat(43) : "/register");
+    if (!reset) await page.getByLabel("Email", { exact: true }).fill("validation@example.invalid");
+    await expect(page.getByText("Use 8–64 characters, including an uppercase letter, a lowercase letter, and a number.")).toBeVisible();
+    for (const [value, message] of [
+      ["Aa1", "Password must be at least 8 characters."],
+      ["Password1" + "x".repeat(56), "Password must be at most 64 characters."],
+      ["password1", "Password must include an uppercase letter, a lowercase letter, and a number."],
+      ["Password1" + "😀".repeat(16), "Password is too long."],
+    ]) {
+      await page.getByLabel(reset ? "New password" : "Password", { exact: true }).fill(value);
+      if (reset) await page.getByLabel("Confirm password", { exact: true }).fill(value);
+      await page.getByRole("button", { name: reset ? "Reset password" : "Create account", exact: true }).click();
+      await expect(page.locator("form").getByRole("alert")).toHaveText(message);
+    }
+  });
+}
 
 test("forged forwarding chains cannot evade the browser IP login limit", async ({ request, baseURL }) => {
   test.skip(process.env.E2E_RATE_LIMIT_PROBE !== "true", "Opt-in probe consumes the source IP login window.");

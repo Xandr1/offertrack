@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { register } from "@/lib/api";
+import { getPasswordValidationMessage, register } from "@/lib/api";
 import { getRequestErrorMessage, resolveRequestError } from "@/lib/request-errors";
 import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
 import { useFreshAuthSession } from "@/lib/auth/use-fresh-auth-session";
@@ -39,7 +39,7 @@ export default function RegisterPage() {
       setRegisteredEmail(email.trim());
     } catch (requestError) {
       const resolvedError = await resolveRequestError(requestError);
-      setError(resolvedError.message);
+      setError(getPasswordValidationMessage(requestError, password.length) ?? resolvedError.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -124,8 +124,7 @@ export default function RegisterPage() {
               required
             />
             <p className={textStyles.helper} id="register-password-help">
-              Use 8–64 characters, with uppercase, lowercase, and a digit.
-              The maximum is 72 UTF-8 bytes; emoji and accented characters can use multiple bytes.
+              Use 8–64 characters, including an uppercase letter, a lowercase letter, and a number.
             </p>
           </div>
 

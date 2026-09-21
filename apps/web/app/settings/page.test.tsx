@@ -2,13 +2,14 @@
 
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   ApiError,
   getCurrentUser,
   getSettings,
   logout,
+  logoutAll,
   updateSettings,
 } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -36,12 +37,14 @@ jest.mock("@/lib/api", () => ({
   getCurrentUser: jest.fn(),
   getSettings: jest.fn(),
   logout: jest.fn(),
+  logoutAll: jest.fn(),
   updateSettings: jest.fn(),
 }));
 
 const mockedGetCurrentUser = jest.mocked(getCurrentUser);
 const mockedGetSettings = jest.mocked(getSettings);
 const mockedLogout = jest.mocked(logout);
+const mockedLogoutAll = jest.mocked(logoutAll);
 const mockedUpdateSettings = jest.mocked(updateSettings);
 
 const settings = {
@@ -61,6 +64,7 @@ describe("SettingsPage auth gate", () => {
     });
     mockedGetSettings.mockResolvedValue(settings);
     mockedLogout.mockResolvedValue();
+    mockedLogoutAll.mockResolvedValue();
   });
 
   it("redirects unauthenticated users without rendering or loading settings", async () => {
@@ -188,7 +192,7 @@ describe("SettingsPage auth gate", () => {
     queryClient.setQueryData(queryKeys.dashboardSummary, { stale: true });
     queryClient.setQueryData(queryKeys.applications.list(), { stale: true });
 
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
 
     await waitFor(() => expect(mockedLogout).toHaveBeenCalledTimes(1));
     expect(mockReplace).toHaveBeenCalledWith("/login");
@@ -198,6 +202,62 @@ describe("SettingsPage auth gate", () => {
     expect(
       queryClient.getQueryData(queryKeys.applications.list()),
     ).toBeUndefined();
+    expect(mockedLogoutAll).not.toHaveBeenCalled();
+  });
+
+  it.each(["Cancel", "Escape"])("keeps the session when logout-all confirmation is dismissed with %s", async action => {
+    const queryClient = createQueryClient();
+    const user = userEvent.setup();
+    renderPage(queryClient);
+    await screen.findByRole("heading", { name: "Dashboard settings" });
+    seedProtectedCaches(queryClient);
+    const security = screen.getByRole("region", { name: "Security" });
+    expect(within(security).getByText("Sign out of OfferTrack on every device, including this one.")).toBeTruthy();
+    const opener = within(security).getByRole("button", { name: "Sign out all devices" });
+    await user.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "Sign out on all devices?" });
+    expect(mockedLogoutAll).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Cancel" }));
+    if (action === "Cancel") await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    else await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    expect(mockedLogoutAll).not.toHaveBeenCalled();
+    expect(mockedLogout).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expectProtectedCachesRetained(queryClient);
+  });
+
+  it("calls the existing logout-all flow only after confirmation and clears protected data", async () => {
+    const queryClient = createQueryClient();
+    const user = userEvent.setup();
+    renderPage(queryClient);
+    await screen.findByRole("heading", { name: "Dashboard settings" });
+    seedProtectedCaches(queryClient);
+    await user.click(screen.getByRole("button", { name: "Sign out all devices" }));
+    expect(mockedLogoutAll).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Sign out on all devices?" });
+    await user.click(within(dialog).getByRole("button", { name: "Sign out all devices" }));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/login"));
+    expect(mockedLogoutAll).toHaveBeenCalledTimes(1);
+    expect(mockedLogout).not.toHaveBeenCalled();
+    expectProtectedCachesCleared(queryClient);
+  });
+
+  it("preserves the session and reports an error if confirmed logout-all fails", async () => {
+    mockedLogoutAll.mockRejectedValue(new ApiError(503, ""));
+    const queryClient = createQueryClient();
+    const user = userEvent.setup();
+    renderPage(queryClient);
+    await screen.findByRole("heading", { name: "Dashboard settings" });
+    seedProtectedCaches(queryClient);
+    await user.click(screen.getByRole("button", { name: "Sign out all devices" }));
+    const dialog = screen.getByRole("dialog", { name: "Sign out on all devices?" });
+    await user.click(within(dialog).getByRole("button", { name: "Sign out all devices" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Something went wrong on the server. Try again.");
+    expect(mockedLogoutAll).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
+    expectProtectedCachesRetained(queryClient);
   });
 });
 

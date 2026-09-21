@@ -4,14 +4,12 @@ import { layoutStyles, textStyles } from "@/lib/styles";
 type SettingsPageHeaderProps = {
   email: string;
   onSignOut: () => void;
-  onSignOutAll?: () => void;
   disabled?: boolean;
 };
 
 export const SettingsPageHeader = ({
   email,
   onSignOut,
-  onSignOutAll,
   disabled = false,
 }: SettingsPageHeaderProps) => (
   <header className={layoutStyles.splitHeader}>
@@ -32,9 +30,6 @@ export const SettingsPageHeader = ({
       <Button className="ml-auto" disabled={disabled} onClick={onSignOut} variant="ghost">
         Sign out
       </Button>
-      {onSignOutAll && <Button disabled={disabled} onClick={onSignOutAll} variant="ghost">
-        Sign out all devices
-      </Button>}
     </div>
   </header>
 );

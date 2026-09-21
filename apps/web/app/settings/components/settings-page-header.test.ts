@@ -16,5 +16,6 @@ describe("SettingsPageHeader", () => {
     expect(html).toContain("Account");
     expect(html).toContain("ollek@example.com");
     expect(html).toContain("Sign out");
+    expect(html).not.toContain("Sign out all devices");
   });
 });

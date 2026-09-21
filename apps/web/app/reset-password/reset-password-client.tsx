@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRecoveryToken } from "@/lib/auth/use-recovery-token";
-import { resetPassword } from "@/lib/api";
+import { getPasswordValidationMessage, resetPassword } from "@/lib/api";
 import { getRequestErrorMessage } from "@/lib/request-errors";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,7 +51,7 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
       await resetPassword({ token, newPassword });
       setIsReset(true);
     } catch (requestError) {
-      setError(getRequestErrorMessage(requestError));
+      setError(getPasswordValidationMessage(requestError, newPassword.length) ?? getRequestErrorMessage(requestError));
     } finally {
       setIsSubmitting(false);
     }
@@ -88,8 +88,7 @@ export const ResetPasswordForm = ({ token }: ResetPasswordFormProps) => {
             required
           />
           <p className={textStyles.helper} id="reset-password-help">
-            Use 8–64 characters, with uppercase, lowercase, and a digit.
-            The maximum is 72 UTF-8 bytes; emoji and accented characters can use multiple bytes.
+            Use 8–64 characters, including an uppercase letter, a lowercase letter, and a number.
           </p>
         </div>
 
