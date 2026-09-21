@@ -1,14 +1,21 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { register } from "@/lib/api";
-import { resolveRequestError } from "@/lib/request-errors";
+import { getRequestErrorMessage, resolveRequestError } from "@/lib/request-errors";
+import { clearAuthSessionQueries } from "@/lib/auth-session-cache";
+import { useFreshAuthSession } from "@/lib/auth/use-fresh-auth-session";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { buttonStyles, formStyles, pageStyles, textStyles } from "@/lib/styles";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const session = useFreshAuthSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,8 +23,14 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (session.status === "authenticated") router.replace("/dashboard");
+    if (session.status === "unauthenticated") clearAuthSessionQueries(queryClient);
+  }, [queryClient, router, session.status]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (session.status !== "unauthenticated" || isSubmitting) return;
     setError(null);
     setIsSubmitting(true);
 
@@ -30,6 +43,28 @@ export default function RegisterPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (session.status === "verifying") {
+    return (
+      <main className={pageStyles.centered}>
+        <div className={pageStyles.statusMessage}>Checking session...</div>
+      </main>
+    );
+  }
+
+  if (session.status === "authenticated") return null;
+
+  if (session.status === "error") {
+    return (
+      <main className={pageStyles.centered}>
+        <Card variant="auth">
+          <h1 className={textStyles.pageTitle}>Could not check your session</h1>
+          <p className={formStyles.error} role="alert">{getRequestErrorMessage(session.error)}</p>
+          <Button className="mt-4" onClick={session.retry} variant="secondary">Retry</Button>
+        </Card>
+      </main>
+    );
   }
 
   if (registeredEmail) {
@@ -51,8 +86,11 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className={pageStyles.authForm}>
           <div>
-            <label className={textStyles.label}>Name</label>
+            <label className={textStyles.label} htmlFor="register-name">Name</label>
             <Input
+              id="register-name"
+              autoComplete="name"
+              maxLength={100}
               value={name}
               onChange={(event) => setName(event.target.value)}
               type="text"
@@ -61,8 +99,10 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className={textStyles.label}>Email</label>
+            <label className={textStyles.label} htmlFor="register-email">Email</label>
             <Input
+              id="register-email"
+              autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
@@ -72,20 +112,24 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className={textStyles.label}>Password</label>
+            <label className={textStyles.label} htmlFor="register-password">Password</label>
             <Input
+              id="register-password"
+              autoComplete="new-password"
+              aria-describedby="register-password-help"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               type="password"
               variant="auth"
               required
             />
-            <p className={textStyles.helper}>
-              At least 8 characters, with uppercase, lowercase, and a digit.
+            <p className={textStyles.helper} id="register-password-help">
+              Use 8–64 characters, with uppercase, lowercase, and a digit.
+              The maximum is 72 UTF-8 bytes; emoji and accented characters can use multiple bytes.
             </p>
           </div>
 
-          {error && <div className={formStyles.error}>{error}</div>}
+          {error && <div className={formStyles.error} role="alert">{error}</div>}
 
           <Button variant="primary" disabled={isSubmitting} type="submit">
             {isSubmitting ? "Creating account..." : "Create account"}

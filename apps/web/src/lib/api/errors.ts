@@ -40,18 +40,21 @@ export class ResponseValidationError extends Error {
   }
 }
 
-export const getApiErrorCode = (error: unknown): string | null => {
+const parseApiError = (error: unknown) => {
   if (!(error instanceof ApiError)) {
     return null;
   }
 
   try {
     const parsed = apiErrorResponseSchema.safeParse(JSON.parse(error.body));
-    return parsed.success ? parsed.data.code : null;
+    return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
 };
+
+export const getApiErrorCode = (error: unknown): string | null =>
+  parseApiError(error)?.code ?? null;
 
 export const hasApiErrorCode = (error: unknown, code: string): boolean => {
   return getApiErrorCode(error) === code;
@@ -67,7 +70,8 @@ export const getErrorMessage = (error: unknown): string => {
   }
 
   if (error instanceof ApiError) {
-    const code = getApiErrorCode(error);
+    const response = parseApiError(error);
+    const code = response?.code;
 
     if (code === EMAIL_NOT_VERIFIED_ERROR_CODE) {
       return "Please verify your email before signing in.";
@@ -82,6 +86,9 @@ export const getErrorMessage = (error: unknown): string => {
     }
 
     if (error.status === 400) {
+      if (code === "VALIDATION_ERROR" && response?.fieldErrors?.length) {
+        return [...new Set(response.fieldErrors.map(({ message }) => message))].join(" ");
+      }
       return "Please check the form fields.";
     }
 

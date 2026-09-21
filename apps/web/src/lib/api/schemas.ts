@@ -24,6 +24,10 @@ export const genericSuccessResponseSchema = z.object({
 
 export const apiErrorResponseSchema = z.object({
   code: z.string(),
+  fieldErrors: z.array(z.object({
+    field: z.string().min(1),
+    message: z.string().trim().min(1),
+  })).optional().catch(undefined),
 });
 
 export const applicationStageSchema = z.preprocess((value) => {

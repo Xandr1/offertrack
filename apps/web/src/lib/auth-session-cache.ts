@@ -12,6 +12,9 @@ export const clearProtectedDataQueries = (queryClient: QueryClient): void => {
 
 export const clearAuthSessionQueries = (queryClient: QueryClient): void => {
   void queryClient.cancelQueries({ queryKey: queryKeys.authMe });
-  queryClient.removeQueries({ queryKey: queryKeys.authMe });
+  const authQuery = queryClient.getQueryCache().find({
+    queryKey: queryKeys.authMe,
+  });
+  authQuery?.setData(undefined as never);
   clearProtectedDataQueries(queryClient);
 };

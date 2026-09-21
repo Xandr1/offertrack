@@ -12,10 +12,10 @@ import { authState } from "@/lib/auth-coordinator";
 type FreshAuthSessionResult =
   | { status: "verifying" }
   | {
-      status: "authenticated";
-      user: UserSummary;
-      isRefreshing: boolean;
-    }
+    status: "authenticated";
+    user: UserSummary;
+    isRefreshing: boolean;
+  }
   | { status: "unauthenticated" }
   | { status: "error"; error: unknown };
 
