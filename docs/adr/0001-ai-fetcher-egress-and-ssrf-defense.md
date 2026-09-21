@@ -1,171 +1,136 @@
 # ADR 0001: AI fetcher egress and SSRF defense
 
-- Status: Proposed
+- Status: Accepted; application-level DNS pinning implemented in this change
 - Date: 2026-07-13
-- Follow-up: separate application and deployment implementation work after PR #16
+- Revised: 2026-09-21
 
 ## Context
 
 The AI service accepts a job-posting URL and retrieves it before extracting structured data. The
-current fetcher rejects non-HTTP schemes, credentials in URLs, non-public literal addresses, DNS
-answers that are not public, unsafe redirects, large decoded responses, slow responses, and long
-redirect chains. Those checks reduce risk but do not create a complete SSRF boundary.
+previous fetcher validated a hostname's DNS answers and then passed the original hostname to
+HTTPX. HTTPX resolved that hostname again while opening the connection, so the validated address
+and the connected address could differ. That time-of-check/time-of-use gap allowed DNS rebinding.
 
-In particular, resolving a hostname during validation and then allowing `httpx` to resolve the
-hostname again while opening the connection does **not** prevent DNS rebinding. The validated
-address and the connected address can differ. This is a time-of-check/time-of-use boundary that
-cannot be fixed by adding another preflight DNS lookup.
-
-This ADR defines the target architecture. PR #16 does not implement the network architecture or a
-custom HTTP transport.
-
-## Threat model
-
-The eventual control must reject or contain:
-
-- Private, loopback, unspecified, link-local, multicast, reserved, and documentation IPv4/IPv6
-  targets, including alternative numeric spellings and IPv4-mapped IPv6.
-- Cloud metadata and platform control-plane addresses, whether supplied directly or returned by
-  DNS.
-- DNS answers containing a mixture of public and non-public addresses.
-- DNS rebinding and DNS changes between validation and connection.
-- Redirects from an allowed public URL to a disallowed address, scheme, or port.
-- Unintended proxy selection through `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, or `NO_PROXY`.
-- User information in URLs, alternate schemes, and ports other than public HTTP/HTTPS ports.
-- Excessive redirects, connection/read stalls, oversized responses, and decompression bombs.
-- Connection-pool reuse that crosses target authorities or reuses a connection validated for a
-  different destination.
-- Leakage of internal API credentials, cookies, authorization headers, or proxy credentials to a
-  fetched origin.
+The fetcher must also remain responsive while resolving DNS, enforce one resource budget across a
+redirect chain, avoid decompression bombs, and ensure deployment proxy variables and third-party
+HTTP logging cannot expose or alter user-supplied fetches.
 
 An attacker is assumed to control the supplied URL, redirect responses, authoritative DNS answers,
-response headers, response compression, and response timing. The attacker may race DNS answers or
-return different answers to different resolvers.
+response headers, response compression, and response timing. The attacker may return different
+answers to different lookups or a mixture of public and non-public addresses.
 
 ## Decision
 
-### Deployment boundary
+### URL and address validation
 
-Production AI-fetcher traffic will use deny-by-default egress. The workload may reach only:
+Every initial URL and redirect target is parsed and normalized with HTTPX. Only HTTP on port 80 and
+HTTPS on port 443 are accepted, and URL credentials are rejected. The normalized ASCII host is
+used for DNS and TLS identity; the normalized authority is used for the HTTP `Host` header. This
+preserves IDNA handling and the required bracket syntax for IPv6 authorities.
 
-1. Its explicitly configured egress proxy.
-2. Trusted DNS resolvers required by the proxy or platform.
-3. Explicit internal services and external APIs required by the AI service, preferably through the
-   same controlled egress layer.
+Hostnames are resolved once per logical hop through the event loop's asynchronous `getaddrinfo`
+interface. All A and AAAA results are normalized and validated before a connection is attempted.
+The complete target is rejected if the answer set is empty or contains any private, loopback,
+link-local, unspecified, multicast, reserved, metadata/control-plane, or otherwise non-public
+address. IPv4-mapped IPv6 addresses are classified using their embedded IPv4 address.
 
-Direct workload access to public networks, private subnets, link-local ranges, and cloud metadata
-will be blocked independently of application validation. Cloud metadata protections supplied by
-the deployment platform will also be enabled; a route-level block is not the only metadata
-control.
+The asynchronous interface prevents an OS lookup from blocking the event-loop thread. Cancelling
+the await does not guarantee cancellation of an underlying platform resolver call already running
+in an executor. A late result is discarded and can never authorize a connection after the fetch
+deadline.
 
-The egress proxy will resolve and connect as one policy operation using trusted DNS. It will reject
-the complete DNS result if any A or AAAA answer is non-public, including IPv4-mapped IPv6. It will
-pin the selected validated address for the lifetime of that outbound connection and repeat
-resolution and policy validation for every redirect target and new connection. DNS answers are not
-cached beyond their trusted TTL, and cached decisions never authorize a different address.
+### Pinned connection identity
 
-Only `http` on port 80 and `https` on port 443 are allowed for fetched job pages. The application
-continues to reject URL credentials. Deployment policy may later disable plain HTTP without an API
-contract change, but the first implementation retains it for compatibility.
+For each attempt, the physical HTTPX request URL contains one address from the already validated
+answer set. The transport therefore receives a numeric destination and cannot perform another
+hostname lookup for the TCP destination. The logical URL is retained separately for redirects and
+the returned fetch result.
 
-Docker Compose remains a local integration environment. Compose networks and service settings are
-not represented as a complete production egress solution.
+The HTTP `Host` authority remains the normalized logical authority. HTTPS requests also carry the
+normalized, unbracketed logical host in HTTPX/httpcore's supported `sni_hostname` request extension.
+TLS verification remains enabled, so certificate verification and SNI use the original logical
+host while the TCP connection uses the pinned address.
 
-### HTTPS CONNECT and plain HTTP proxying
+A fresh HTTPX client and transport are created for each address attempt. No pool can therefore
+reuse a connection across logical authorities that happen to share an address. Later validated
+addresses may be attempted only after connection-establishment failures, with at most four address
+attempts per answer set. Responses, status codes, protocol/read failures, and body reads are not
+retried, and DNS is not repeated within a hop.
 
-For an HTTPS target, the application sends HTTP `CONNECT original-host:443` to the controlled
-proxy. Before opening the tunnel, the proxy resolves the original hostname, validates the complete
-answer set, selects a validated address, and connects to that address. TLS remains end-to-end
-between the application and the target: certificate verification and SNI use the original
-hostname, not the resolved IP. The HTTP `Host` authority also remains the original hostname.
+### Redirects, proxies, and headers
 
-For a plain HTTP target, the application sends an absolute-form request through the proxy. The
-proxy resolves and validates the destination before making the outbound connection and forwards
-the original `Host` value. Plain HTTP has no origin confidentiality or authentication; this is an
-accepted compatibility limitation, not equivalent to the HTTPS tunnel.
+Redirects remain manual and are limited to five by default. Relative locations are resolved
+against the logical URL. Every resulting target receives independent scheme, port, credential,
+DNS, and address validation before its own pinned request.
 
-Proxy authentication is sent only to the proxy. `Proxy-Authorization`, the Core API internal key,
-cookies, browser authorization values, and request-specific credentials are never forwarded to
-the target origin. Redirect requests are rebuilt from the fixed safe-header allowlist.
+Each request is rebuilt from a fixed header allowlist. Cookies, authorization, and proxy
+authorization are never forwarded. Both the client and default transport disable environment
+inheritance with `trust_env=False`; `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` cannot
+change the route.
 
-### Application behavior
+### Deadline and response bounds
 
-The application will instantiate its fetch client with `trust_env=False` and an explicit proxy
-configuration. Absence of the required protected-environment proxy configuration will fail closed.
-The proxy is the connection enforcement point; the existing application URL validation remains
-defense in depth and continues to run for the initial URL and every redirect.
+`AI_SERVICE_FETCH_TIMEOUT_SECONDS` is one monotonic wall-clock budget for initial DNS, every address
+attempt, connect, TLS, response headers, redirects, and body reads. Remaining time is passed to
+each HTTPX attempt, and an outer cancellation boundary prevents any phase from resetting the
+budget. Responses and clients are closed in shielded `finally` cleanup before timeout or other
+errors are propagated; cleanup cannot start another lookup, connection, retry, or body read.
 
-Connections and pools are isolated by proxy route and original target authority. A connection
-validated for one authority cannot be reused for another authority. Both IPv4 and IPv6 are covered
-by the same classification rules.
-
-The initial implementation keeps these current functional limits:
-
-- Maximum five redirects.
-- Maximum 10 seconds for the fetch operation.
-- Maximum 10,000,000 decoded response bytes.
-
-The implementation will additionally cap transferred compressed bytes at 10,000,000, enforce a
-maximum 20:1 decoded-to-compressed ratio after the first 64 KiB of decoded content, stream rather
-than buffer unbounded data, and stop decompression immediately when a limit is crossed. The
-10-second budget is an overall monotonic deadline across DNS, proxy connection, redirects, headers,
-and body reads, rather than a fresh allowance for each hop.
-
-Only the currently supported textual content types are accepted. Content length is an early
-rejection hint, not a substitute for streaming limits.
+Requests explicitly send `Accept-Encoding: identity`. Redirect bodies are not read, so their
+content encoding is ignored. For non-redirect responses, any non-empty content encoding other than
+`identity` is rejected before reading the body. The fetcher streams raw bytes and enforces
+`AI_SERVICE_MAX_RESPONSE_BYTES`, currently 10,000,000 bytes. `Content-Length` is only an early
+rejection hint; streamed and chunked responses are counted independently.
 
 ### Observability
 
-Security events record a reason category, HTTP status, redirect count, duration, and a generated
-request ID. They do not record full URLs, query strings, resolved addresses, cookies, tokens, proxy
-credentials, or raw host values when the host is an IP literal. Metrics distinguish validation,
-DNS, proxy-policy, timeout, size, and upstream-status failures without identifying the subject.
+Application logs retain sanitized reason categories, upstream status, content type, redirect
+count, duration, and request correlation. They do not include full URLs, paths, query strings,
+resolved addresses, DNS answer sets, credentials, cookies, authorization values, or tokens.
+
+The `httpx` and `httpcore` logger namespaces are set to `WARNING`. This suppresses routine request
+and connection diagnostics that could expose pinned IP URLs or user-controlled paths and queries,
+while preserving warning and error diagnostics. Application-owned sanitized diagnostics remain
+enabled.
+
+## Infrastructure defense in depth
+
+This repository contains Terraform for the staging Cloud Run deployment. This change does not add
+or modify a proxy, NAT appliance, VM, Kubernetes component, managed secure-web-proxy product, or
+Terraform egress configuration.
+
+Network-level deny-by-default egress and independent metadata/private-network blocking remain
+recommended defense in depth before production. They are no longer required to close the
+application's DNS-rebinding gap because the implemented fetch path connects only to an address from
+the validated answer set.
 
 ## Alternatives rejected
 
-- **Pre-resolve and call `httpx` normally:** rejected because the connection performs another DNS
-  resolution and remains vulnerable to rebinding.
-- **Application-only IP filtering:** useful defense in depth but cannot enforce container egress,
-  metadata isolation, or atomic validation and connection.
-- **A custom DNS-pinning `httpx` transport in PR #16:** rejected because correct TLS hostname
-  verification, SNI, `Host`, redirect validation, pool isolation, and dual-stack behavior require a
-  separate security review and extensive tests.
-- **Docker Compose-only controls:** rejected as a production claim because the repository contains
-  no deployable production network policy.
-- **Allowing environment proxy inheritance:** rejected because deployment environment variables
-  could silently bypass the selected enforcement path.
+- **Validate and then request the hostname normally:** retains the DNS-rebinding TOCTOU gap.
+- **Monkey-patch HTTPX/httpcore internals:** creates an unsupported and version-fragile security
+  boundary. The implementation uses the supported physical URL and `sni_hostname` interfaces.
+- **Share a general-purpose connection pool:** complicates authority and pinned-destination
+  isolation. One client/transport per attempt is simpler and auditable.
+- **Rely on environment proxy configuration:** permits deployment variables to silently change the
+  enforced route.
+- **Automatically decompress while counting decoded bytes:** leaves compressed transfer and ratio
+  ambiguity. Identity-only raw streaming provides one explicit byte limit.
+- **Treat Docker Compose or Terraform presence as proof of egress isolation:** neither alone proves
+  the runtime route. Network enforcement remains a separate deployment control.
 
-## Implementation and migration plan
+## Verification
 
-1. Select and configure a controlled egress proxy with trusted DNS and atomic resolve/connect
-   policy; define the production network policy in the deployment repository.
-2. Block direct public/private/metadata egress from the AI workload while retaining required proxy,
-   DNS, internal-service, and external-API paths.
-3. Add explicit protected-environment proxy configuration and `trust_env=False` to the fetcher.
-4. Add transfer/decompression/deadline enforcement and safe metrics.
-5. Deploy in report-only proxy mode in staging, compare denials with expected public job sites, then
-   enable fail-closed enforcement.
-6. Roll back application proxy selection and deployment policy together if a production issue is
-   found; retain current URL validation throughout rollback.
-
-This work belongs in a separate implementation PR linked to this ADR. Because this repository has
-no Kubernetes, Terraform, Helm, or cloud-network manifests, the deployment portion must be tracked
-in the actual infrastructure repository rather than approximated here.
-
-## Required verification
-
-- A normal public HTTPS address succeeds.
-- Direct private, loopback, link-local, unspecified, reserved, multicast, metadata, and
-  IPv4-mapped addresses fail.
-- A DNS answer set containing both public and private addresses fails in full.
-- A public redirect to a private or metadata target fails before connection.
-- Simulated DNS rebinding cannot change the address that receives the connection.
-- TLS certificate verification and SNI still use the original hostname through CONNECT.
-- Plain HTTP uses proxy absolute-form requests and the original `Host` value.
-- IPv4 and IPv6 public targets follow identical policy.
-- Environment proxy variables cannot alter or bypass the configured route.
-- Alternate schemes, ports, URL credentials, and excessive redirects fail.
-- Slow headers/bodies, oversized compressed/decoded bodies, and excessive compression ratios fail
-  within the total resource budget.
-- Connection-pool reuse cannot cross original target authorities.
-- No internal, proxy, cookie, authorization, URL, host-IP, or DNS-answer data appears in logs.
+- Public HTTP and HTTPS targets connect to their validated numeric address while retaining logical
+  `Host`, SNI, certificate identity, and result URL.
+- Every prohibited address class, mixed DNS answer, alternate numeric spelling, unsupported port,
+  and URL credential is rejected.
+- A simulated rebinding resolver cannot change the address received by the transport.
+- Redirects are independently resolved and validated, and do not forward cookies or authorization
+  headers.
+- Authorities sharing an IP use distinct, closed transports.
+- Hostile proxy environment variables cannot affect routing.
+- DNS does not block the event loop, and all awaited network phases share the original deadline.
+- Declared, streamed, and chunked oversize responses fail; non-identity encodings fail before body
+  reads.
+- HTTPX/httpcore request logs and application logs do not expose URLs, paths, queries, IPs,
+  credentials, or tokens.

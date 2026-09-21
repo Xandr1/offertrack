@@ -34,6 +34,13 @@ from app.models import (
 from app.openai_extractor import ExtractionError, OpenAiDraftExtractor, OpenAiTimeoutError
 from app.settings import Settings
 
+
+def _suppress_http_client_logging() -> None:
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
+_suppress_http_client_logging()
 logger = logging.getLogger(__name__)
 REQUEST_ID_PATTERN = re.compile(r"[A-Za-z0-9._:-]{1,128}")
 
@@ -125,10 +132,11 @@ def create_app(
             duration_ms = _duration_ms(start)
             logger.info(
                 "ai_service_parse_job_succeeded request_id=%s source_type=url "
-                "url_host=%s duration_ms=%s",
+                "url_host=%s duration_ms=%s redirect_count=%s",
                 request_id,
                 url_host,
                 duration_ms,
+                fetched_page.redirect_count,
             )
             return response
         except UnsafeJobUrlError as exception:
@@ -243,7 +251,7 @@ def _log_failure(
     if exception is None:
         logger.warning(
             "ai_service_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
-            "duration_ms=%s",
+            "duration_ms=%s redirect_count=-",
             request_id,
             url_host,
             code,
@@ -255,11 +263,12 @@ def _log_failure(
     status_code = _safe_status_code(getattr(exception, "status_code", None))
     content_type = _safe_log_value(getattr(exception, "content_type", None))
     redirect_target_host = _safe_log_host(getattr(exception, "redirect_target_host", None))
+    redirect_count = _safe_redirect_count(getattr(exception, "redirect_count", None))
 
     logger.warning(
         "ai_service_parse_job_failed request_id=%s source_type=url url_host=%s error_code=%s "
         "duration_ms=%s reason=%s status_code=%s content_type=%s redirect_target_host=%s "
-        "exception_type=%s",
+        "redirect_count=%s exception_type=%s",
         request_id,
         url_host,
         code,
@@ -268,6 +277,7 @@ def _log_failure(
         status_code,
         content_type,
         redirect_target_host,
+        redirect_count,
         type(exception).__name__,
     )
 
@@ -313,6 +323,13 @@ def _safe_log_host(value: object) -> str:
 
 def _safe_status_code(value: object) -> str:
     if isinstance(value, int):
+        return str(value)
+
+    return "-"
+
+
+def _safe_redirect_count(value: object) -> str:
+    if isinstance(value, int) and value >= 0:
         return str(value)
 
     return "-"
