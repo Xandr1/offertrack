@@ -52,9 +52,9 @@ class AuthSecurityContractTest(unittest.TestCase):
 
     def test_web_image_identity_includes_public_build_configuration(self):
         workflow = read(".github/workflows/deploy-staging.yml")
-        self.assertIn('WEB_BUILD_TAG="${DEPLOY_SHA}-${public_config_hash}"', workflow)
-        self.assertIn('"staging" "$CORE_URL" | sha256sum', workflow)
-        self.assertIn('web:$WEB_BUILD_TAG', workflow)
+        self.assertIn('web_build_tag="${DEPLOY_SHA}-${public_config_hash}"', workflow)
+        self.assertIn('"staging" "$CORE_PUBLIC_URL" | sha256sum', workflow)
+        self.assertIn('web:${web_build_tag}', workflow)
         self.assertIn('.GOOGLE_REDIRECT_URI == ($core + "/login/oauth2/code/google")', workflow)
         self.assertIn('STAGING_BASE_DOMAIN: ${{ vars.STAGING_BASE_DOMAIN }}', workflow)
 

@@ -176,13 +176,21 @@ jobs:
             local expected_prefix="${registry}/${component}@sha256:"
             local digest_ref
 
+            # A sentinel retains newlines so extra registry output cannot be silently trimmed.
             digest_ref="$(gcloud artifacts docker images describe "$tagged_ref" \
               --project "$PROJECT_ID" \
-              --format='value(image_summary.fully_qualified_digest)')"
-            [[ -n "$digest_ref" ]]
-            [[ "$digest_ref" != *$'\n'* ]]
-            [[ "$digest_ref" == "$expected_prefix"* ]]
-            [[ "${digest_ref#"$expected_prefix"}" =~ ^[0-9a-f]{64}$ ]]
+              --format='value(image_summary.fully_qualified_digest)' && printf '.')" || {
+              echo "Unable to resolve the immutable $component image." >&2
+              return 1
+            }
+            digest_ref="${digest_ref%.}"
+            digest_ref="${digest_ref%$'\n'}"
+            if [[ -z "$digest_ref" || "$digest_ref" == *$'\n'* || \
+                  "$digest_ref" != "$expected_prefix"* || \
+                  ! "${digest_ref#"$expected_prefix"}" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Invalid registry digest for $component." >&2
+              return 1
+            fi
             printf '%s' "$digest_ref"
           }
 
@@ -386,7 +394,8 @@ jobs:
             .GOOGLE_REDIRECT_URI == ($core + "/login/oauth2/code/google") and
             .AUTH_COOKIE_SAME_SITE == "Lax" and .AUTH_COOKIE_DOMAIN == "" and
             .JWT_ACCESS_TOKEN_TTL == "15m" and .AUTH_SESSION_INACTIVITY_TTL == "7d" and
-            .AUTH_SESSION_ABSOLUTE_TTL == "30d" and .AUTH_SESSION_MAX_ACTIVE == "10"
+            .AUTH_SESSION_ABSOLUTE_TTL == "30d" and .AUTH_SESSION_MAX_ACTIVE == "10" and
+            .CORE_MAX_REQUEST_BODY_BYTES == "262144"
           ' "$revision_config" >/dev/null
           health_secret_name="$(jq -er \
             '.spec.containers[0].env[] | select(.name == "DEPENDENCY_HEALTH_KEY") | .valueFrom.secretKeyRef.name' \

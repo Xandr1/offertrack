@@ -49,6 +49,7 @@ class ApplicationInterviewControllerSecurityTest {
   @MockitoBean private JwtService jwtService;
   @MockitoBean private com.offertrack.auth.AuthSessionService sessions;
   @MockitoBean private com.offertrack.auth.AuthSessionCleanup cleanup;
+  @MockitoBean private com.offertrack.auth.AuthTokenCleanup tokenCleanup;
 
   @BeforeEach
   void setUpAuthentication() {

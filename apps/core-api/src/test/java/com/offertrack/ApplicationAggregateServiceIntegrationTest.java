@@ -37,10 +37,104 @@ import org.springframework.context.annotation.Import;
 @Import(TestcontainersConfiguration.class)
 class ApplicationAggregateServiceIntegrationTest {
   @Autowired private ApplicationService applicationService;
-  @Autowired private ApplicationRepository applicationRepository;
+
+  @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+  private ApplicationRepository applicationRepository;
+
   @Autowired private ApplicationInterviewRepository applicationInterviewRepository;
   @Autowired private UserRepository userRepository;
   @Autowired private DSLContext dsl;
+
+  @Test
+  void concurrentReplacementsSerializeTheAggregateButNotOtherApplications() throws Exception {
+    UUID userId = createUser("concurrent-replace@example.com");
+    UUID applicationId =
+        createApplication(userId, "Concurrent", "Engineer", ApplicationStage.APPLIED);
+    UUID otherId = createApplication(userId, "Independent", "Engineer", ApplicationStage.APPLIED);
+    var firstLocked = new java.util.concurrent.CountDownLatch(1);
+    var secondAttempting = new java.util.concurrent.CountDownLatch(1);
+    var releaseFirst = new java.util.concurrent.CountDownLatch(1);
+    var attempts = new java.util.concurrent.atomic.AtomicInteger();
+    var acquired = new java.util.concurrent.atomic.AtomicInteger();
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              int attempt = attempts.incrementAndGet();
+              if (attempt == 2) secondAttempting.countDown();
+              Object result = invocation.callRealMethod();
+              acquired.incrementAndGet();
+              if (attempt == 1) {
+                firstLocked.countDown();
+                assertThat(releaseFirst.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+              }
+              return result;
+            })
+        .when(applicationRepository)
+        .lockByIdForUser(applicationId, userId);
+
+    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(3)) {
+      try {
+        var first =
+            executor.submit(
+                () ->
+                    applicationService.replace(
+                        userId, applicationId, tenInterviews("First", InterviewType.TECHNICAL)));
+        assertThat(firstLocked.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        var second =
+            executor.submit(
+                () ->
+                    applicationService.replace(
+                        userId, applicationId, tenInterviews("Second", InterviewType.HR)));
+        assertThat(secondAttempting.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        // B completes while A's row lock remains held, including all its child mutations.
+        var independent =
+            executor.submit(
+                () ->
+                    applicationService.replace(
+                        userId, otherId, tenInterviews("Independent", InterviewType.TEAM_MATCH)));
+        assertThat(independent.get(5, java.util.concurrent.TimeUnit.SECONDS).interviews())
+            .hasSize(10);
+        assertThat(acquired.get()).isEqualTo(1);
+        assertThat(second.isDone()).isFalse();
+        releaseFirst.countDown();
+        assertThat(first.get(10, java.util.concurrent.TimeUnit.SECONDS).interviews())
+            .hasSize(10)
+            .allMatch(interview -> interview.type() == InterviewType.TECHNICAL);
+        assertThat(second.get(10, java.util.concurrent.TimeUnit.SECONDS).interviews())
+            .hasSize(10)
+            .allMatch(interview -> interview.type() == InterviewType.HR);
+        assertThat(applicationInterviewRepository.listByApplicationForUser(applicationId, userId))
+            .hasSize(10)
+            .allMatch(interview -> interview.type() == InterviewType.HR);
+        assertThat(
+                applicationRepository
+                    .findByIdForUser(applicationId, userId)
+                    .orElseThrow()
+                    .companyName())
+            .isEqualTo("Second");
+      } finally {
+        releaseFirst.countDown();
+        executor.shutdownNow();
+      }
+    }
+  }
+
+  private ReplaceApplicationRequest tenInterviews(String company, InterviewType type) {
+    return new ReplaceApplicationRequest(
+        company,
+        "Engineer",
+        null,
+        null,
+        null,
+        ApplicationStage.INTERVIEWING,
+        null,
+        null,
+        java.util.stream.IntStream.range(0, 10)
+            .mapToObj(
+                index ->
+                    new ReplaceApplicationInterviewItemRequest(
+                        null, type, InterviewStatus.INITIAL, null))
+            .toList());
+  }
 
   @BeforeEach
   void cleanDatabase() {

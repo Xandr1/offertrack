@@ -117,6 +117,14 @@ public class ApplicationRepository {
         .fetchOptional(ApplicationMapper::fromRecord);
   }
 
+  public Optional<Application> lockByIdForUser(UUID id, UUID userId) {
+    return dsl.selectFrom(JOB_APPLICATIONS)
+        .where(JOB_APPLICATIONS.ID.eq(id))
+        .and(JOB_APPLICATIONS.USER_ID.eq(userId))
+        .forUpdate()
+        .fetchOptional(ApplicationMapper::fromRecord);
+  }
+
   public boolean delete(UUID id, UUID userId) {
     int deletedRows =
         dsl.deleteFrom(JOB_APPLICATIONS)

@@ -114,19 +114,21 @@ public final class DatabaseConfigurationValidator {
     }
 
     String sslMode = null;
-    for (String parameter : rawQuery.split("[&;]", -1)) {
+    for (String parameter : rawQuery.split("&", -1)) {
       String[] pair = parameter.split("=", 2);
       String name = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
       if (!"sslmode".equalsIgnoreCase(name)) {
         continue;
       }
-      if (sslMode != null || pair.length != 2) {
+      // pgJDBC decodes values, but not property names. An encoded alias must not
+      // pass validation while leaving the driver's default (prefer) in effect.
+      if (!"sslmode".equals(pair[0]) || sslMode != null || pair.length != 2) {
         throw invalid(property);
       }
-      sslMode = URLDecoder.decode(pair[1], StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+      sslMode = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
     }
 
-    if (!PROTECTED_SSL_MODES.contains(sslMode)) {
+    if (sslMode == null || !PROTECTED_SSL_MODES.contains(sslMode)) {
       throw invalid(property);
     }
   }

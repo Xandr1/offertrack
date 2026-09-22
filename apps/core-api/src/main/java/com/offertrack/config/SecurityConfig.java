@@ -40,14 +40,18 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@org.springframework.context.annotation.Import(TimeConfig.class)
+@org.springframework.context.annotation.Import({
+  TimeConfig.class,
+  RequestBodyLimitExceptionResolver.class
+})
 @EnableConfigurationProperties({
   JwtProperties.class,
   AuthCookieProperties.class,
   OAuthProperties.class,
   CorsProperties.class,
   WebProperties.class,
-  AiServiceProperties.class
+  AiServiceProperties.class,
+  HttpRequestProperties.class
 })
 public class SecurityConfig {
   private static final List<String> CORS_METHODS =
@@ -75,6 +79,7 @@ public class SecurityConfig {
       CorsConfigurationSource corsConfigurationSource,
       CsrfTokenRepository csrfTokenRepository,
       ObjectMapper objectMapper,
+      HttpRequestProperties httpRequestProperties,
       CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository,
       OAuth2AuthorizedClientRepository oauth2AuthorizedClientRepository,
       GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler,
@@ -171,7 +176,11 @@ public class SecurityConfig {
                 .successHandler(googleOAuth2SuccessHandler)
                 .failureHandler(oauth2FailureHandler));
 
-    return http.addFilterBefore(jwtAuthenticationFilter, CsrfFilter.class).build();
+    return http.addFilterAfter(
+            new RequestBodyLimitFilter(httpRequestProperties, objectMapper),
+            org.springframework.web.filter.CorsFilter.class)
+        .addFilterBefore(jwtAuthenticationFilter, CsrfFilter.class)
+        .build();
   }
 
   @Bean
@@ -216,14 +225,16 @@ public class SecurityConfig {
       CsrfTokenInvalidationService csrfTokenInvalidationService,
       CookieOAuth2AuthorizationRequestRepository oauth2AuthorizationRequestRepository,
       WebProperties webProperties,
-      com.offertrack.auth.AuthSessionCleanup cleanup) {
+      com.offertrack.auth.AuthSessionCleanup cleanup,
+      com.offertrack.auth.AuthTokenCleanup tokenCleanup) {
     return new GoogleOAuth2SuccessHandler(
         authService,
         cookieService,
         csrfTokenInvalidationService,
         oauth2AuthorizationRequestRepository,
         webProperties.getUrl(),
-        cleanup);
+        cleanup,
+        tokenCleanup);
   }
 
   @Bean

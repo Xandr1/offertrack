@@ -203,7 +203,12 @@ def _valid_expected_image_ref(scan_name: str, image_ref: str) -> bool:
     repository = EXPECTED_SCAN_REPOSITORIES.get(scan_name)
     if repository is None:
         return False
-    return image_ref.startswith(f"{repository}:") or f"/{repository.removeprefix('offertrack/')}@sha256:" in image_ref
+    local_tag = rf"{re.escape(repository)}:[A-Za-z0-9_][A-Za-z0-9_.-]{{0,127}}"
+    registry_digest = (
+        rf"[a-z0-9.-]+(?::[0-9]+)?/(?:[a-z0-9_-]+/)+"
+        rf"{re.escape(scan_name)}@sha256:[0-9a-f]{{64}}"
+    )
+    return re.fullmatch(local_tag, image_ref) is not None or re.fullmatch(registry_digest, image_ref) is not None
 
 
 def evaluate(scans: Sequence[tuple[str, str, Path, str]]) -> Evaluation:
@@ -241,8 +246,8 @@ def evaluate(scans: Sequence[tuple[str, str, Path, str]]) -> Evaluation:
             report = _load_report(result_path)
             if expected_ref_is_valid and report["ArtifactName"] != expected_image_ref:
                 evaluation.errors.append(
-                    f"{scan_name}: ArtifactName is {_safe_display(report['ArtifactName'])!r}, "
-                    f"expected {_safe_display(expected_image_ref)!r}"
+                    f"{scan_name}: ArtifactName is {report['ArtifactName']!r}, "
+                    f"expected {expected_image_ref!r}"
                 )
             fixable, unfixed = _findings(scan_name, report)
         except ReportError as error:

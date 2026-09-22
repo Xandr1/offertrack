@@ -23,6 +23,7 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
   private final String dashboardRedirectUrl;
   private final String failureRedirectUrl;
   private final AuthSessionCleanup cleanup;
+  private final AuthTokenCleanup tokenCleanup;
 
   public GoogleOAuth2SuccessHandler(
       AuthService authService,
@@ -30,12 +31,14 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
       CsrfTokenInvalidationService csrfTokenInvalidationService,
       CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository,
       String appWebUrl,
-      AuthSessionCleanup cleanup) {
+      AuthSessionCleanup cleanup,
+      AuthTokenCleanup tokenCleanup) {
     this.authService = authService;
     this.cookieService = cookieService;
     this.csrfTokenInvalidationService = csrfTokenInvalidationService;
     this.authorizationRequestRepository = authorizationRequestRepository;
     this.cleanup = cleanup;
+    this.tokenCleanup = tokenCleanup;
 
     String normalizedWebUrl = appWebUrl.replaceAll("/+$", "");
     this.dashboardRedirectUrl = normalizedWebUrl + "/dashboard";
@@ -69,6 +72,7 @@ public class GoogleOAuth2SuccessHandler implements AuthenticationSuccessHandler 
 
     csrfTokenInvalidationService.invalidate(request, response);
     cleanup.afterAuthOperation();
+    tokenCleanup.afterAuthOperation();
     cookieService.addSessionCookies(response, result.tokens());
     authorizationRequestRepository.clearAuthorizationRequestCookie(response);
     response.sendRedirect(dashboardRedirectUrl);

@@ -120,6 +120,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<ApiErrorResponse> handleMalformedRequest(
       HttpMessageNotReadableException exception, HttpServletRequest request) {
+    com.offertrack.config.RequestBodyLimitException.rethrowIfPresent(exception);
     HttpStatus status = HttpStatus.BAD_REQUEST;
     String code = "MALFORMED_REQUEST";
     String message = "Malformed request body.";
@@ -163,6 +164,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
       Exception exception, HttpServletRequest request) {
+    com.offertrack.config.RequestBodyLimitException.rethrowIfPresent(exception);
     if (exception instanceof ErrorResponse errorResponse) {
       HttpStatus status = HttpStatus.resolve(errorResponse.getStatusCode().value());
 

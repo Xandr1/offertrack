@@ -118,6 +118,23 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         self.assertIn("Result: PASSED", result.stdout)
         self.assertIn("Evaluation errors (0)", result.stdout)
 
+    def test_registry_digest_reports_must_match_the_exact_component_digest(self) -> None:
+        scans = []
+        for name in IMAGE_REPOSITORIES:
+            ref = f"europe-central2-docker.pkg.dev/project/offertrack/{name}@sha256:" + "a" * 64
+            path = self.write_json(f"{name}-digest.json", report(name, artifact_name=ref, results=[]))
+            scans.append((name, ref, path, "success"))
+        self.assertEqual(0, self.run_evaluator(*scans).returncode)
+        name, ref, path, outcome = scans[0]
+        scans[0] = (name, ref[:-1] + "b", path, outcome)
+        self.assertEqual(1, self.run_evaluator(*scans).returncode)
+
+    def test_malformed_expected_registry_digest_is_never_trusted(self) -> None:
+        scans = self.complete_scans()
+        for ref in ("registry.test/project/web@sha256:bad", "registry.test/project/core-api@sha256:" + "a" * 64):
+            scans[0] = ("web", ref, scans[0][2], "success")
+            self.assertEqual(1, self.run_evaluator(*scans).returncode)
+
     def test_missing_expected_scan_blocks(self) -> None:
         scans = self.complete_scans()
 

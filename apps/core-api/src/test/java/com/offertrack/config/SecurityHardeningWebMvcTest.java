@@ -77,8 +77,59 @@ class SecurityHardeningWebMvcTest {
   @MockitoBean private JwtService jwtService;
   @MockitoBean private com.offertrack.auth.AuthSessionService sessions;
   @MockitoBean private com.offertrack.auth.AuthSessionCleanup cleanup;
+  @MockitoBean private com.offertrack.auth.AuthTokenCleanup tokenCleanup;
   @MockitoBean private SettingsService settingsService;
   @MockitoBean private RateLimitGuard rateLimitGuard;
+
+  @Test
+  void streamedOverflowThroughMvcIs413AndPreservesCorsRequestIdAndCacheHeaders() throws Exception {
+    IssuedCsrf issued = issueCsrf();
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .cookie(issued.repositoryCookie())
+                .header("X-XSRF-TOKEN", issued.maskedToken())
+                .header("Origin", "http://localhost:3000")
+                .header("X-Request-Id", "body-limit-test")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"email\":\"user@example.test\",\"password\":\"" + "a".repeat(262144) + "\"}")
+                .with(
+                    request -> {
+                      var unknownLength = org.mockito.Mockito.spy(request);
+                      org.mockito.Mockito.doReturn(-1).when(unknownLength).getContentLength();
+                      org.mockito.Mockito.doReturn(-1L).when(unknownLength).getContentLengthLong();
+                      return unknownLength;
+                    }))
+        .andExpect(status().isPayloadTooLarge())
+        .andExpect(jsonPath("$.status").value(413))
+        .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"))
+        .andExpect(jsonPath("$.path").value("/auth/login"))
+        .andExpect(jsonPath("$.timestamp").isString())
+        .andExpect(header().string("Cache-Control", "no-store"))
+        .andExpect(header().string("X-Request-Id", "body-limit-test"))
+        .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+    verifyNoInteractions(authService, rateLimitGuard);
+  }
+
+  @Test
+  void declaredOversizeIs413BeforeCsrfWhileSmallMalformedBodyKeeps400() throws Exception {
+    IssuedCsrf issued = issueCsrf();
+    mockMvc
+        .perform(
+            post("/auth/login").contentType(MediaType.APPLICATION_JSON).content("x".repeat(262145)))
+        .andExpect(status().isPayloadTooLarge())
+        .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"));
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .cookie(issued.repositoryCookie())
+                .header("X-XSRF-TOKEN", issued.maskedToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST"));
+  }
 
   @BeforeEach
   void configureJwt() {

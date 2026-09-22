@@ -499,7 +499,8 @@ class ProtectedConfigurationRulesTest {
     MockEnvironment environment =
         new MockEnvironment()
             .withProperty(
-                "spring.datasource.url", "jdbc:postgresql://db.example.com:5432/offertrack")
+                "spring.datasource.url",
+                "jdbc:postgresql://db.example.com:5432/offertrack?sslmode=require")
             .withProperty("spring.datasource.username", "production_user")
             .withProperty("spring.datasource.password", "production-database-password")
             .withProperty("server.port", "8080")
