@@ -3,12 +3,10 @@ package com.offertrack.config;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.Ordered;
-import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 import org.springframework.web.servlet.ModelAndView;
 
 /** Return streamed overflows to the boundary filter before MVC can write a 400 response. */
-@Component
 public final class RequestBodyLimitExceptionResolver implements HandlerExceptionResolver, Ordered {
   @Override
   public int getOrder() {

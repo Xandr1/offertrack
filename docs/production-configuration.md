@@ -113,11 +113,15 @@ identity; `verify-full` is optional future hardening requiring appropriate certi
 and hostname handling ([pgJDBC SSL behavior](https://jdbc.postgresql.org/documentation/use/)).
 No certificate or connector provisioning is introduced by accepting stronger modes.
 
-Core request bodies default to 262144 bytes (256 KiB), configured by the positive
-integer `CORE_MAX_REQUEST_BODY_BYTES` / `app.http.max-request-body-bytes`.
-Oversized declared or streamed JSON bodies return `413 PAYLOAD_TOO_LARGE` with
-the standard JSON error shape, request ID, CORS headers, and `Cache-Control: no-store`.
-GET, HEAD, and OPTIONS bypass body counting. Application notes accept at most
+Core request bodies consumed by the application are bounded to 262144 bytes
+(256 KiB) by default, configured by the positive integer
+`CORE_MAX_REQUEST_BODY_BYTES` / `app.http.max-request-body-bytes`. A declared
+oversize body is rejected early from `Content-Length`; streamed or unknown-length
+bodies are enforced as the application reads them. An unknown-length body on an
+endpoint that never consumes it cannot be counted to completion by the servlet
+wrapper. Rejections return `413 PAYLOAD_TOO_LARGE` with the standard JSON error
+shape, request ID, CORS headers, and `Cache-Control: no-store`. GET, HEAD, and
+OPTIONS intentionally bypass body counting. Application notes accept at most
 20,000 characters on both create and replace.
 
 Legacy email-verification/password-reset token cleanup runs opportunistically after

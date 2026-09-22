@@ -76,6 +76,11 @@ protection; see [ADR 0001](adr/0001-ai-fetcher-egress-and-ssrf-defense.md).
 IPv6-only public sites are unreachable through this IPv4-only subnet/NAT.
 These are Terraform configuration guarantees; live enforcement requires apply and
 post-apply verification, which are separate rollout actions.
+After an authorized apply, verify the first real outbound AI request after the
+service scales to zero: `/health` proves process readiness, not necessarily that
+Direct VPC `ALL_TRAFFIC` and Public Cloud NAT are ready for the first public request.
+Do not add minimum instances, OpenAI-dependent startup probes, generic retries, or
+longer fetch deadlines without staging evidence that they are needed.
 
 Cloud SQL is private-IP-only and uses `ssl_mode = "ENCRYPTED_ONLY"`. Both Core
 and migration receive the shared JDBC URL with `?sslmode=require`, with credentials

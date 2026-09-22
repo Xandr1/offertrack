@@ -49,7 +49,7 @@ jobs:
       - name: Validate staging deployment contracts
         working-directory: ${{ github.workspace }}
         run: |
-          bash -n scripts/staging/provision-database-users.sh scripts/staging/smoke.sh
+          bash -n scripts/staging/prepare-deployment-images.sh scripts/staging/provision-database-users.sh scripts/staging/smoke.sh
           python -m unittest discover \
             --start-directory scripts/staging/tests \
             --pattern 'test_*.py' \

@@ -21,7 +21,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -243,12 +242,12 @@ public class ApplicationService {
 
     List<ApplicationInterview> existingInterviews =
         applicationInterviewRepository.listByApplicationForUser(applicationId, userId);
-    Map<UUID, ApplicationInterview> existingInterviewById = new HashMap<>();
+    Set<UUID> existingInterviewIds = new HashSet<>();
     for (ApplicationInterview existingInterview : existingInterviews) {
-      existingInterviewById.put(existingInterview.id(), existingInterview);
+      existingInterviewIds.add(existingInterview.id());
     }
     for (UUID interviewId : requestedInterviewIds) {
-      if (!existingInterviewById.containsKey(interviewId)) {
+      if (!existingInterviewIds.contains(interviewId)) {
         throw new InterviewNotFoundException();
       }
     }

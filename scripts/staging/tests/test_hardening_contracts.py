@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import os
 import re
@@ -11,6 +12,9 @@ import unittest
 from pathlib import Path
 
 from test_staging_contracts import read, resource_block
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PREPARE_IMAGES_SCRIPT = REPO_ROOT / "scripts" / "staging" / "prepare-deployment-images.sh"
 
 
 class DeploymentArtifactTest(unittest.TestCase):
@@ -36,61 +40,116 @@ class DeploymentArtifactTest(unittest.TestCase):
         self.assertEqual(["AI", "CORE", "CORE", "WEB"], re.findall(r'--image "\$(\w+)_IMAGE"', workflow))
         self.assertNotRegex(workflow, r"(?:cat|upload-artifact).*trivy")
 
-    def run_preparation(self, existing="", invalid=""):
+    def test_workflow_orchestrates_the_repository_preparation_script(self):
         workflow = read(".github/workflows/deploy-staging.yml")
-        step = re.search(r"(?ms)^      - name: Prepare immutable deployment images\n(.*?)(?=^      - name:)", workflow).group(1)
-        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
-        harness = r'''
-        gcloud() {
-          local component="${5##*/}"
-          component="${component%%:*}"
-          if [[ "$*" == *"--format=none"* ]]; then
-            [[ ",$EXISTING," == *",$component,"* ]]
-            return
-          fi
-          if [[ "$component" == ai-service && -n "$INVALID" ]]; then
-            if [[ "$INVALID" == scanner-error ]]; then return 1; fi
-            if [[ "$INVALID" == blank ]]; then printf '\n'; return; fi
-            printf '%s\n' "$INVALID"
-            return
-          fi
-          printf '%s@sha256:%s\n' "${5%:*}" "$(printf '%064d' 0)"
-        }
-        docker() { printf 'docker %s\n' "$*" >> "$CALLS"; }
-        bash() { printf 'build %s\n' "$*" >> "$CALLS"; }
-        '''
+        step = re.search(
+            r"(?ms)^      - name: Prepare immutable deployment images\n(.*?)(?=^      - name:)",
+            workflow,
+        ).group(1)
+        self.assertIn("bash scripts/staging/prepare-deployment-images.sh", step)
+        for argument in (
+            '--project "$PROJECT_ID"',
+            '--region "$REGION"',
+            '--repository "$REPOSITORY"',
+            '--commit-sha "$DEPLOY_SHA"',
+            '--core-public-url "$CORE_PUBLIC_URL"',
+        ):
+            self.assertIn(argument, step)
+        self.assertNotIn("image_exists()", step)
+        self.assertNotIn("resolve_digest()", step)
+
+        script = read("scripts/staging/prepare-deployment-images.sh")
+        self.assertTrue(script.startswith("#!/usr/bin/env bash\n\nset -euo pipefail\n"))
+
+    def run_preparation(self, existing="", invalid=""):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            entry = directory / "prepare.sh"
-            entry.write_text(textwrap.dedent(harness) + script, encoding="utf-8")
-            env = dict(os.environ, REGION="europe-central2", PROJECT_ID="offertrack-staging",
-                       REPOSITORY="offertrack", DEPLOY_SHA="a" * 40,
-                       CORE_PUBLIC_URL="https://api.staging.example.test", EXISTING=existing,
-                       INVALID=invalid, GITHUB_ENV=(directory / "env").as_posix(),
-                       GITHUB_OUTPUT=(directory / "output").as_posix(), CALLS=(directory / "calls").as_posix())
+            bash_environment = directory / "bash-env.sh"
+            bash_environment.write_text(
+                textwrap.dedent(
+                    r'''
+                    gcloud() {
+                      local component="${5##*/}"
+                      component="${component%%:*}"
+                      if [[ "$*" == *"--format=none"* ]]; then
+                        [[ ",$EXISTING," == *",$component,"* ]]
+                        return
+                      fi
+                      if [[ "$component" == ai-service && -n "$INVALID" ]]; then
+                        if [[ "$INVALID" == scanner-error ]]; then return 1; fi
+                        if [[ "$INVALID" == blank ]]; then printf '\n'; return; fi
+                        printf '%s\n' "$INVALID"
+                        return
+                      fi
+                      printf '%s@sha256:%s\n' "${5%:*}" "$(printf '%064d' 0)"
+                    }
+                    docker() { printf 'docker %s\n' "$*" >> "$CALLS"; }
+                    bash() { printf 'build %s\n' "$*" >> "$CALLS"; }
+                    '''
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+
             git_bash = Path("C:/Program Files/Git/bin/bash.exe")
             bash = str(git_bash) if os.name == "nt" and git_bash.is_file() else shutil.which("bash")
-            result = subprocess.run([bash, entry.as_posix()], env=env, capture_output=True, text=True, timeout=30)
+            self.assertIsNotNone(bash)
+            env = dict(
+                os.environ,
+                EXISTING=existing,
+                INVALID=invalid,
+                GITHUB_ENV=(directory / "env").as_posix(),
+                GITHUB_OUTPUT=(directory / "output").as_posix(),
+                CALLS=(directory / "calls").as_posix(),
+                BASH_ENV=bash_environment.as_posix(),
+            )
+            result = subprocess.run(
+                [
+                    bash,
+                    PREPARE_IMAGES_SCRIPT.as_posix(),
+                    "--project",
+                    "offertrack-staging",
+                    "--region",
+                    "europe-central2",
+                    "--repository",
+                    "offertrack",
+                    "--commit-sha",
+                    "a" * 40,
+                    "--core-public-url",
+                    "https://api.staging.example.test",
+                ],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
             calls = (directory / "calls").read_text() if (directory / "calls").exists() else ""
             outputs = (directory / "output").read_text() if (directory / "output").exists() else ""
-            return result, calls, outputs
+            github_env = (directory / "env").read_text() if (directory / "env").exists() else ""
+            return result, calls, outputs, github_env
 
     def test_existing_tags_are_reused_and_each_missing_variant_is_built_once(self):
         for mask in range(8):
             names = ("core-api", "ai-service", "web")
             existing = [name for index, name in enumerate(names) if mask & (1 << index)]
             with self.subTest(existing=existing):
-                result, calls, outputs = self.run_preparation(",".join(existing))
+                result, calls, outputs, github_env = self.run_preparation(",".join(existing))
                 self.assertEqual(0, result.returncode, result.stderr)
                 missing = [name for name in names[:2] if name not in existing]
                 builds = [line for line in calls.splitlines() if line.startswith("build ")]
                 self.assertEqual(int(bool(missing)) + int("web" not in existing), len(builds))
                 if missing:
                     self.assertIn("--components " + ",".join(missing) + " --tag " + "a" * 40, calls)
+                config_hash = hashlib.sha256(
+                    b"staging\nhttps://api.staging.example.test\n"
+                ).hexdigest()[:16]
+                web_tag = "a" * 40 + "-" + config_hash
                 if "web" not in existing:
                     self.assertIn("--components web --app-env staging --next-public-api-url https://api.staging.example.test", calls)
+                    self.assertIn("--tag " + web_tag, calls)
                 self.assertEqual(3 - len(existing), calls.count("docker push "))
                 self.assertEqual(3, len(outputs.splitlines()))
+                self.assertIn("WEB_BUILD_TAG=" + web_tag, github_env)
                 for line in outputs.splitlines():
                     self.assertRegex(line, r"^(?:core|ai|web)_image=europe-central2-docker.pkg.dev/offertrack-staging/offertrack/(?:core-api|ai-service|web)@sha256:[0-9a-f]{64}$")
 
@@ -100,7 +159,7 @@ class DeploymentArtifactTest(unittest.TestCase):
                         good.replace("ai-service", "web"), good.replace("offertrack-staging", "wrong-project"),
                         good.replace("@sha256:", ":"), good[:-1], good + "x"):
             with self.subTest(invalid=invalid):
-                result, _, outputs = self.run_preparation("core-api,ai-service,web", invalid)
+                result, _, outputs, _ = self.run_preparation("core-api,ai-service,web", invalid)
                 self.assertNotEqual(0, result.returncode)
                 self.assertEqual("", outputs)
 
@@ -149,11 +208,12 @@ class InfrastructureHardeningTest(unittest.TestCase):
         ranges = [ipaddress.ip_network(cidr) for cidr in re.findall(r'"([0-9.]+/\d+)"',
                   network.split("ai_non_public_ipv4_ranges = [", 1)[1].split("]", 1)[0])]
         for cidr in ("0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
-                     "172.16.0.0/12", "192.168.0.0/16", "192.0.0.0/29", "192.0.0.8/32", "192.0.0.170/31",
+                     "172.16.0.0/12", "192.168.0.0/16", "192.0.0.0/24",
                      "192.0.2.0/24", "192.88.99.0/24", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24",
                      "224.0.0.0/4", "240.0.0.0/4", "10.20.4.0/22"):
             self.assertTrue(any(ipaddress.ip_network(cidr).subnet_of(denied) for denied in ranges), cidr)
-        for public in ("8.8.8.8", "1.1.1.1", "192.0.0.9", "192.0.0.10"):
+        self.assertTrue(any(ipaddress.ip_address("192.0.0.11") in denied for denied in ranges))
+        for public in ("8.8.8.8", "1.1.1.1"):
             self.assertFalse(any(ipaddress.ip_address(public) in denied for denied in ranges))
         for name, priority in (("ai_deny_non_public", 900), ("ai_allow_web", 1000), ("ai_deny_other", 1100)):
             rule = resource_block(network, "google_compute_firewall", name)

@@ -119,6 +119,11 @@ does not weaken its application policy.
 Terraform validation and contract tests establish intended configuration only. Live enforcement
 requires a separately authorized apply and post-apply staging verification.
 
+That post-apply verification must include the first real outbound AI request after the service has
+scaled to zero. The `/health` startup probe establishes process readiness, but does not prove that
+Direct VPC `ALL_TRAFFIC` routing and Public Cloud NAT are ready for that first public request. No
+minimum-instance, startup-probe, retry, or deadline workaround is justified without staging evidence.
+
 ## Alternatives rejected
 
 - **Validate and then request the hostname normally:** retains the DNS-rebinding TOCTOU gap.
@@ -132,8 +137,6 @@ requires a separately authorized apply and post-apply staging verification.
   ambiguity. Identity-only raw streaming provides one explicit byte limit.
 - **Treat Docker Compose or Terraform presence as proof of egress isolation:** neither alone proves
   the runtime route. Network enforcement remains a separate deployment control.
-
-## Verification
 
 ## Verification
 

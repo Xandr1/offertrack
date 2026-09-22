@@ -380,6 +380,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = read(".github/workflows/deploy-staging.yml")
+        cls.image_preparation = read("scripts/staging/prepare-deployment-images.sh")
         cls.steps = re.findall(
             r"(?ms)^      - name: (.*?)(?=^      - name: |\Z)", cls.workflow
         )
@@ -631,7 +632,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
             r'jq -e \'\.status == "UP"\'',
         )
         self.assertIn('"$candidate_url/actuator/health/dependencies"', core_step)
-        self.assertIn('--next-public-api-url "$CORE_PUBLIC_URL"', self.workflow)
+        self.assertIn('--next-public-api-url "$core_public_url"', self.image_preparation)
 
         smoke = read("scripts/staging/smoke.sh")
         for service, path in (
@@ -644,12 +645,21 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
                 self.assertIn(f'"${service}_URL{path}"', smoke)
 
     def test_images_are_commit_tagged_and_deployed_by_digest(self) -> None:
-        self.assertIn('offertrack/${component}:${DEPLOY_SHA}', self.workflow)
-        self.assertIn('${registry}/web:${web_build_tag}', self.workflow)
-        self.assertIn("image_summary.fully_qualified_digest", self.workflow)
-        self.assertNotRegex(self.workflow, r"(?i)/(?:web|core-api|ai-service):latest")
-        self.assertIn('--next-public-api-url "$CORE_PUBLIC_URL"', self.workflow)
-        self.assertIn("image_summary.fully_qualified_digest", self.workflow)
+        self.assertIn('offertrack/${component}:${deploy_sha}', self.image_preparation)
+        self.assertIn('${registry}/web:${web_build_tag}', self.image_preparation)
+        self.assertIn("image_summary.fully_qualified_digest", self.image_preparation)
+        self.assertNotRegex(
+            self.workflow + self.image_preparation,
+            r"(?i)/(?:web|core-api|ai-service):latest",
+        )
+        self.assertIn('--next-public-api-url "$core_public_url"', self.image_preparation)
+        self.assertIn('"core_image=$core_image"', self.image_preparation)
+        self.assertIn('"ai_image=$ai_image"', self.image_preparation)
+        self.assertIn('"web_image=$web_image"', self.image_preparation)
+        self.assertEqual(
+            ["AI", "CORE", "CORE", "WEB"],
+            re.findall(r'--image "\$(\w+)_IMAGE"', self.workflow),
+        )
         self.assertIn("X-Dependency-Health-Key", self.workflow)
 
 

@@ -113,7 +113,7 @@ jobs:
           [[ "$resolved_runner_temp" != "/" ]]
           [[ "$resolved_temp" == "$resolved_runner_temp/offertrack-container-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" ]]
           mkdir -p -- "$resolved_temp"
-          chmod +x apps/core-api/mvnw scripts/containers/build-images.sh scripts/staging/smoke.sh
+          chmod +x apps/core-api/mvnw scripts/containers/build-images.sh scripts/staging/prepare-deployment-images.sh scripts/staging/smoke.sh
           printf '%s\n' "OFFERTRACK_CONTAINER_TEMP_ROOT=$resolved_temp" >> "$GITHUB_ENV"
 
       # Immutable tags are reused when present. Missing variants are built once,
@@ -123,89 +123,12 @@ jobs:
         id: deployment_images
         shell: bash
         run: |
-          set -euo pipefail
-          registry="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
-          public_config_hash="$(printf '%s\n' "staging" "$CORE_PUBLIC_URL" | sha256sum | cut -c1-16)"
-          web_build_tag="${DEPLOY_SHA}-${public_config_hash}"
-
-          image_exists() {
-            local component="$1"
-            local tag="$2"
-            gcloud artifacts docker images describe "${registry}/${component}:${tag}" \
-              --project "$PROJECT_ID" --format='none' >/dev/null 2>&1
-          }
-
-          missing_components=()
-          for component in core-api ai-service; do
-            if image_exists "$component" "$DEPLOY_SHA"; then
-              echo "Reusing the existing immutable $component tag for this commit." >&2
-            else
-              missing_components+=("$component")
-            fi
-          done
-
-          if ((${#missing_components[@]} > 0)); then
-            component_list="$(IFS=,; echo "${missing_components[*]}")"
-            bash scripts/containers/build-images.sh \
-              --components "$component_list" \
-              --tag "$DEPLOY_SHA"
-            for component in "${missing_components[@]}"; do
-              tagged_ref="${registry}/${component}:${DEPLOY_SHA}"
-              docker tag "offertrack/${component}:${DEPLOY_SHA}" "$tagged_ref"
-              docker push "$tagged_ref" >&2
-            done
-          fi
-
-          if image_exists web "$web_build_tag"; then
-            echo "Reusing the immutable Web tag for this commit and public build configuration." >&2
-          else
-            bash scripts/containers/build-images.sh \
-              --components web \
-              --app-env staging \
-              --next-public-api-url "$CORE_PUBLIC_URL" \
-              --tag "$web_build_tag"
-            web_tagged_ref="${registry}/web:${web_build_tag}"
-            docker tag "offertrack/web:${web_build_tag}" "$web_tagged_ref"
-            docker push "$web_tagged_ref" >&2
-          fi
-
-          resolve_digest() {
-            local component="$1"
-            local tag="$2"
-            local tagged_ref="${registry}/${component}:${tag}"
-            local expected_prefix="${registry}/${component}@sha256:"
-            local digest_ref
-
-            # A sentinel retains newlines so extra registry output cannot be silently trimmed.
-            digest_ref="$(gcloud artifacts docker images describe "$tagged_ref" \
-              --project "$PROJECT_ID" \
-              --format='value(image_summary.fully_qualified_digest)' && printf '.')" || {
-              echo "Unable to resolve the immutable $component image." >&2
-              return 1
-            }
-            digest_ref="${digest_ref%.}"
-            digest_ref="${digest_ref%$'\n'}"
-            if [[ -z "$digest_ref" || "$digest_ref" == *$'\n'* || \
-                  "$digest_ref" != "$expected_prefix"* || \
-                  ! "${digest_ref#"$expected_prefix"}" =~ ^[0-9a-f]{64}$ ]]; then
-              echo "Invalid registry digest for $component." >&2
-              return 1
-            fi
-            printf '%s' "$digest_ref"
-          }
-
-          core_image="$(resolve_digest core-api "$DEPLOY_SHA")"
-          ai_image="$(resolve_digest ai-service "$DEPLOY_SHA")"
-          web_image="$(resolve_digest web "$web_build_tag")"
-          printf '%s\n' \
-            "CORE_IMAGE=$core_image" \
-            "AI_IMAGE=$ai_image" \
-            "WEB_IMAGE=$web_image" \
-            "WEB_BUILD_TAG=$web_build_tag" >> "$GITHUB_ENV"
-          printf '%s\n' \
-            "core_image=$core_image" \
-            "ai_image=$ai_image" \
-            "web_image=$web_image" >> "$GITHUB_OUTPUT"
+          bash scripts/staging/prepare-deployment-images.sh \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --repository "$REPOSITORY" \
+            --commit-sha "$DEPLOY_SHA" \
+            --core-public-url "$CORE_PUBLIC_URL"
 
       - name: Scan exact Web deployment image
         id: trivy_web

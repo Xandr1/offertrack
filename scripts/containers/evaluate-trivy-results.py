@@ -246,8 +246,8 @@ def evaluate(scans: Sequence[tuple[str, str, Path, str]]) -> Evaluation:
             report = _load_report(result_path)
             if expected_ref_is_valid and report["ArtifactName"] != expected_image_ref:
                 evaluation.errors.append(
-                    f"{scan_name}: ArtifactName is {report['ArtifactName']!r}, "
-                    f"expected {expected_image_ref!r}"
+                    f"{scan_name}: ArtifactName is {_safe_display(report['ArtifactName'])!r}, "
+                    f"expected {_safe_display(expected_image_ref)!r}"
                 )
             fixable, unfixed = _findings(scan_name, report)
         except ReportError as error:

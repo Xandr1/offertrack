@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -72,6 +73,7 @@ class SecurityHardeningWebMvcTest {
 
   @Autowired private MockMvc mockMvc;
   @Autowired private ObjectMapper objectMapper;
+  @Autowired private RequestBodyLimitExceptionResolver requestBodyLimitExceptionResolver;
 
   @MockitoBean private AuthService authService;
   @MockitoBean private JwtService jwtService;
@@ -82,7 +84,8 @@ class SecurityHardeningWebMvcTest {
   @MockitoBean private RateLimitGuard rateLimitGuard;
 
   @Test
-  void streamedOverflowThroughMvcIs413AndPreservesCorsRequestIdAndCacheHeaders() throws Exception {
+  void highestPriorityResolverMakesStreamedOverflow413AndPreservesHeaders() throws Exception {
+    assertThat(requestBodyLimitExceptionResolver.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE);
     IssuedCsrf issued = issueCsrf();
     mockMvc
         .perform(
