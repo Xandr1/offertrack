@@ -87,7 +87,7 @@ Use the normal Core production image as a one-shot migration process:
 
 ```dotenv
 OFFERTRACK_RUN_MODE=migrate
-DATABASE_URL=jdbc:postgresql://database.example.com:5432/offertrack
+DATABASE_URL=jdbc:postgresql://database.example.com:5432/offertrack?sslmode=require
 DB_USER=offertrack_migrator
 DB_PASSWORD=<database-password>
 ```
@@ -104,6 +104,34 @@ Protected profiles additionally retain the server startup rules for a
 non-loopback host, explicit valid port, minimum credential lengths, and known
 placeholder rejection. The same pure validator enforces those decisions for
 protected server startup and migration mode.
+
+Protected URLs require exactly one decoded `sslmode`, with value `require`,
+`verify-ca`, or `verify-full`. Missing, weak, duplicate, and malformed modes are
+rejected. Staging uses `require` with private-only Cloud SQL `ENCRYPTED_ONLY`.
+pgJDBC `require` encrypts transport without validating server certificate/hostname
+identity; `verify-full` is optional future hardening requiring appropriate certificate
+and hostname handling ([pgJDBC SSL behavior](https://jdbc.postgresql.org/documentation/use/)).
+No certificate or connector provisioning is introduced by accepting stronger modes.
+
+Core request bodies consumed by the application are bounded to 262144 bytes
+(256 KiB) by default, configured by the positive integer
+`CORE_MAX_REQUEST_BODY_BYTES` / `app.http.max-request-body-bytes`. A declared
+oversize body is rejected early from `Content-Length`; streamed or unknown-length
+bodies are enforced as the application reads them. An unknown-length body on an
+endpoint that never consumes it cannot be counted to completion by the servlet
+wrapper. Rejections return `413 PAYLOAD_TOO_LARGE` with the standard JSON error
+shape, request ID, CORS headers, and `Cache-Control: no-store`. GET, HEAD, and
+OPTIONS intentionally bypass body counting. Application notes accept at most
+20,000 characters on both create and replace.
+
+Legacy email-verification/password-reset token cleanup runs opportunistically after
+successful auth operations, in an independent short transaction, at most once per
+five minutes per instance. Each attempt deletes at most 100 rows terminal for over
+30 days, ordered by `LEAST(consumed_at, expires_at), id`, skipping locked rows.
+PostgreSQL ignores null arguments to `LEAST`, so unconsumed tokens use their expiration.
+Failures retain rows and emit only sanitized diagnostics; auth responses are unaffected.
+V13 adds only the cleanup index and can be reversed operationally with
+`DROP INDEX IF EXISTS user_auth_tokens_cleanup_idx`; Flyway Community has no undo workflow here.
 
 Migration mode accepts profile selection only through
 `SPRING_PROFILES_ACTIVE` and `SPRING_PROFILES_DEFAULT`. Supplying

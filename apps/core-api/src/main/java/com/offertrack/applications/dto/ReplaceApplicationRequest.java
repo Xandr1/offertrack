@@ -26,7 +26,7 @@ public record ReplaceApplicationRequest(
             message = "Work mode must be one of: remote, hybrid, onsite")
         String workMode,
     ApplicationStage stage,
-    String notes,
+    @Size(max = 20000, message = "Notes must be at most 20000 characters") String notes,
     OffsetDateTime appliedAt,
     @NotNull(message = "Interviews are required") @Valid
         List<ReplaceApplicationInterviewItemRequest> interviews) {

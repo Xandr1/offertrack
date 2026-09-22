@@ -18,6 +18,27 @@ import org.springframework.boot.WebApplicationType;
 
 class ProtectedConfigurationEarlyFailureTest {
   @Test
+  void missingTlsFailsBeforeAnyConnectionAttempt() {
+    TrackingDriver.connectionAttempted.set(false);
+    SpringApplication application = new SpringApplication(CoreApiApplication.class);
+    application.setWebApplicationType(WebApplicationType.NONE);
+    String[] arguments =
+        Arrays.stream(validArgumentsExceptJwtSecret())
+            .map(value -> value.replace("?sslmode=require", ""))
+            .map(
+                value ->
+                    value.equals("--app.jwt.secret=short")
+                        ? "--app.jwt.secret=jwt-signing-secret-which-is-at-least-thirty-two-bytes"
+                        : value)
+            .toArray(String[]::new);
+    assertThatThrownBy(() -> application.run(arguments))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("spring.datasource.url")
+        .hasMessageNotContaining("jdbc:");
+    assertThat(TrackingDriver.connectionAttempted).isFalse();
+  }
+
+  @Test
   void invalidProtectedConfigurationFailsBeforeDatasourceConnectionAttempt() {
     TrackingDriver.connectionAttempted.set(false);
     SpringApplication application = new SpringApplication(CoreApiApplication.class);
@@ -62,7 +83,7 @@ class ProtectedConfigurationEarlyFailureTest {
       "--spring.profiles.active=staging",
       "--spring.main.banner-mode=off",
       "--logging.level.root=OFF",
-      "--spring.datasource.url=jdbc:postgresql://db.example.com:5432/offertrack",
+      "--spring.datasource.url=jdbc:postgresql://db.example.com:5432/offertrack?sslmode=require",
       "--spring.datasource.username=production_user",
       "--spring.datasource.password=production-database-password",
       "--spring.datasource.driver-class-name=" + TrackingDriver.class.getName(),

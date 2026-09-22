@@ -766,7 +766,8 @@ class CIContractTest(unittest.TestCase):
         self.assertLess(core_scan_index, ai_scan_index)
         self.assertLess(ai_scan_index, smoke_index)
         self.assertLess(smoke_index, gate_index)
-        self.assertIn('--image-tag "$OFFERTRACK_IMAGE_TAG"', job[gate_index:])
+        for component in ("web", "core-api", "ai-service"):
+            self.assertIn(f'--scan {component} "offertrack/{component}:$OFFERTRACK_IMAGE_TAG"', job[gate_index:])
         self.assertIn("steps.trivy_web.outcome", job[gate_index:])
         self.assertIn("steps.trivy_core.outcome", job[gate_index:])
         self.assertIn("steps.trivy_ai.outcome", job[gate_index:])

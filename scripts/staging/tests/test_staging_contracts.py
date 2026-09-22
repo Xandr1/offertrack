@@ -89,7 +89,7 @@ class CloudRunContractTest(unittest.TestCase):
 
         self.assertIn('egress = "PRIVATE_RANGES_ONLY"', core)
         self.assertIn('egress = "PRIVATE_RANGES_ONLY"', migration)
-        self.assertNotIn("vpc_access", ai)
+        self.assertIn('egress = "ALL_TRAFFIC"', ai)
         self.assertNotIn("vpc_access", web)
         self.assertIn("invoker_iam_disabled = true", core)
         self.assertIn("invoker_iam_disabled = true", web)
@@ -380,6 +380,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = read(".github/workflows/deploy-staging.yml")
+        cls.image_preparation = read("scripts/staging/prepare-deployment-images.sh")
         cls.steps = re.findall(
             r"(?ms)^      - name: (.*?)(?=^      - name: |\Z)", cls.workflow
         )
@@ -510,12 +511,15 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
 
     def test_rollout_order_blocks_on_ai_and_migration(self) -> None:
         ordered_markers = (
-            "Build production Core and AI images",
+            "Prepare immutable deployment images",
+            "Scan exact Web deployment image",
+            "Scan exact Core deployment image",
+            "Scan exact AI deployment image",
+            "Apply exact deployment image scan policy",
             "Deploy the AI candidate revision",
             "Verify and promote the AI candidate revision",
             "Update and execute the migration job",
             "Deploy and verify the Core candidate revision",
-            "Build the Web image with the canonical Core URL",
             "Deploy and verify the Web candidate revision",
             "Run bounded staging smoke checks",
         )
@@ -525,8 +529,8 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         self.assertEqual(3, self.workflow.count("--to-latest --clear-tags"))
         self.assertIn('gcloud run jobs execute "$MIGRATION_JOB"', self.workflow)
         self.assertIn("--wait", self.workflow)
-        self.assertNotIn("continue-on-error:", self.workflow)
-        for name in ordered_markers[1:]:
+        self.assertEqual(3, self.workflow.count("continue-on-error:"))
+        for name in ordered_markers[5:]:
             self.assertIn("set -euo pipefail", self.step(name))
             self.assertNotRegex(self.step(name), r"(?m)^        if:")
 
@@ -564,7 +568,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
         steps = (
             ("AI", "Verify and promote the AI", "Update and execute the migration job", "/health"),
             (
-                "CORE", "Deploy and verify the Core", "Build the Web image with the canonical Core URL",
+                "CORE", "Deploy and verify the Core", "Deploy and verify the Web candidate revision",
                 "/actuator/health/readiness",
             ),
             ("WEB", "Deploy and verify the Web", "Run bounded staging smoke checks", "/login"),
@@ -616,7 +620,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
 
         core_step = self.workflow[
             self.workflow.index("Deploy and verify the Core candidate revision") :
-            self.workflow.index("Build the Web image with the canonical Core URL")
+            self.workflow.index("Deploy and verify the Web candidate revision")
         ]
         self.assertLess(
             core_step.index("--to-latest --clear-tags"),
@@ -628,7 +632,7 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
             r'jq -e \'\.status == "UP"\'',
         )
         self.assertIn('"$candidate_url/actuator/health/dependencies"', core_step)
-        self.assertIn('--next-public-api-url "$CORE_URL"', self.workflow)
+        self.assertIn('--next-public-api-url "$core_public_url"', self.image_preparation)
 
         smoke = read("scripts/staging/smoke.sh")
         for service, path in (
@@ -641,12 +645,21 @@ class DeploymentWorkflowContractTest(unittest.TestCase):
                 self.assertIn(f'"${service}_URL{path}"', smoke)
 
     def test_images_are_commit_tagged_and_deployed_by_digest(self) -> None:
-        self.assertIn('offertrack/${component}:$DEPLOY_SHA', self.workflow)
-        self.assertIn('${registry}/web:$WEB_BUILD_TAG', self.workflow)
-        self.assertIn("image_summary.fully_qualified_digest", self.workflow)
-        self.assertNotRegex(self.workflow, r"(?i)/(?:web|core-api|ai-service):latest")
-        self.assertIn("--next-public-api-url \"$CORE_URL\"", self.workflow)
-        self.assertIn("image_summary.fully_qualified_digest", self.workflow)
+        self.assertIn('offertrack/${component}:${deploy_sha}', self.image_preparation)
+        self.assertIn('${registry}/web:${web_build_tag}', self.image_preparation)
+        self.assertIn("image_summary.fully_qualified_digest", self.image_preparation)
+        self.assertNotRegex(
+            self.workflow + self.image_preparation,
+            r"(?i)/(?:web|core-api|ai-service):latest",
+        )
+        self.assertIn('--next-public-api-url "$core_public_url"', self.image_preparation)
+        self.assertIn('"core_image=$core_image"', self.image_preparation)
+        self.assertIn('"ai_image=$ai_image"', self.image_preparation)
+        self.assertIn('"web_image=$web_image"', self.image_preparation)
+        self.assertEqual(
+            ["AI", "CORE", "CORE", "WEB"],
+            re.findall(r'--image "\$(\w+)_IMAGE"', self.workflow),
+        )
         self.assertIn("X-Dependency-Health-Key", self.workflow)
 
 

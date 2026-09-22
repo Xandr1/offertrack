@@ -63,6 +63,8 @@ management:
         include: health
 
 app:
+  http:
+    max-request-body-bytes: ${CORE_MAX_REQUEST_BODY_BYTES:262144}
   management:
     dependency-health-key: ${DEPENDENCY_HEALTH_KEY:}
   jwt:

@@ -78,7 +78,7 @@ class ApplicationServiceTest {
             null,
             List.of());
 
-    when(applicationRepository.findByIdForUser(applicationId, userId)).thenReturn(Optional.empty());
+    when(applicationRepository.lockByIdForUser(applicationId, userId)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> applicationService.replace(userId, applicationId, request))
         .isInstanceOf(ApplicationNotFoundException.class)
@@ -107,22 +107,11 @@ class ApplicationServiceTest {
                 new ReplaceApplicationInterviewItemRequest(
                     interviewId, InterviewType.HR, InterviewStatus.INITIAL, null)));
 
-    when(applicationRepository.findByIdForUser(applicationId, userId))
-        .thenReturn(Optional.of(sampleApplication(applicationId, userId)));
-    when(applicationInterviewRepository.listByApplicationForUser(applicationId, userId))
-        .thenReturn(
-            List.of(
-                sampleInterview(
-                    interviewId,
-                    applicationId,
-                    userId,
-                    InterviewType.TECHNICAL,
-                    InterviewStatus.SCHEDULED)));
-
     assertThatThrownBy(() -> applicationService.replace(userId, applicationId, request))
         .isInstanceOf(DuplicateInterviewIdsException.class)
         .extracting(error -> ((DomainException) error).code())
         .isEqualTo("DUPLICATE_INTERVIEW_IDS");
+    org.mockito.Mockito.verifyNoInteractions(applicationRepository, applicationInterviewRepository);
   }
 
   @Test
@@ -143,7 +132,7 @@ class ApplicationServiceTest {
                 new ReplaceApplicationInterviewItemRequest(
                     UUID.randomUUID(), InterviewType.TECHNICAL, InterviewStatus.SCHEDULED, null)));
 
-    when(applicationRepository.findByIdForUser(applicationId, userId))
+    when(applicationRepository.lockByIdForUser(applicationId, userId))
         .thenReturn(Optional.of(sampleApplication(applicationId, userId)));
     when(applicationInterviewRepository.listByApplicationForUser(applicationId, userId))
         .thenReturn(List.of());
@@ -152,6 +141,10 @@ class ApplicationServiceTest {
         .isInstanceOf(InterviewNotFoundException.class)
         .extracting(error -> ((DomainException) error).code())
         .isEqualTo("INTERVIEW_NOT_FOUND");
+    var order = org.mockito.Mockito.inOrder(applicationRepository, applicationInterviewRepository);
+    order.verify(applicationRepository).lockByIdForUser(applicationId, userId);
+    order.verify(applicationInterviewRepository).listByApplicationForUser(applicationId, userId);
+    order.verifyNoMoreInteractions();
   }
 
   @Test
@@ -177,13 +170,11 @@ class ApplicationServiceTest {
             null,
             interviews);
 
-    when(applicationRepository.findByIdForUser(applicationId, userId))
-        .thenReturn(Optional.of(sampleApplication(applicationId, userId)));
-
     assertThatThrownBy(() -> applicationService.replace(userId, applicationId, request))
         .isInstanceOf(InvalidInterviewCountException.class)
         .extracting(error -> ((DomainException) error).code())
         .isEqualTo("INVALID_INTERVIEW_COUNT");
+    org.mockito.Mockito.verifyNoInteractions(applicationRepository, applicationInterviewRepository);
   }
 
   @Test
@@ -197,6 +188,35 @@ class ApplicationServiceTest {
         .isInstanceOf(ApplicationNotFoundException.class)
         .extracting(error -> ((DomainException) error).code())
         .isEqualTo("APPLICATION_NOT_FOUND");
+  }
+
+  @Test
+  void validReplacementLocksBeforeEveryReadAndMutation() {
+    UUID userId = UUID.randomUUID();
+    UUID applicationId = UUID.randomUUID();
+    Application application = sampleApplication(applicationId, userId);
+    var request =
+        new ReplaceApplicationRequest(
+            "Acme", "Engineer", null, null, null, ApplicationStage.APPLIED, null, null, List.of());
+    when(applicationRepository.lockByIdForUser(applicationId, userId))
+        .thenReturn(Optional.of(application));
+    when(applicationRepository.replace(applicationId, userId, request, ApplicationStage.APPLIED))
+        .thenReturn(Optional.of(application));
+    applicationService.replace(userId, applicationId, request);
+    var order = org.mockito.Mockito.inOrder(applicationRepository, applicationInterviewRepository);
+    order.verify(applicationRepository).lockByIdForUser(applicationId, userId);
+    order.verify(applicationInterviewRepository).listByApplicationForUser(applicationId, userId);
+    order
+        .verify(applicationRepository)
+        .replace(applicationId, userId, request, ApplicationStage.APPLIED);
+    order.verify(applicationInterviewRepository).listByApplicationForUser(applicationId, userId);
+    order
+        .verify(applicationInterviewRepository)
+        .findNextByApplicationForUser(eq(applicationId), eq(userId), any());
+    order
+        .verify(applicationInterviewRepository)
+        .findLastByApplicationIdsForUser(eq(userId), eq(List.of(applicationId)), any());
+    order.verifyNoMoreInteractions();
   }
 
   @Test

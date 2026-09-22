@@ -38,6 +38,7 @@ class GoogleOAuth2SuccessHandlerTest {
 
   @Mock private AuthService authService;
   @Mock private AuthSessionCleanup cleanup;
+  @Mock private AuthTokenCleanup tokenCleanup;
   private final CookieOAuth2AuthorizationRequestRepository authorizationRequestRepository =
       new CookieOAuth2AuthorizationRequestRepository("test-oauth-cookie-secret");
   private GoogleOAuth2SuccessHandler handler;
@@ -57,7 +58,8 @@ class GoogleOAuth2SuccessHandlerTest {
             new CsrfTokenInvalidationService(csrfTokenRepository),
             authorizationRequestRepository,
             "http://localhost:3000/",
-            cleanup);
+            cleanup,
+            tokenCleanup);
   }
 
   @Test

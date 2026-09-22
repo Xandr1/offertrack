@@ -25,7 +25,7 @@ public record CreateApplicationRequest(
             message = "Work mode must be one of: remote, hybrid, onsite")
         String workMode,
     ApplicationStage stage,
-    String notes,
+    @Size(max = 20000, message = "Notes must be at most 20000 characters") String notes,
     OffsetDateTime appliedAt,
     @Valid List<CreateApplicationInterviewItemRequest> interviews) {
   public CreateApplicationRequest {

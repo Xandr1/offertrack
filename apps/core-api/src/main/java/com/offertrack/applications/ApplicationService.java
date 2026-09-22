@@ -21,7 +21,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -231,28 +230,43 @@ public class ApplicationService {
   @Transactional
   public ApplicationWithInterviewsResponse replace(
       UUID userId, UUID applicationId, ReplaceApplicationRequest request) {
-    ensureApplicationExistsForUser(userId, applicationId);
     List<ReplaceApplicationInterviewItemRequest> interviews = request.interviews();
     ApplicationStage stage = request.stage() != null ? request.stage() : ApplicationStage.INITIAL;
     validateInterviewCount(interviews.size());
+    Set<UUID> requestedInterviewIds = validateDuplicateInterviewIds(interviews);
+
+    // The parent row is the first database operation and serializes this aggregate's writers.
+    applicationRepository
+        .lockByIdForUser(applicationId, userId)
+        .orElseThrow(ApplicationNotFoundException::new);
 
     List<ApplicationInterview> existingInterviews =
         applicationInterviewRepository.listByApplicationForUser(applicationId, userId);
-    Map<UUID, ApplicationInterview> existingInterviewById = new HashMap<>();
+    Set<UUID> existingInterviewIds = new HashSet<>();
     for (ApplicationInterview existingInterview : existingInterviews) {
-      existingInterviewById.put(existingInterview.id(), existingInterview);
+      existingInterviewIds.add(existingInterview.id());
     }
-    validateReplaceInterviewIds(interviews, existingInterviewById);
+    for (UUID interviewId : requestedInterviewIds) {
+      if (!existingInterviewIds.contains(interviewId)) {
+        throw new InterviewNotFoundException();
+      }
+    }
 
     Application application =
         applicationRepository
             .replace(applicationId, userId, request, stage)
             .orElseThrow(ApplicationNotFoundException::new);
 
-    Set<UUID> requestedInterviewIds = new HashSet<>();
+    // Delete omitted interviews before adding new ones, keeping even the transaction-local
+    // aggregate within the domain maximum.
+    for (ApplicationInterview existingInterview : existingInterviews) {
+      if (!requestedInterviewIds.contains(existingInterview.id())) {
+        applicationInterviewRepository.delete(applicationId, existingInterview.id(), userId);
+      }
+    }
+
     for (ReplaceApplicationInterviewItemRequest interviewRequest : interviews) {
       if (interviewRequest.id() != null) {
-        requestedInterviewIds.add(interviewRequest.id());
         applicationInterviewRepository
             .replace(
                 applicationId,
@@ -271,14 +285,6 @@ public class ApplicationService {
           interviewRequest.type(),
           interviewRequest.status(),
           interviewRequest.scheduledAt());
-    }
-
-    for (ApplicationInterview existingInterview : existingInterviews) {
-      if (requestedInterviewIds.contains(existingInterview.id())) {
-        continue;
-      }
-
-      applicationInterviewRepository.delete(applicationId, existingInterview.id(), userId);
     }
 
     List<ApplicationInterview> storedInterviews =
@@ -303,11 +309,9 @@ public class ApplicationService {
     }
   }
 
-  private static void validateReplaceInterviewIds(
-      List<ReplaceApplicationInterviewItemRequest> interviews,
-      Map<UUID, ApplicationInterview> existingInterviewById) {
+  private static Set<UUID> validateDuplicateInterviewIds(
+      List<ReplaceApplicationInterviewItemRequest> interviews) {
     Set<UUID> seenInterviewIds = new HashSet<>();
-    List<UUID> duplicateInterviewIds = new ArrayList<>();
 
     for (ReplaceApplicationInterviewItemRequest interview : interviews) {
       UUID interviewId = interview.id();
@@ -316,21 +320,11 @@ public class ApplicationService {
       }
 
       if (!seenInterviewIds.add(interviewId)) {
-        duplicateInterviewIds.add(interviewId);
+        throw new DuplicateInterviewIdsException();
       }
     }
 
-    if (!duplicateInterviewIds.isEmpty()) {
-      throw new DuplicateInterviewIdsException();
-    }
-
-    for (UUID interviewId : seenInterviewIds) {
-      if (existingInterviewById.containsKey(interviewId)) {
-        continue;
-      }
-
-      throw new InterviewNotFoundException();
-    }
+    return seenInterviewIds;
   }
 
   private InterviewSummaries loadInterviewSummaries(UUID userId, UUID applicationId) {

@@ -33,7 +33,7 @@ locals {
     smtp_password         = null
   } : var.secret_versions
 
-  database_url = "jdbc:postgresql://${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.offertrack.name}"
+  database_url = "jdbc:postgresql://${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.offertrack.name}?sslmode=require"
 
   ai_environment = {
     AI_SERVICE_ALLOWED_HOSTS         = "localhost,${local.ai_service_host},${local.ai_candidate_host}"
@@ -74,6 +74,7 @@ locals {
     AUTH_COOKIE_SAME_SITE                              = "Lax"
     AUTH_COOKIE_SECURE                                 = "true"
     CORS_ALLOWED_ORIGINS                               = local.web_service_url
+    CORE_MAX_REQUEST_BODY_BYTES                        = "262144"
     DATABASE_URL                                       = local.database_url
     DB_USER                                            = "offertrack_app"
     GOOGLE_CLIENT_ID                                   = var.google_oauth_client_id == null ? "" : trimspace(var.google_oauth_client_id)
@@ -159,6 +160,15 @@ resource "google_cloud_run_v2_service" "ai" {
     timeout                          = "60s"
     execution_environment            = "EXECUTION_ENVIRONMENT_GEN2"
     max_instance_request_concurrency = 4
+
+    vpc_access {
+      egress = "ALL_TRAFFIC"
+      network_interfaces {
+        network    = google_compute_network.staging.id
+        subnetwork = google_compute_subnetwork.staging.id
+        tags       = [local.ai_egress_tag]
+      }
+    }
 
     scaling {
       min_instance_count = 0
@@ -249,6 +259,10 @@ resource "google_cloud_run_v2_service" "ai" {
   depends_on = [
     google_project_service.required["run.googleapis.com"],
     google_secret_manager_secret_iam_member.runtime_access,
+    google_compute_router_nat.ai_egress,
+    google_compute_firewall.ai_deny_non_public,
+    google_compute_firewall.ai_allow_web,
+    google_compute_firewall.ai_deny_other,
   ]
 }
 

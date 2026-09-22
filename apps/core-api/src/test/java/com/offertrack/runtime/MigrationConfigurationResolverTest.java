@@ -47,15 +47,16 @@ class MigrationConfigurationResolverTest {
         .hasMessageContaining("DATABASE_URL");
   }
 
-  @Test
-  void protectedMigrationAcceptsTheSameValidDatabaseShapeAsServerStartup() {
+  @ParameterizedTest
+  @ValueSource(strings = {"require", "verify-ca", "verify-full"})
+  void protectedMigrationAcceptsTheSameValidDatabaseShapeAsServerStartup(String mode) {
     var configuration =
         resolver.resolve(
             Map.of(
                 "SPRING_PROFILES_DEFAULT",
                 "staging",
                 "DATABASE_URL",
-                "jdbc:postgresql://database.example.com:5432/offertrack",
+                "jdbc:postgresql://database.example.com:5432/offertrack?sslmode=" + mode,
                 "DB_USER",
                 "production_user",
                 "DB_PASSWORD",

@@ -1,8 +1,8 @@
 # ADR 0001: AI fetcher egress and SSRF defense
 
-- Status: Accepted; application-level DNS pinning implemented in this change
+- Status: Accepted; application DNS pinning implemented, staging VPC isolation configured in Terraform
 - Date: 2026-07-13
-- Revised: 2026-09-21
+- Revised: 2026-09-22
 
 ## Context
 
@@ -95,14 +95,34 @@ enabled.
 
 ## Infrastructure defense in depth
 
-This repository contains Terraform for the staging Cloud Run deployment. This change does not add
-or modify a proxy, NAT appliance, VM, Kubernetes component, managed secure-web-proxy product, or
-Terraform egress configuration.
+The staging AI service uses Direct VPC egress with `ALL_TRAFFIC` through the existing IPv4-only
+regional subnet. A regional Cloud Router and Public Cloud NAT provide public IPv4 connectivity
+with automatic NAT addresses. Only AI carries the `offertrack-stg-ai-egress` network tag.
 
-Network-level deny-by-default egress and independent metadata/private-network blocking remain
-recommended defense in depth before production. They are no longer required to close the
-application's DNS-rebinding gap because the implemented fetch path connects only to an address from
-the validated answer set.
+Three AI-scoped egress rules deny private/non-public IPv4 ranges at priority 900, allow public TCP
+80/443 at priority 1000, and deny remaining IPv4 traffic at priority 1100. The private deny includes
+the Cloud SQL allocation, RFC1918, CGNAT, link-local, loopback, documentation, benchmarking,
+multicast, and reserved ranges. This is independent defense against private/VPC access; Core and
+the migration job retain `PRIVATE_RANGES_ONLY`, and Web has no VPC attachment. The AI service
+depends on NAT and all three firewall rules before Terraform can create its revision.
+
+Cloud Run platform metadata access is a constraint, not a firewall guarantee. Metadata traffic can
+bypass ordinary VPC firewall enforcement; platform DNS remains available through that path.
+The application-level metadata/control-plane rejection, complete DNS validation, and pinned-IP
+connections remain authoritative for user-supplied fetches. Service identity/IAM are unchanged.
+See [Google Cloud firewall limitations](https://docs.cloud.google.com/firewall/docs/firewalls).
+
+The IPv4-only subnet and NAT make IPv6-only external sites unreachable. Dual-stack networking is
+not configured. The fetcher still validates every DNS answer; this network compatibility trade-off
+does not weaken its application policy.
+
+Terraform validation and contract tests establish intended configuration only. Live enforcement
+requires a separately authorized apply and post-apply staging verification.
+
+That post-apply verification must include the first real outbound AI request after the service has
+scaled to zero. The `/health` startup probe establishes process readiness, but does not prove that
+Direct VPC `ALL_TRAFFIC` routing and Public Cloud NAT are ready for that first public request. No
+minimum-instance, startup-probe, retry, or deadline workaround is justified without staging evidence.
 
 ## Alternatives rejected
 
@@ -134,3 +154,5 @@ the validated answer set.
   reads.
 - HTTPX/httpcore request logs and application logs do not expose URLs, paths, queries, IPs,
   credentials, or tokens.
+- Terraform contracts verify AI-only tags, all-traffic routing, NAT, firewall ordering/ranges,
+  Cloud SQL range denial, and unchanged Core/Web/migration networking.

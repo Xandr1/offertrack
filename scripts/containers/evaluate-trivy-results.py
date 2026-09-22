@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Apply OfferTrack's aggregate policy to Trivy JSON image reports.
 
-Every expected scan must be supplied as a repeated ``--scan`` triple:
+Every expected scan must be supplied as a repeated ``--scan`` quadruple:
 
-    --scan NAME JSON_PATH SCANNER_OUTCOME
+    --scan NAME EXPECTED_IMAGE_REF JSON_PATH SCANNER_OUTCOME
 
-The required ``--image-tag`` is combined with the fixed OfferTrack image
-repository for each scan name and must match the report's ``ArtifactName``.
-The evaluator always inspects every triple before returning. Fixable HIGH or
+The expected image reference must match the report's ``ArtifactName`` exactly.
+The evaluator always inspects every quadruple before returning. Fixable HIGH or
 CRITICAL vulnerabilities block, while vulnerabilities without an available
 fix are reported as an explicit, non-blocking residual risk. A failed scanner
 or an unusable report blocks because the policy cannot be evaluated safely.
@@ -34,7 +33,6 @@ MAX_REPORTED_FINDINGS_PER_CLASS = 100
 MAX_REPORTED_ERRORS = 100
 MAX_DISPLAY_VALUE_LENGTH = 160
 SCAN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
-DOCKER_TAG = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}\Z")
 EXPECTED_SCAN_REPOSITORIES = {
     "web": "offertrack/web",
     "core-api": "offertrack/core-api",
@@ -69,14 +67,21 @@ class Evaluation:
         return bool(self.fixable or self.errors)
 
 
-def _safe_display(value: object, *, fallback: str = "unknown") -> str:
-    """Return a bounded, single-line value safe for logs and Markdown tables."""
+def _bounded_diagnostic_value(value: object, *, fallback: str = "unknown") -> str:
+    """Return raw diagnostic text with a strict per-value length bound."""
 
     if not isinstance(value, str) or not value:
         return fallback
-    cleaned = "".join(character if character.isprintable() else "?" for character in value)
-    if len(cleaned) > MAX_DISPLAY_VALUE_LENGTH:
-        cleaned = cleaned[: MAX_DISPLAY_VALUE_LENGTH - 3] + "..."
+    if len(value) > MAX_DISPLAY_VALUE_LENGTH:
+        return value[: MAX_DISPLAY_VALUE_LENGTH - 3] + "..."
+    return value
+
+
+def _safe_display(value: object, *, fallback: str = "unknown") -> str:
+    """Sanitize bounded text once at the log and Markdown rendering boundary."""
+
+    bounded = _bounded_diagnostic_value(value, fallback=fallback)
+    cleaned = "".join(character if character.isprintable() else "?" for character in bounded)
     cleaned = html.escape(cleaned, quote=False)
     return "".join(
         f"&#{ord(character)};" if character in MARKDOWN_UNSAFE_CHARACTERS else character
@@ -126,7 +131,7 @@ def _load_report(path: Path) -> dict[str, Any]:
     if report.get("SchemaVersion") != EXPECTED_SCHEMA_VERSION:
         raise ReportError(
             f"SchemaVersion must be {EXPECTED_SCHEMA_VERSION}, got "
-            f"{_safe_display(str(report.get('SchemaVersion')))}"
+            f"{_bounded_diagnostic_value(str(report.get('SchemaVersion')))}"
         )
     if not isinstance(report.get("ArtifactName"), str) or not report["ArtifactName"]:
         raise ReportError("ArtifactName must be a non-empty string")
@@ -199,48 +204,63 @@ def _findings(scan_name: str, report: dict[str, Any]) -> tuple[list[Finding], li
     return fixable, unfixed
 
 
-def evaluate(scans: Sequence[tuple[str, Path, str]], image_tag: str) -> Evaluation:
-    evaluation = Evaluation()
-    name_counts = Counter(scan_name for scan_name, _, _ in scans)
-    tag_is_valid = DOCKER_TAG.fullmatch(image_tag) is not None
+def _valid_expected_image_ref(scan_name: str, image_ref: str) -> bool:
+    if not image_ref or len(image_ref) > 512 or any(character.isspace() for character in image_ref):
+        return False
+    repository = EXPECTED_SCAN_REPOSITORIES.get(scan_name)
+    if repository is None:
+        return False
+    local_tag = rf"{re.escape(repository)}:[A-Za-z0-9_][A-Za-z0-9_.-]{{0,127}}"
+    registry_digest = (
+        rf"[a-z0-9.-]+(?::[0-9]+)?/(?:[a-z0-9_-]+/)+"
+        rf"{re.escape(scan_name)}@sha256:[0-9a-f]{{64}}"
+    )
+    return re.fullmatch(local_tag, image_ref) is not None or re.fullmatch(registry_digest, image_ref) is not None
 
-    if not tag_is_valid:
-        evaluation.errors.append(
-            f"invalid image tag {_safe_display(image_tag)!r}; use a valid Docker tag of at most "
-            "128 characters"
-        )
+
+def evaluate(scans: Sequence[tuple[str, str, Path, str]]) -> Evaluation:
+    evaluation = Evaluation()
+    name_counts = Counter(scan_name for scan_name, _, _, _ in scans)
 
     for scan_name in sorted(EXPECTED_SCAN_REPOSITORIES.keys() - name_counts.keys()):
         evaluation.errors.append(f"missing expected scan name: {scan_name}")
     for scan_name in sorted(name_counts.keys() - EXPECTED_SCAN_REPOSITORIES.keys()):
-        evaluation.errors.append(f"unexpected scan name: {_safe_display(scan_name)}")
+        evaluation.errors.append(
+            f"unexpected scan name: {_bounded_diagnostic_value(scan_name)}"
+        )
     for scan_name, count in sorted(name_counts.items()):
         if count > 1:
             evaluation.errors.append(
-                f"duplicate scan name: {_safe_display(scan_name)} ({count} entries)"
+                f"duplicate scan name: {_bounded_diagnostic_value(scan_name)} ({count} entries)"
             )
 
-    for scan_name, result_path, scanner_outcome in scans:
+    for scan_name, expected_image_ref, result_path, scanner_outcome in scans:
         if not SCAN_NAME.fullmatch(scan_name):
             evaluation.errors.append(
-                f"invalid scan name {_safe_display(scan_name)!r}; use 1-64 letters, digits, '.', '_' or '-'"
+                f"invalid scan name '{_bounded_diagnostic_value(scan_name)}'; "
+                "use 1-64 letters, digits, '.', '_' or '-'"
             )
 
         if scanner_outcome != "success":
             evaluation.errors.append(
-                f"{scan_name}: scanner outcome is {_safe_display(scanner_outcome)!r}, expected 'success'"
+                f"{_bounded_diagnostic_value(scan_name)}: scanner outcome is "
+                f"'{_bounded_diagnostic_value(scanner_outcome)}', expected 'success'"
+            )
+
+        expected_ref_is_valid = _valid_expected_image_ref(scan_name, expected_image_ref)
+        if not expected_ref_is_valid:
+            evaluation.errors.append(
+                f"{scan_name}: expected image reference is invalid for this component"
             )
 
         try:
             report = _load_report(result_path)
-            expected_repository = EXPECTED_SCAN_REPOSITORIES.get(scan_name)
-            if expected_repository is not None and tag_is_valid:
-                expected_artifact = f"{expected_repository}:{image_tag}"
-                if report["ArtifactName"] != expected_artifact:
-                    evaluation.errors.append(
-                        f"{scan_name}: ArtifactName is {_safe_display(report['ArtifactName'])!r}, "
-                        f"expected {expected_artifact!r}"
-                    )
+            if expected_ref_is_valid and report["ArtifactName"] != expected_image_ref:
+                evaluation.errors.append(
+                    f"{_bounded_diagnostic_value(scan_name)}: ArtifactName is "
+                    f"'{_bounded_diagnostic_value(report['ArtifactName'])}', expected "
+                    f"'{_bounded_diagnostic_value(expected_image_ref)}'"
+                )
             fixable, unfixed = _findings(scan_name, report)
         except ReportError as error:
             evaluation.errors.append(f"{scan_name}: {error}")
@@ -338,15 +358,10 @@ def _append_github_summary(summary: str) -> None:
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--image-tag",
-        required=True,
-        help="exact Docker tag shared by the three expected OfferTrack images",
-    )
-    parser.add_argument(
         "--scan",
         action="append",
-        nargs=3,
-        metavar=("NAME", "JSON_PATH", "SCANNER_OUTCOME"),
+        nargs=4,
+        metavar=("NAME", "EXPECTED_IMAGE_REF", "JSON_PATH", "SCANNER_OUTCOME"),
         required=True,
         help="add an expected Trivy scan result; repeat once per image",
     )
@@ -355,8 +370,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    scans = [(name, Path(path), outcome) for name, path, outcome in args.scan]
-    evaluation = evaluate(scans, args.image_tag)
+    scans = [
+        (name, expected_image_ref, Path(path), outcome)
+        for name, expected_image_ref, path, outcome in args.scan
+    ]
+    evaluation = evaluate(scans)
     summary = render(evaluation)
     print(summary, end="")
     _append_github_summary(summary)

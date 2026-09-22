@@ -254,16 +254,14 @@ This policy is independent of the repository's blocking OSV dependency scan.
 
 The same evaluator is the local and CI policy entrypoint. After producing the
 three Trivy JSON reports with the options above, run the exact `web`,
-`core-api`, and `ai-service` scan set. The evaluator derives
-`offertrack/<image>:<image-tag>` for each name and requires the report's
-`ArtifactName` to match:
+`core-api`, and `ai-service` scan set. Supply the exact reference used for each
+scan; the evaluator requires the report's `ArtifactName` to match it:
 
 ```bash
 python scripts/containers/evaluate-trivy-results.py \
-  --image-tag local \
-  --scan web /validated/temp/trivy-web.json success \
-  --scan core-api /validated/temp/trivy-core.json success \
-  --scan ai-service /validated/temp/trivy-ai.json success
+  --scan web offertrack/web:local /validated/temp/trivy-web.json success \
+  --scan core-api offertrack/core-api:local /validated/temp/trivy-core.json success \
+  --scan ai-service offertrack/ai-service:local /validated/temp/trivy-ai.json success
 ```
 
 Replace each outcome with the scanner's actual outcome; failed or skipped

@@ -64,7 +64,28 @@ migration job have been created successfully.
 Core and the migration job use Direct VPC egress to
 `offertrack-staging-subnet`. Egress mode is `PRIVATE_RANGES_ONLY`, so traffic to
 Cloud SQL uses the VPC while unrelated public egress does not.
-AI and Web have no VPC attachment.
+AI uses `ALL_TRAFFIC` Direct VPC egress through the same subnet, with the dedicated
+`offertrack-stg-ai-egress` tag. Public Cloud NAT supplies automatic IPv4 internet
+egress. AI-only firewall rules deny private/non-public ranges first (priority 900),
+allow public TCP 80/443 (1000), and deny other IPv4 egress (1100). This includes
+denying the private Cloud SQL allocation. Web has no VPC attachment.
+
+Platform DNS/metadata traffic is outside ordinary VPC firewall enforcement.
+Application DNS validation and pinned-IP fetching remain the authoritative metadata
+protection; see [ADR 0001](adr/0001-ai-fetcher-egress-and-ssrf-defense.md).
+IPv6-only public sites are unreachable through this IPv4-only subnet/NAT.
+These are Terraform configuration guarantees; live enforcement requires apply and
+post-apply verification, which are separate rollout actions.
+After an authorized apply, verify the first real outbound AI request after the
+service scales to zero: `/health` proves process readiness, not necessarily that
+Direct VPC `ALL_TRAFFIC` and Public Cloud NAT are ready for the first public request.
+Do not add minimum instances, OpenAI-dependent startup probes, generic retries, or
+longer fetch deadlines without staging evidence that they are needed.
+
+Cloud SQL is private-IP-only and uses `ssl_mode = "ENCRYPTED_ONLY"`. Both Core
+and migration receive the shared JDBC URL with `?sslmode=require`, with credentials
+in separate variables. This guarantees encryption, not certificate/hostname identity.
+Future `verify-full` would require appropriate server certificates and hostname handling.
 
 ## Cloud Run resources
 
@@ -125,12 +146,12 @@ The deployment workflow owns only application revisions:
 - after candidate checks, it restores the Terraform-shaped `100% latest`
   traffic configuration and removes the temporary tag.
 
-The current staging trust model rebuilds production images during deployment
-from the exact CI-approved commit, then records and deploys the resulting
-immutable digests. Locked dependencies and deterministic production build
-inputs are retained, but the digest is not literally the CI-scanned artifact.
-Exact CI artifact promotion is intentionally deferred to a future production
-deployment workflow; production should promote the scanned artifact directly.
+Staging reuses existing immutable tags or builds each missing deployable variant
+once from the CI-approved commit. It resolves all three registry digests, scans
+those exact references, and applies the existing HIGH/CRITICAL Trivy policy before
+any candidate deployment or migration. Reports must identify the exact expected
+artifact; scanner failure, malformed/missing reports, identity mismatch, and fixable
+HIGH/CRITICAL findings block rollout. Only sanitized summaries are logged.
 
 Terraform ignores only the four container image fields. It does not ignore
 runtime configuration, IAM, networking, probes, resources, or scaling. This is
@@ -327,19 +348,21 @@ bash scripts/containers/build-images.sh \
   --components core-api,ai-service \
   --tag "$GIT_SHA"
 
-# Web must be built only after Core passes readiness at its canonical URL.
+# Web uses the canonical Core URL and a tag including its public build configuration hash.
+CORE_PUBLIC_URL=https://api.staging.<domain>
+public_config_hash="$(printf '%s\n' "staging" "$CORE_PUBLIC_URL" | sha256sum | cut -c1-16)"
 bash scripts/containers/build-images.sh \
   --components web \
   --app-env staging \
-  --next-public-api-url \
-    https://api.staging.<domain> \
-  --tag "$GIT_SHA"
+  --next-public-api-url "$CORE_PUBLIC_URL" \
+  --tag "${GIT_SHA}-${public_config_hash}"
 ```
 
-Registry tags are the full 40-character Git commit SHA. `latest` is never
+Core/AI tags are the full 40-character Git commit SHA; Web appends its public
+configuration hash. `latest` is never
 published or deployed. During deployment, the workflow resolves each tag to
 `LOCATION-docker.pkg.dev/PROJECT/offertrack/COMPONENT@sha256:DIGEST` and gives
-Cloud Run only that digest reference. A rerun reuses an existing immutable tag.
+the scan policy and then Cloud Run only that digest reference. A rerun reuses an existing immutable tag.
 The exact image plus the commit-bearing Cloud Run revision suffix makes each
 deployment traceable.
 
@@ -355,8 +378,8 @@ the workflow fails closed. The workflow checks out and deploys that exact SHA.
 The order is fixed:
 
 1. authenticate through WIF as the deployer and configure Artifact Registry;
-2. rebuild the production Core and AI images and publish immutable SHA tags;
-3. resolve both digests;
+2. reuse immutable tags, building/publishing only missing Core/AI and staging Web variants;
+3. resolve all three digests, scan each exact registry reference, and pass the aggregate gate;
 4. create AI at zero traffic, call its IAM-authenticated health endpoint, then
    promote it and check health at its deterministic URL;
 5. update the migration job definition to the Core digest;
@@ -365,7 +388,7 @@ The order is fixed:
    from that revision, and require readiness plus authenticated dependency
    health without exporting the credential globally;
 8. promote Core and check readiness at its deterministic URL;
-9. build Web with that Core URL, publish and resolve its digest;
+9. retain the already-scanned Web digest built with the canonical Core URL;
 10. create Web at zero traffic, verify `/login`, then promote it; and
 11. run bounded post-rollout checks and report commit, revisions, job, and image
     digests without protected environment output.

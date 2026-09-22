@@ -51,6 +51,7 @@ class ApplicationControllerSecurityTest {
   @MockitoBean private JwtService jwtService;
   @MockitoBean private com.offertrack.auth.AuthSessionService sessions;
   @MockitoBean private com.offertrack.auth.AuthSessionCleanup cleanup;
+  @MockitoBean private com.offertrack.auth.AuthTokenCleanup tokenCleanup;
 
   @BeforeEach
   void setUpAuthentication() {
@@ -84,6 +85,31 @@ class ApplicationControllerSecurityTest {
         .andExpect(jsonPath("$.message").value("Application was not found"))
         .andExpect(jsonPath("$.path").value("/api/applications/" + applicationId + "/stage"))
         .andExpect(jsonPath("$.timestamp").isString());
+  }
+
+  @Test
+  void createAndReplaceRejectOversizedNotesWithTheStandardValidationError() throws Exception {
+    String body =
+        "{\"companyName\":\"Acme\",\"positionTitle\":\"Engineer\",\"interviews\":[],\"notes\":\""
+            + "n".repeat(20001)
+            + "\"}";
+    for (var builder :
+        List.of(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                "/api/applications"),
+            put("/api/applications/{id}", UUID.randomUUID()))) {
+      mockMvc
+          .perform(
+              builder
+                  .with(csrf())
+                  .cookie(accessTokenCookie())
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(body))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+          .andExpect(jsonPath("$.fieldErrors[*].field").value(hasItem("notes")));
+    }
+    org.mockito.Mockito.verifyNoInteractions(applicationService);
   }
 
   @Test
