@@ -188,7 +188,8 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
 
         self.assertEqual(1, result.returncode)
         self.assertIn("web&#58; ArtifactName is", result.stdout)
-        self.assertIn("expected 'offertrack/web&amp;#58;test'", result.stdout)
+        self.assertIn("expected 'offertrack/web&#58;test'", result.stdout)
+        self.assertNotIn("&amp;#", result.stdout)
 
     def test_artifact_mismatch_diagnostic_sanitizes_and_bounds_reported_name(self) -> None:
         unsafe_name = "unexpected\nINJECTED\r\t" + "x" * 600 + "TAIL_MARKER"
@@ -208,6 +209,7 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         self.assertNotIn("TAIL_MARKER", result.stdout)
         self.assertNotIn("\r", diagnostic)
         self.assertNotIn("\t", diagnostic)
+        self.assertNotIn("&amp;#", diagnostic)
         self.assertLess(len(diagnostic), 240)
 
     def test_web_and_core_reports_swapped_blocks(self) -> None:
@@ -220,8 +222,9 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
 
         self.assertEqual(1, result.returncode)
         self.assertEqual(2, result.stdout.count("ArtifactName is"))
-        self.assertIn("expected 'offertrack/web&amp;#58;test'", result.stdout)
-        self.assertIn("expected 'offertrack/core-api&amp;#58;test'", result.stdout)
+        self.assertIn("expected 'offertrack/web&#58;test'", result.stdout)
+        self.assertIn("expected 'offertrack/core-api&#58;test'", result.stdout)
+        self.assertNotIn("&amp;#", result.stdout)
 
     def test_one_report_reused_for_every_scan_blocks(self) -> None:
         web = self.write_json("web.json", report("web", results=[]))

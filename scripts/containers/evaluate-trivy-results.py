@@ -67,14 +67,21 @@ class Evaluation:
         return bool(self.fixable or self.errors)
 
 
-def _safe_display(value: object, *, fallback: str = "unknown") -> str:
-    """Return a bounded, single-line value safe for logs and Markdown tables."""
+def _bounded_diagnostic_value(value: object, *, fallback: str = "unknown") -> str:
+    """Return raw diagnostic text with a strict per-value length bound."""
 
     if not isinstance(value, str) or not value:
         return fallback
-    cleaned = "".join(character if character.isprintable() else "?" for character in value)
-    if len(cleaned) > MAX_DISPLAY_VALUE_LENGTH:
-        cleaned = cleaned[: MAX_DISPLAY_VALUE_LENGTH - 3] + "..."
+    if len(value) > MAX_DISPLAY_VALUE_LENGTH:
+        return value[: MAX_DISPLAY_VALUE_LENGTH - 3] + "..."
+    return value
+
+
+def _safe_display(value: object, *, fallback: str = "unknown") -> str:
+    """Sanitize bounded text once at the log and Markdown rendering boundary."""
+
+    bounded = _bounded_diagnostic_value(value, fallback=fallback)
+    cleaned = "".join(character if character.isprintable() else "?" for character in bounded)
     cleaned = html.escape(cleaned, quote=False)
     return "".join(
         f"&#{ord(character)};" if character in MARKDOWN_UNSAFE_CHARACTERS else character
@@ -124,7 +131,7 @@ def _load_report(path: Path) -> dict[str, Any]:
     if report.get("SchemaVersion") != EXPECTED_SCHEMA_VERSION:
         raise ReportError(
             f"SchemaVersion must be {EXPECTED_SCHEMA_VERSION}, got "
-            f"{_safe_display(str(report.get('SchemaVersion')))}"
+            f"{_bounded_diagnostic_value(str(report.get('SchemaVersion')))}"
         )
     if not isinstance(report.get("ArtifactName"), str) or not report["ArtifactName"]:
         raise ReportError("ArtifactName must be a non-empty string")
@@ -218,22 +225,26 @@ def evaluate(scans: Sequence[tuple[str, str, Path, str]]) -> Evaluation:
     for scan_name in sorted(EXPECTED_SCAN_REPOSITORIES.keys() - name_counts.keys()):
         evaluation.errors.append(f"missing expected scan name: {scan_name}")
     for scan_name in sorted(name_counts.keys() - EXPECTED_SCAN_REPOSITORIES.keys()):
-        evaluation.errors.append(f"unexpected scan name: {_safe_display(scan_name)}")
+        evaluation.errors.append(
+            f"unexpected scan name: {_bounded_diagnostic_value(scan_name)}"
+        )
     for scan_name, count in sorted(name_counts.items()):
         if count > 1:
             evaluation.errors.append(
-                f"duplicate scan name: {_safe_display(scan_name)} ({count} entries)"
+                f"duplicate scan name: {_bounded_diagnostic_value(scan_name)} ({count} entries)"
             )
 
     for scan_name, expected_image_ref, result_path, scanner_outcome in scans:
         if not SCAN_NAME.fullmatch(scan_name):
             evaluation.errors.append(
-                f"invalid scan name {_safe_display(scan_name)!r}; use 1-64 letters, digits, '.', '_' or '-'"
+                f"invalid scan name '{_bounded_diagnostic_value(scan_name)}'; "
+                "use 1-64 letters, digits, '.', '_' or '-'"
             )
 
         if scanner_outcome != "success":
             evaluation.errors.append(
-                f"{scan_name}: scanner outcome is {_safe_display(scanner_outcome)!r}, expected 'success'"
+                f"{_bounded_diagnostic_value(scan_name)}: scanner outcome is "
+                f"'{_bounded_diagnostic_value(scanner_outcome)}', expected 'success'"
             )
 
         expected_ref_is_valid = _valid_expected_image_ref(scan_name, expected_image_ref)
@@ -246,8 +257,9 @@ def evaluate(scans: Sequence[tuple[str, str, Path, str]]) -> Evaluation:
             report = _load_report(result_path)
             if expected_ref_is_valid and report["ArtifactName"] != expected_image_ref:
                 evaluation.errors.append(
-                    f"{scan_name}: ArtifactName is {_safe_display(report['ArtifactName'])!r}, "
-                    f"expected {_safe_display(expected_image_ref)!r}"
+                    f"{_bounded_diagnostic_value(scan_name)}: ArtifactName is "
+                    f"'{_bounded_diagnostic_value(report['ArtifactName'])}', expected "
+                    f"'{_bounded_diagnostic_value(expected_image_ref)}'"
                 )
             fixable, unfixed = _findings(scan_name, report)
         except ReportError as error:
