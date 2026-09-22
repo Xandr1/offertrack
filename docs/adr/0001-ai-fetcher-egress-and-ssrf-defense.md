@@ -135,6 +135,8 @@ requires a separately authorized apply and post-apply staging verification.
 
 ## Verification
 
+## Verification
+
 - Public HTTP and HTTPS targets connect to their validated numeric address while retaining logical
   `Host`, SNI, certificate identity, and result URL.
 - Every prohibited address class, mixed DNS answer, alternate numeric spelling, unsupported port,
