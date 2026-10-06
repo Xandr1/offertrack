@@ -22,8 +22,8 @@ NODE_IMAGE = (
     "sha256:713cfbf4a0ac19f40e1bb9919893e126b74a5c8cf5d0623c9f89515c8f74c6fa"
 )
 TEMURIN_IMAGE = (
-    "eclipse-temurin:21.0.12_8-jre-alpine-3.23@"
-    "sha256:1c59e0666519c026978ef64b429dfb78518d013d51f5056530f0daa57f2a5bcb"
+    "eclipse-temurin:25.0.4.1_1-jre-alpine-3.23@"
+    "sha256:d14b5b3cb1464cdbf81e0b8a0a6f45f308dcf08d8aea97934569f1237a167ded"
 )
 PYTHON_IMAGE = (
     "python:3.11.16-slim-trixie@"
@@ -164,6 +164,23 @@ class ImageContractTest(unittest.TestCase):
         self.assertNotIn("spring-boot-starter-classic", pom)
         self.assertNotIn("spring-boot-properties-migrator", pom)
         self.assertNotIn("spring-boot-jackson2", pom)
+
+    def test_core_java_baseline_matches_build_and_workflows(self) -> None:
+        self.assertIn("<java.version>25</java.version>", read("apps/core-api/pom.xml"))
+        for workflow, setup_count in (
+            ("ci.yml", 3),
+            ("deploy-staging.yml", 1),
+            ("osv-scan.yml", 1),
+        ):
+            text = read(f".github/workflows/{workflow}")
+            self.assertEqual(["25"] * setup_count, re.findall(r"java-version:\s*(\d+)", text))
+            self.assertEqual(setup_count, text.count("distribution: temurin"))
+        self.assertIn(
+            '[[ "$JAVA_SPEC_VERSION" == "25" ]]', read("scripts/containers/build-images.sh")
+        )
+        self.assertIn(
+            "java.specification.version = 25", read("scripts/containers/tests/test-build-images-flow.sh")
+        )
 
     def test_maven_wrapper_distribution_has_official_sha256(self) -> None:
         wrapper = read("apps/core-api/.mvn/wrapper/maven-wrapper.properties")

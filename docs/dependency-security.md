@@ -96,7 +96,7 @@ checks and the Critical-only OSV policy passes without it.
 
 ## Maven dependency management
 
-Core uses Spring Boot 4.0.8 with its managed Spring Framework 7.0.9,
+Core uses Java 25 and Spring Boot 4.0.8 with its managed Spring Framework 7.0.9,
 Spring Security 7.0.7. Jackson uses the security patches 3.1.7 and 2.21.7;
 Tomcat uses 11.0.26 / Servlet 6.1, as described below.
 The MVC, OAuth client, Flyway, MVC test, security test, and jOOQ test dependencies
@@ -104,6 +104,13 @@ use Boot 4's modular starters. Application JSON uses Jackson 3; Jackson annotati
 retain their upstream `com.fasterxml.jackson.annotation` package. Flyway and JJWT
 still require Jackson 2 internally, without a Jackson 2 Spring mapper
 or compatibility auto-configuration.
+
+Java 25 requires explicit configuration of the existing Boot configuration
+annotation processor. Formatting uses Spotless 3.10.3 and google-java-format
+1.30.0: the previous formatter fails against Java 25's javac APIs, and
+[Spotless's migration notes](https://github.com/diffplug/spotless/blob/main/plugin-maven/CHANGES.md)
+require google-java-format 1.30.0 or later on Java 25. Existing formatting checks
+and unused-import removal remain enabled.
 
 The previous Boot 3 security overrides have been reassessed:
 

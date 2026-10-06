@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM eclipse-temurin:21.0.12_8-jre-alpine-3.23@sha256:1c59e0666519c026978ef64b429dfb78518d013d51f5056530f0daa57f2a5bcb
+FROM eclipse-temurin:25.0.4.1_1-jre-alpine-3.23@sha256:d14b5b3cb1464cdbf81e0b8a0a6f45f308dcf08d8aea97934569f1237a167ded
 
 RUN apk add --no-cache \
         libcrypto3=3.5.9-r0 \

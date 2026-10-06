@@ -69,7 +69,7 @@ printf '%s\n' \
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'if [[ "$*" == "-XshowSettings:properties -version" ]]; then' \
-  '  printf '\''    java.specification.version = 21\n'\'' >&2' \
+  '  printf '\''    java.specification.version = 25\n'\'' >&2' \
   '  exit 0' \
   'fi' \
   'exit 98' \

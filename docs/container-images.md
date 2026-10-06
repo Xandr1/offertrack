@@ -10,7 +10,7 @@ Run the scripts from the repository root in Bash. On Windows, use Git Bash.
 The build requires:
 
 - Docker Engine with Docker Compose v2 and Buildx;
-- a Java 21 JDK on the host, including the `jar` tool;
+- a Java 25 JDK on the host, including the `jar` tool;
 - Node.js for Web build-input validation; and
 - network access for the Maven wrapper and the pinned container bases when
   they are not already cached.
@@ -77,8 +77,8 @@ mvnw clean flyway:migrate package -DskipTests
 The Maven lifecycle performs jOOQ generation. The script then requires exactly
 one application JAR, verifies its Spring Boot launcher, start class, application
 class, and embedded libraries, and stages only that JAR into the runtime-only
-Java image. A Java 21 JDK is required on the host even though the resulting
-image contains only the pinned Java 21 JRE.
+Java image. A Java 25 JDK is required on the host even though the resulting
+image contains only the pinned Temurin 25 JRE.
 
 ## Runtime contracts
 

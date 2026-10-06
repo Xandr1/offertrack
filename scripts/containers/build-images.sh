@@ -128,15 +128,15 @@ elif [[ "$APP_ENV_SEEN" == true || "$API_URL_SEEN" == true ]]; then
 fi
 
 if [[ "$BUILD_CORE" == true ]]; then
-  command -v java >/dev/null 2>&1 || fail "a Java 21 JDK is required to package Core API"
-  command -v jar >/dev/null 2>&1 || fail "the Java 21 JDK jar tool is required"
+  command -v java >/dev/null 2>&1 || fail "a Java 25 JDK is required to package Core API"
+  command -v jar >/dev/null 2>&1 || fail "the Java 25 JDK jar tool is required"
   JAVA_SPEC_VERSION="$(
     java -XshowSettings:properties -version 2>&1 \
       | sed -n 's/^[[:space:]]*java\.specification\.version = //p' \
       | head -n 1 \
       | tr -d '\r'
   )"
-  [[ "$JAVA_SPEC_VERSION" == "21" ]] || fail "Core API packaging requires Java 21"
+  [[ "$JAVA_SPEC_VERSION" == "25" ]] || fail "Core API packaging requires Java 25"
 fi
 
 # No Docker command is permitted above this point. Fast contract tests rely on

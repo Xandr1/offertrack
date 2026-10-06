@@ -16,7 +16,7 @@ These instructions apply to AI coding agents working in this repository
 OfferTrack contains three applications:
 
 - `apps/web`: Next.js, React, TypeScript, pnpm
-- `apps/core-api`: Java 21, Spring Boot, Spring Security, jOOQ, Flyway
+- `apps/core-api`: Java 25, Spring Boot, Spring Security, jOOQ, Flyway
 - `apps/ai-service`: Python 3.11, FastAPI, Pydantic, OpenAI integration
 
 PostgreSQL is the shared data store and rate-limit store. Docker Compose is the local integration environment.

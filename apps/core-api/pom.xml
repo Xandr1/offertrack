@@ -28,7 +28,7 @@
 		<url />
 	</scm>
 	<properties>
-		<java.version>21</java.version>
+		<java.version>25</java.version>
 		<jjwt.version>0.13.0</jjwt.version>
 		<!-- Fixed Jackson patches for CVE-2026-89407, CVE-2026-89425,
 		     CVE-2026-68497, CVE-2026-91776, and CVE-2026-91777.
@@ -165,6 +165,20 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<!-- JDK 23+ requires explicit annotation processor configuration. -->
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.springframework.boot</groupId>
+							<artifactId>spring-boot-configuration-processor</artifactId>
+							<version>${project.parent.version}</version>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
 				<groupId>org.flywaydb</groupId>
 				<artifactId>flyway-maven-plugin</artifactId>
 				<version>${flyway.version}</version>
@@ -222,11 +236,11 @@
 			<plugin>
 				<groupId>com.diffplug.spotless</groupId>
 				<artifactId>spotless-maven-plugin</artifactId>
-				<version>2.44.5</version>
+				<version>3.10.3</version>
 				<configuration>
 					<java>
 						<googleJavaFormat>
-							<version>1.24.0</version>
+							<version>1.30.0</version>
 						</googleJavaFormat>
 						<removeUnusedImports />
 						<trimTrailingWhitespace />
