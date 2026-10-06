@@ -244,12 +244,12 @@ The aggregate gate blocks when:
 
 - a scanner fails or is skipped;
 - a result is missing, malformed, or schema-invalid; or
-- a HIGH or CRITICAL finding has a non-empty `FixedVersion`.
+- a CRITICAL finding has a non-empty `FixedVersion`.
 
-HIGH and CRITICAL findings without a `FixedVersion` are reported separately
-but do not block. This is an explicit accepted residual security risk: unfixed
-findings remain visible and require review, but cannot be remediated until an
-upstream fix exists. They become blocking when Trivy reports a fixed version.
+Fixable HIGH findings are reported separately and do not block. HIGH and CRITICAL
+findings without a `FixedVersion` are also reported separately without blocking.
+These are explicit accepted residual security risks and remain visible for review.
+Unfixed CRITICAL findings become blocking when Trivy reports a fixed version.
 This policy is independent of the repository's blocking OSV dependency scan.
 
 The same evaluator is the local and CI policy entrypoint. After producing the

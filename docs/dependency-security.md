@@ -87,7 +87,7 @@ These security overrides are temporary:
 | `js-yaml` 4.1.1 -> 4.3.2 | `GHSA-h67p-54hq-rp68`, `GHSA-5p4m-2wfm-xmqj`, `GHSA-2883-xcg3-v3hh` | ESLint | The supported ESLint graph resolves 4.3.2 or later. |
 | `nanoid@` -> 3.3.18 | `GHSA-28wg-ghj8-5hjv`, `GHSA-2v37-7h3g-55p8` | PostCSS | The supported PostCSS graph resolves 3.3.18 or later without the override. |
 | `postcss@` -> 8.5.23 (replaces the 8.4.31 and 8.5.15 selectors) | `GHSA-qx2v-qp2m-jg93`, `GHSA-r28c-9q8g-f849`, `GHSA-fxqj-rqcc-2cmp` | Next and Tailwind CSS | Both supported requesters resolve 8.5.23 or later. |
-| `sharp` -> 0.35.4 | `GHSA-f88m-g3jw-g9cj` | Next | The supported Next graph resolves a fixed Sharp release without the override. |
+| `sharp` -> 0.35.5 | `GHSA-f88m-g3jw-g9cj`, `GHSA-wq5f-xc86-pv6w` | Next | The supported Next graph resolves a fixed Sharp release without the override. |
 
 After regeneration, a frozen pnpm install resolved each fixed version. Frontend
 lint, typecheck, all 42 Jest suites (270 tests), and the Next production build

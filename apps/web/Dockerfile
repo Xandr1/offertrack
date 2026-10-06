@@ -68,6 +68,7 @@ RUN mkdir -p /etc/ssl/certs \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
         libpcre2-8-0=10.42-1+deb12u2 \
+        perl-base=5.36.0-7+deb12u4 \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf \
       /usr/local/lib/node_modules/npm \

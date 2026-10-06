@@ -9,7 +9,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_MANAGER = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["packageManager"]
 PACKAGE_MANAGER_MATCH = re.fullmatch(r"pnpm@(.+)", PACKAGE_MANAGER)
@@ -69,6 +68,7 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("USER 1000:1000", runtime)
         self.assertIn("HOSTNAME=0.0.0.0", runtime)
         self.assertIn("PORT=3000", runtime)
+        self.assertIn("perl-base=5.36.0-7+deb12u4", runtime)
         self.assertIn('CMD ["node", "server.js"]', runtime)
         for build_only_path in (
             "/usr/local/lib/node_modules/npm",
@@ -201,7 +201,7 @@ class ImageContractTest(unittest.TestCase):
             "flyway",
             "webmvc-test",
             "security-test",
-            "jooq-test",
+            "jooq",
         ):
             self.assertIn(f"<artifactId>spring-boot-starter-{starter}</artifactId>", pom)
         self.assertIn("<tomcat.version>11.0.26</tomcat.version>", pom)
@@ -212,6 +212,7 @@ class ImageContractTest(unittest.TestCase):
         self.assertNotIn("spring-boot-starter-classic", pom)
         self.assertNotIn("spring-boot-properties-migrator", pom)
         self.assertNotIn("spring-boot-jackson2", pom)
+        self.assertNotIn("spring-boot-starter-jooq-test", pom)
 
     def test_core_java_baseline_matches_build_and_workflows(self) -> None:
         self.assertIn("<java.version>25</java.version>", read("apps/core-api/pom.xml"))
@@ -279,6 +280,9 @@ class ImageContractTest(unittest.TestCase):
             "gzip=1.13-1+deb13u1",
             "libpcre2-8-0=10.46-1~deb13u3",
             "libsqlite3-0=3.46.1-7+deb13u2",
+            "libssl3t64=3.5.7-1~deb13u3",
+            "openssl=3.5.7-1~deb13u3",
+            "openssl-provider-legacy=3.5.7-1~deb13u3",
             "perl-base=5.40.1-6+deb13u1",
         ):
             self.assertIn(fixed_package, runtime)
