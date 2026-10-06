@@ -1,6 +1,5 @@
 package com.offertrack.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.errors.ApiErrorResponse;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -17,6 +16,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.filter.OncePerRequestFilter;
+import tools.jackson.databind.ObjectMapper;
 
 public final class RequestBodyLimitFilter extends OncePerRequestFilter {
   private static final Logger log = LoggerFactory.getLogger(RequestBodyLimitFilter.class);

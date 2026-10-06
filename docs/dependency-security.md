@@ -94,28 +94,63 @@ lint, typecheck, all 42 Jest suites (270 tests), and the Next production build
 passed in the CI Node/pnpm toolchain. Remove an override only after the same
 checks and the Critical-only OSV policy passes without it.
 
-## Temporary Maven dependency management
+## Maven dependency management
 
-Spring Boot was updated from 3.5.14 to the latest compatible 3.5 patch,
-3.5.16. Exact fixed versions are temporarily managed for Jackson, Logback,
-Log4j, Netty, Apache Commons Lang, PostgreSQL JDBC, Spring Security, Tomcat, and
-Apache Commons Compress. These dependencies enter through Spring Boot starters,
-Lettuce/Netty, JJWT/Jackson, the PostgreSQL driver, and Testcontainers. In
-particular, the PR #38 baseline pins Netty at `4.1.137.Final`; Spring Boot 3.5.16
-otherwise resolves Log4j 2.24.3 through `spring-boot-starter-logging`, and
-Testcontainers 1.21.4 otherwise resolves Commons Compress 1.24.0.
+Core uses Spring Boot 4.0.8 with its managed Spring Framework 7.0.9,
+Spring Security 7.0.7. Jackson uses the security patches 3.1.7 and 2.21.7;
+Tomcat uses 11.0.26 / Servlet 6.1, as described below.
+The MVC, OAuth client, Flyway, MVC test, security test, and jOOQ test dependencies
+use Boot 4's modular starters. Application JSON uses Jackson 3; Jackson annotations
+retain their upstream `com.fasterxml.jackson.annotation` package. Flyway and JJWT
+still require Jackson 2 internally, without a Jackson 2 Spring mapper
+or compatibility auto-configuration.
 
-The same PR #38 baseline pins the Core runtime image's Alpine `libexpat` package
-at `2.8.4-r0`. Its JavaScript overrides pin Sharp at `0.35.4`, `js-yaml` 3.x at
-`3.15.2`, `js-yaml` 4.x at `4.3.2`, and `baseline-browser-mapping` at `2.11.21`.
-These are documented here so dependency updates keep the source and runtime
-baselines aligned.
+The previous Boot 3 security overrides have been reassessed:
 
-Remove each temporary version property or management entry when a supported
-Spring Boot/Testcontainers baseline manages at least the fixed version, and only
-after the complete Maven suite and OSV scan pass. The resolved graph was checked
-at the pinned versions. The complete 315-test backend suite passed with its
-configured Docker/Testcontainers services.
+| Previous override | Boot 4.0.8 baseline | Reason for removal |
+| --- | --- | --- |
+| Jackson BOM 2.21.5 | Jackson 3.1.5; isolated Jackson 2.21.5 | Replaced by the justified security patches for both generations below. |
+| Spring Security 6.5.11 | 7.0.7 | Use the supported Boot 4 security stack. |
+| Tomcat 10.1.59 | 11.0.24 | Replaced by the justified 11.0.26 security override below. |
+| Logback 1.5.35 | 1.5.38 | Managed version exceeds the previous security baseline. |
+| Log4j 2.25.5 | 2.25.5 | Managed version matches the previous security baseline. |
+| Netty 4.1.137.Final | 4.2.17.Final | Boot manages the current generation; Core has no Netty runtime dependency. |
+| Commons Lang 3.18.0 | 3.19.0 | Managed version exceeds the previous security baseline. |
+| PostgreSQL JDBC 42.7.13 | 42.7.13 | Managed version matches the previous security baseline. |
+| Commons Compress 1.28.0 | Testcontainers 2.0.5 resolves 1.28.0 | The previous Testcontainers 1.x vulnerable transitive version is gone. |
+
+The retained security version overrides are:
+
+- `jackson-bom.version=3.1.7` and `jackson-2-bom.version=2.21.7`. OSV and
+  Trivy flag Boot's managed patches for parser and databind denial-of-service
+  advisories, including `CVE-2026-89407`, `CVE-2026-89425`, `CVE-2026-68497`,
+  `CVE-2026-91776`, and `CVE-2026-91777`. The upstream
+  [Jackson 3.1.7](https://github.com/FasterXML/jackson/wiki/Jackson-Release-3.1.7)
+  and [Jackson 2.21.7](https://github.com/FasterXML/jackson/wiki/Jackson-Release-2.21.7)
+  releases contain the fixes. Jackson 2 remains confined to third-party use.
+- `tomcat.version=11.0.26`.
+
+The resolved OSV scan flags Boot's 11.0.24 for Critical advisories
+`GHSA-9xv2-5v5q-p794` / `CVE-2026-65905`, `GHSA-gcx9-497g-6cp6` /
+`CVE-2026-65182`, and `GHSA-h3x4-894j-xpx5` / `CVE-2026-68525`.
+[Apache's Tomcat 11 security notes](https://tomcat.apache.org/security-11.html)
+document fixes in 11.0.25; 11.0.26 also addresses the subsequent HTTP/2 regression
+`CVE-2026-86350`. Remove each override when a supported Boot 4.0 patch manages
+at least its fixed baseline and the Maven, smoke, and scan checks pass without it.
+
+The Core runtime image also pins Alpine's `libexpat=2.8.5-r0`, replacing
+2.8.4-r0 because Trivy reports the fixable HIGH `CVE-2026-93990`. This retains
+the existing policy that blocks fixable HIGH and CRITICAL image findings.
+OpenSSL, libcrypto3, and libssl3 move together from 3.5.8-r0 to 3.5.9-r0,
+the available [Alpine 3.23 package](https://pkgs.alpinelinux.org/package/v3.23/main/x86_64/openssl)
+and [upstream security patch](https://openssl-library.org/news/openssl-3.5-notes/);
+the repository no longer serves the previous exact package pin. All runtime
+package and base-image pins remain exact.
+
+JJWT 0.13.0 and Google Auth
+1.51.0 remain explicit application dependencies not managed by Boot. Source OSV
+and production container Trivy gates retain their existing policies; no advisory
+ignore or severity-threshold change accompanies this migration.
 
 ## Python lock generation
 

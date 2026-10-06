@@ -26,9 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
@@ -36,8 +36,8 @@ class PostgresRateLimiterIntegrationTest {
   private static final Instant NOW = Instant.parse("2026-07-12T12:00:00Z");
 
   @Container
-  private static final PostgreSQLContainer<?> POSTGRES =
-      new PostgreSQLContainer<>(
+  private static final PostgreSQLContainer POSTGRES =
+      new PostgreSQLContainer(
           DockerImageName.parse(
                   "postgres:16.14-bookworm@sha256:c95fd5346040eba2de3c435e14874af18f5d681fb5848d4f081dbead0878af28")
               .asCompatibleSubstituteFor("postgres"));

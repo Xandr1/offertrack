@@ -2,8 +2,8 @@ package com.offertrack.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import jakarta.servlet.ServletException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import tools.jackson.databind.json.JsonMapper;
 
 class RequestBodyLimitFilterTest {
   private RequestBodyLimitFilter filter() {
@@ -63,6 +64,18 @@ class RequestBodyLimitFilterTest {
     filter().doFilter(request("123456789", false), response, (req, res) -> called.set(true));
     assertThat(called).isFalse();
     assertThat(response.getStatus()).isEqualTo(413);
+  }
+
+  @Test
+  void rejectsUnknownLengthBodyReadThroughServlet61ByteBuffer() throws Exception {
+    var response = new MockHttpServletResponse();
+    filter()
+        .doFilter(
+            request("123456789", true),
+            response,
+            (req, res) -> req.getInputStream().read(ByteBuffer.allocate(16)));
+    assertThat(response.getStatus()).isEqualTo(413);
+    assertThat(response.getContentAsString()).contains("PAYLOAD_TOO_LARGE");
   }
 
   @Test

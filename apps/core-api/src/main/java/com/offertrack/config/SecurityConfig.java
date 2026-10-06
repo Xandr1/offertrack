@@ -1,6 +1,5 @@
 package com.offertrack.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.applications.AiServiceProperties;
 import com.offertrack.auth.AuthCookieProperties;
 import com.offertrack.auth.AuthService;
@@ -37,6 +36,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
