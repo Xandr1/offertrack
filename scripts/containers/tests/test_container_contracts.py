@@ -120,6 +120,54 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("turbopack: {", config)
         self.assertIn("root: repoRoot", config)
 
+    def test_debian_runtime_apt_sources_are_frozen_and_verified(self) -> None:
+        for app, suite, pcre2 in (
+            ("web", "bookworm", "10.42-1+deb12u2"),
+            ("ai-service", "trixie", "10.46-1~deb13u3"),
+        ):
+            with self.subTest(app=app):
+                dockerfile = read(f"apps/{app}/Dockerfile")
+                runtime = dockerfile[dockerfile.rindex("FROM ") :]
+                for argument, timestamp in (
+                    ("DEBIAN_SNAPSHOT", "20261006T203214Z"),
+                    ("DEBIAN_SECURITY_SNAPSHOT", "20261006T205323Z"),
+                ):
+                    self.assertRegex(runtime, rf"(?m)^ARG {argument}={timestamp}$")
+                self.assertIn(
+                    "https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/", runtime
+                )
+                self.assertIn(
+                    "https://snapshot.debian.org/archive/debian-security/${DEBIAN_SECURITY_SNAPSHOT}/",
+                    runtime,
+                )
+                self.assertIn(f"Suites: {suite} {suite}-updates", runtime)
+                self.assertIn(f"Suites: {suite}-security", runtime)
+                self.assertEqual(2, runtime.count("Types: deb"))
+                self.assertEqual(2, runtime.count("Components: main"))
+                self.assertEqual(2, runtime.count("Check-Valid-Until: no"))
+                self.assertEqual(
+                    2, runtime.count("Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg")
+                )
+                self.assertLess(
+                    runtime.index("> /etc/apt/sources.list.d/debian.sources"),
+                    runtime.index("apt-get update"),
+                )
+                self.assertIn(f"libpcre2-8-0={pcre2}", runtime)
+                self.assertIn("--no-install-recommends", runtime)
+                self.assertIn("rm -rf /var/lib/apt/lists/*", runtime)
+                for insecure in (
+                    "deb.debian.org",
+                    "security.debian.org",
+                    "trusted=yes",
+                    "--allow-unauthenticated",
+                    "Verify-Peer=false",
+                    "Verify-Host=false",
+                ):
+                    self.assertNotIn(insecure, runtime)
+        web = read("apps/web/Dockerfile")
+        self.assertIn('require("node:tls").rootCertificates', web)
+        self.assertIn("> /etc/ssl/certs/ca-certificates.crt", web)
+
     def test_core_is_a_runtime_only_pinned_jre_image(self) -> None:
         dockerfile = read("apps/core-api/Dockerfile")
         self.assertEqual(1, len(re.findall(r"(?m)^FROM\s+", dockerfile)))
@@ -229,7 +277,7 @@ class ImageContractTest(unittest.TestCase):
         self.assertEqual(2, dockerfile.count("pip uninstall --yes pip"))
         for fixed_package in (
             "gzip=1.13-1+deb13u1",
-            "libpcre2-8-0=10.46-1~deb13u2",
+            "libpcre2-8-0=10.46-1~deb13u3",
             "libsqlite3-0=3.46.1-7+deb13u2",
             "perl-base=5.40.1-6+deb13u1",
         ):
