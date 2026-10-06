@@ -5,7 +5,7 @@ OfferTrack is a job application tracker for managing applications, interview sta
 ## Stack
 
 - **Web:** Next.js, React, TypeScript, Tailwind CSS, TanStack Query, Zod
-- **Core API:** Java 21, Spring Boot, Spring Security, jOOQ, Flyway
+- **Core API:** Java 25, Spring Boot 4.0, Spring Security 7, jOOQ, Flyway
 - **AI service:** Python 3.11, FastAPI, Pydantic, OpenAI API
 - **Data:** PostgreSQL
 - **Local infrastructure:** Docker Compose, Mailpit, MinIO
@@ -28,7 +28,7 @@ docs/           Production, security, deployment, and architecture documentation
 - Docker with Docker Compose
 - Node.js 24
 - pnpm 12.3.4
-- Java 21
+- Java 25
 - Python 3.11
 - Git Bash when running repository scripts on Windows
 

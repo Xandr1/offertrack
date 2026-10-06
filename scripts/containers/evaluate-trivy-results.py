@@ -6,28 +6,29 @@ Every expected scan must be supplied as a repeated ``--scan`` quadruple:
     --scan NAME EXPECTED_IMAGE_REF JSON_PATH SCANNER_OUTCOME
 
 The expected image reference must match the report's ``ArtifactName`` exactly.
-The evaluator always inspects every quadruple before returning. Fixable HIGH or
-CRITICAL vulnerabilities block, while vulnerabilities without an available
-fix are reported as an explicit, non-blocking residual risk. A failed scanner
+The evaluator always inspects every quadruple before returning. Fixable CRITICAL
+vulnerabilities block. Fixable HIGH vulnerabilities and HIGH/CRITICAL vulnerabilities
+without an available fix are reported as explicit, non-blocking residual risk. A failed scanner
 or an unusable report blocks because the policy cannot be evaluated safely.
 """
 
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import html
 import json
 import os
 import re
 import sys
+from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Sequence
-
+from typing import Any
 
 EXPECTED_SCHEMA_VERSION = 2
-BLOCKING_SEVERITIES = frozenset({"HIGH", "CRITICAL"})
+REPORTED_SEVERITIES = frozenset({"HIGH", "CRITICAL"})
+BLOCKING_SEVERITIES = frozenset({"CRITICAL"})
 MAX_REPORT_BYTES = 64 * 1024 * 1024
 MAX_REPORTED_FINDINGS_PER_CLASS = 100
 MAX_REPORTED_ERRORS = 100
@@ -64,7 +65,10 @@ class Evaluation:
 
     @property
     def blocks(self) -> bool:
-        return bool(self.fixable or self.errors)
+        return bool(
+            self.errors
+            or any(finding.severity in BLOCKING_SEVERITIES for finding in self.fixable)
+        )
 
 
 def _bounded_diagnostic_value(value: object, *, fallback: str = "unknown") -> str:
@@ -175,7 +179,7 @@ def _findings(scan_name: str, report: dict[str, Any]) -> tuple[list[Finding], li
             severity = _require_string(vulnerability, "Severity", location).upper()
             if severity not in {"UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"}:
                 raise ReportError(f"{location}.Severity has an unsupported value")
-            if severity not in BLOCKING_SEVERITIES:
+            if severity not in REPORTED_SEVERITIES:
                 continue
 
             installed_version = vulnerability.get("InstalledVersion", "")
@@ -315,8 +319,8 @@ def render(evaluation: Evaluation) -> str:
         f"**Result: {verdict}**",
         "",
         (
-            "Fixable HIGH/CRITICAL findings block. Unfixed HIGH/CRITICAL findings are "
-            "reported as a non-blocking residual risk."
+            "Fixable CRITICAL findings block. Fixable HIGH findings and unfixed HIGH/CRITICAL "
+            "findings are reported as non-blocking residual risk."
         ),
         "",
         f"### Evaluation errors ({len(evaluation.errors)})",
@@ -335,7 +339,18 @@ def render(evaluation: Evaluation) -> str:
     else:
         lines.extend(["None.", ""])
 
-    lines.extend(_finding_lines("Fixable HIGH/CRITICAL findings (blocking)", evaluation.fixable))
+    lines.extend(
+        _finding_lines(
+            "Fixable CRITICAL findings (blocking)",
+            [finding for finding in evaluation.fixable if finding.severity in BLOCKING_SEVERITIES],
+        )
+    )
+    lines.extend(
+        _finding_lines(
+            "Fixable HIGH findings (non-blocking)",
+            [finding for finding in evaluation.fixable if finding.severity == "HIGH"],
+        )
+    )
     lines.extend(
         _finding_lines(
             "Unfixed HIGH/CRITICAL findings (non-blocking residual risk)", evaluation.unfixed

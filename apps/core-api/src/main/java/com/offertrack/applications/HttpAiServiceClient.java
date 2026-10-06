@@ -1,6 +1,5 @@
 package com.offertrack.applications;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.applications.dto.ApplicationDraftRequest;
 import com.offertrack.applications.dto.ApplicationDraftResponse;
 import com.offertrack.config.RequestIdFilter;
@@ -19,6 +18,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class HttpAiServiceClient implements AiServiceClient {

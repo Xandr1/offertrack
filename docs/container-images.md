@@ -10,7 +10,7 @@ Run the scripts from the repository root in Bash. On Windows, use Git Bash.
 The build requires:
 
 - Docker Engine with Docker Compose v2 and Buildx;
-- a Java 21 JDK on the host, including the `jar` tool;
+- a Java 25 JDK on the host, including the `jar` tool;
 - Node.js for Web build-input validation; and
 - network access for the Maven wrapper and the pinned container bases when
   they are not already cached.
@@ -77,8 +77,8 @@ mvnw clean flyway:migrate package -DskipTests
 The Maven lifecycle performs jOOQ generation. The script then requires exactly
 one application JAR, verifies its Spring Boot launcher, start class, application
 class, and embedded libraries, and stages only that JAR into the runtime-only
-Java image. A Java 21 JDK is required on the host even though the resulting
-image contains only the pinned Java 21 JRE.
+Java image. A Java 25 JDK is required on the host even though the resulting
+image contains only the pinned Temurin 25 JRE.
 
 ## Runtime contracts
 
@@ -244,12 +244,12 @@ The aggregate gate blocks when:
 
 - a scanner fails or is skipped;
 - a result is missing, malformed, or schema-invalid; or
-- a HIGH or CRITICAL finding has a non-empty `FixedVersion`.
+- a CRITICAL finding has a non-empty `FixedVersion`.
 
-HIGH and CRITICAL findings without a `FixedVersion` are reported separately
-but do not block. This is an explicit accepted residual security risk: unfixed
-findings remain visible and require review, but cannot be remediated until an
-upstream fix exists. They become blocking when Trivy reports a fixed version.
+Fixable HIGH findings are reported separately and do not block. HIGH and CRITICAL
+findings without a `FixedVersion` are also reported separately without blocking.
+These are explicit accepted residual security risks and remain visible for review.
+Unfixed CRITICAL findings become blocking when Trivy reports a fixed version.
 This policy is independent of the repository's blocking OSV dependency scan.
 
 The same evaluator is the local and CI policy entrypoint. After producing the

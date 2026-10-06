@@ -1,6 +1,5 @@
 package com.offertrack.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.errors.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -10,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
+import tools.jackson.databind.ObjectMapper;
 
 public final class JsonCsrfAccessDeniedHandler implements AccessDeniedHandler {
   public static final String ERROR_CODE = "CSRF_INVALID";

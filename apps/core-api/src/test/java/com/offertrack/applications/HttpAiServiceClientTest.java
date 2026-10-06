@@ -3,7 +3,6 @@ package com.offertrack.applications;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.applications.dto.ApplicationDraftRequest;
 import com.offertrack.config.RequestIdFilter;
 import com.sun.net.httpserver.HttpExchange;
@@ -27,12 +26,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 @ExtendWith(OutputCaptureExtension.class)
 class HttpAiServiceClientTest {
   private static final String INTERNAL_API_KEY = "test-internal-key";
 
-  private final ObjectMapper objectMapper = new ObjectMapper();
+  private final ObjectMapper objectMapper = JsonMapper.builder().build();
   private HttpServer server;
   private ExecutorService serverExecutor;
 

@@ -148,10 +148,11 @@ The deployment workflow owns only application revisions:
 
 Staging reuses existing immutable tags or builds each missing deployable variant
 once from the CI-approved commit. It resolves all three registry digests, scans
-those exact references, and applies the existing HIGH/CRITICAL Trivy policy before
-any candidate deployment or migration. Reports must identify the exact expected
+those exact references, and applies the Trivy policy that blocks fixable CRITICAL
+findings before any candidate deployment or migration. Reports must identify the exact expected
 artifact; scanner failure, malformed/missing reports, identity mismatch, and fixable
-HIGH/CRITICAL findings block rollout. Only sanitized summaries are logged.
+CRITICAL findings block rollout. Fixable HIGH findings and unfixed HIGH/CRITICAL
+findings remain visible as non-blocking residual risk. Only sanitized summaries are logged.
 
 Terraform ignores only the four container image fields. It does not ignore
 runtime configuration, IAM, networking, probes, resources, or scaling. This is

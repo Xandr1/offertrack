@@ -9,7 +9,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PACKAGE_MANAGER = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["packageManager"]
 PACKAGE_MANAGER_MATCH = re.fullmatch(r"pnpm@(.+)", PACKAGE_MANAGER)
@@ -22,8 +21,8 @@ NODE_IMAGE = (
     "sha256:713cfbf4a0ac19f40e1bb9919893e126b74a5c8cf5d0623c9f89515c8f74c6fa"
 )
 TEMURIN_IMAGE = (
-    "eclipse-temurin:21.0.12_8-jre-alpine-3.23@"
-    "sha256:1c59e0666519c026978ef64b429dfb78518d013d51f5056530f0daa57f2a5bcb"
+    "eclipse-temurin:25.0.4.1_1-jre-alpine-3.23@"
+    "sha256:d14b5b3cb1464cdbf81e0b8a0a6f45f308dcf08d8aea97934569f1237a167ded"
 )
 PYTHON_IMAGE = (
     "python:3.11.16-slim-trixie@"
@@ -69,6 +68,7 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("USER 1000:1000", runtime)
         self.assertIn("HOSTNAME=0.0.0.0", runtime)
         self.assertIn("PORT=3000", runtime)
+        self.assertIn("perl-base=5.36.0-7+deb12u4", runtime)
         self.assertIn('CMD ["node", "server.js"]', runtime)
         for build_only_path in (
             "/usr/local/lib/node_modules/npm",
@@ -120,6 +120,54 @@ class ImageContractTest(unittest.TestCase):
         self.assertIn("turbopack: {", config)
         self.assertIn("root: repoRoot", config)
 
+    def test_debian_runtime_apt_sources_are_frozen_and_verified(self) -> None:
+        for app, suite, pcre2 in (
+            ("web", "bookworm", "10.42-1+deb12u2"),
+            ("ai-service", "trixie", "10.46-1~deb13u3"),
+        ):
+            with self.subTest(app=app):
+                dockerfile = read(f"apps/{app}/Dockerfile")
+                runtime = dockerfile[dockerfile.rindex("FROM ") :]
+                for argument, timestamp in (
+                    ("DEBIAN_SNAPSHOT", "20261006T203214Z"),
+                    ("DEBIAN_SECURITY_SNAPSHOT", "20261006T205323Z"),
+                ):
+                    self.assertRegex(runtime, rf"(?m)^ARG {argument}={timestamp}$")
+                self.assertIn(
+                    "https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/", runtime
+                )
+                self.assertIn(
+                    "https://snapshot.debian.org/archive/debian-security/${DEBIAN_SECURITY_SNAPSHOT}/",
+                    runtime,
+                )
+                self.assertIn(f"Suites: {suite} {suite}-updates", runtime)
+                self.assertIn(f"Suites: {suite}-security", runtime)
+                self.assertEqual(2, runtime.count("Types: deb"))
+                self.assertEqual(2, runtime.count("Components: main"))
+                self.assertEqual(2, runtime.count("Check-Valid-Until: no"))
+                self.assertEqual(
+                    2, runtime.count("Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg")
+                )
+                self.assertLess(
+                    runtime.index("> /etc/apt/sources.list.d/debian.sources"),
+                    runtime.index("apt-get update"),
+                )
+                self.assertIn(f"libpcre2-8-0={pcre2}", runtime)
+                self.assertIn("--no-install-recommends", runtime)
+                self.assertIn("rm -rf /var/lib/apt/lists/*", runtime)
+                for insecure in (
+                    "deb.debian.org",
+                    "security.debian.org",
+                    "trusted=yes",
+                    "--allow-unauthenticated",
+                    "Verify-Peer=false",
+                    "Verify-Host=false",
+                ):
+                    self.assertNotIn(insecure, runtime)
+        web = read("apps/web/Dockerfile")
+        self.assertIn('require("node:tls").rootCertificates', web)
+        self.assertIn("> /etc/ssl/certs/ca-certificates.crt", web)
+
     def test_core_is_a_runtime_only_pinned_jre_image(self) -> None:
         dockerfile = read("apps/core-api/Dockerfile")
         self.assertEqual(1, len(re.findall(r"(?m)^FROM\s+", dockerfile)))
@@ -130,10 +178,10 @@ class ImageContractTest(unittest.TestCase):
         )
         self.assertIn("ENV SERVER_PORT=8080", dockerfile)
         for fixed_package in (
-            "libcrypto3=3.5.8-r0",
-            "libexpat=2.8.4-r0",
-            "libssl3=3.5.8-r0",
-            "openssl=3.5.8-r0",
+            "libcrypto3=3.5.9-r0",
+            "libexpat=2.8.5-r0",
+            "libssl3=3.5.9-r0",
+            "openssl=3.5.9-r0",
             "p11-kit=0.26.2-r0",
             "p11-kit-trust=0.26.2-r0",
         ):
@@ -143,10 +191,45 @@ class ImageContractTest(unittest.TestCase):
         self.assertNotIn("mvn", dockerfile.lower())
         self.assertNotIn("jdk", dockerfile.lower())
 
-    def test_core_uses_the_fixed_netty_release(self) -> None:
+    def test_core_uses_boot_4_managed_security_dependencies(self) -> None:
         pom = read("apps/core-api/pom.xml")
 
-        self.assertIn("<netty.version>4.1.137.Final</netty.version>", pom)
+        self.assertIn("<version>4.0.8</version>", pom)
+        for starter in (
+            "webmvc",
+            "security-oauth2-client",
+            "flyway",
+            "webmvc-test",
+            "security-test",
+            "jooq",
+        ):
+            self.assertIn(f"<artifactId>spring-boot-starter-{starter}</artifactId>", pom)
+        self.assertIn("<tomcat.version>11.0.26</tomcat.version>", pom)
+        self.assertIn("<jackson-bom.version>3.1.7</jackson-bom.version>", pom)
+        self.assertIn("<jackson-2-bom.version>2.21.7</jackson-2-bom.version>", pom)
+        for override in ("spring-framework", "spring-security", "netty"):
+            self.assertNotIn(f"<{override}.version>", pom)
+        self.assertNotIn("spring-boot-starter-classic", pom)
+        self.assertNotIn("spring-boot-properties-migrator", pom)
+        self.assertNotIn("spring-boot-jackson2", pom)
+        self.assertNotIn("spring-boot-starter-jooq-test", pom)
+
+    def test_core_java_baseline_matches_build_and_workflows(self) -> None:
+        self.assertIn("<java.version>25</java.version>", read("apps/core-api/pom.xml"))
+        for workflow, setup_count in (
+            ("ci.yml", 3),
+            ("deploy-staging.yml", 1),
+            ("osv-scan.yml", 1),
+        ):
+            text = read(f".github/workflows/{workflow}")
+            self.assertEqual(["25"] * setup_count, re.findall(r"java-version:\s*(\d+)", text))
+            self.assertEqual(setup_count, text.count("distribution: temurin"))
+        self.assertIn(
+            '[[ "$JAVA_SPEC_VERSION" == "25" ]]', read("scripts/containers/build-images.sh")
+        )
+        self.assertIn(
+            "java.specification.version = 25", read("scripts/containers/tests/test-build-images-flow.sh")
+        )
 
     def test_maven_wrapper_distribution_has_official_sha256(self) -> None:
         wrapper = read("apps/core-api/.mvn/wrapper/maven-wrapper.properties")
@@ -195,8 +278,11 @@ class ImageContractTest(unittest.TestCase):
         self.assertEqual(2, dockerfile.count("pip uninstall --yes pip"))
         for fixed_package in (
             "gzip=1.13-1+deb13u1",
-            "libpcre2-8-0=10.46-1~deb13u2",
+            "libpcre2-8-0=10.46-1~deb13u3",
             "libsqlite3-0=3.46.1-7+deb13u2",
+            "libssl3t64=3.5.7-1~deb13u3",
+            "openssl=3.5.7-1~deb13u3",
+            "openssl-provider-legacy=3.5.7-1~deb13u3",
             "perl-base=5.40.1-6+deb13u1",
         ):
             self.assertIn(fixed_package, runtime)

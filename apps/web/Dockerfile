@@ -38,14 +38,37 @@ RUN test -n "$APP_ENV" \
 
 FROM --platform=linux/amd64 node:24.21.0-bookworm-slim@sha256:713cfbf4a0ac19f40e1bb9919893e126b74a5c8cf5d0623c9f89515c8f74c6fa AS runtime
 
+ARG DEBIAN_SNAPSHOT=20261006T203214Z
+ARG DEBIAN_SECURITY_SNAPSHOT=20261006T205323Z
+
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 
-RUN apt-get update \
+# The slim Node base has no OS CA bundle; reuse its pinned, bundled roots for APT HTTPS.
+RUN mkdir -p /etc/ssl/certs \
+    && node -p 'require("node:tls").rootCertificates.join("\n")' \
+        > /etc/ssl/certs/ca-certificates.crt \
+    && printf '%s\n' \
+        'Types: deb' \
+        "URIs: https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}/" \
+        'Suites: bookworm bookworm-updates' \
+        'Components: main' \
+        'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+        'Check-Valid-Until: no' \
+        '' \
+        'Types: deb' \
+        "URIs: https://snapshot.debian.org/archive/debian-security/${DEBIAN_SECURITY_SNAPSHOT}/" \
+        'Suites: bookworm-security' \
+        'Components: main' \
+        'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+        'Check-Valid-Until: no' \
+        > /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends \
-        libpcre2-8-0=10.42-1+deb12u1 \
+        libpcre2-8-0=10.42-1+deb12u2 \
+        perl-base=5.36.0-7+deb12u4 \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf \
       /usr/local/lib/node_modules/npm \

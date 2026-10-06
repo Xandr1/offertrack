@@ -1,10 +1,10 @@
 package com.offertrack.auth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offertrack.errors.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import tools.jackson.databind.ObjectMapper;
 
 public final class AuthenticationErrorWriter {
   private AuthenticationErrorWriter() {}

@@ -8,7 +8,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EVALUATOR = REPO_ROOT / "scripts" / "containers" / "evaluate-trivy-results.py"
 IMAGE_TAG = "test"
@@ -75,7 +74,7 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         self, **overrides: tuple[Path, str]
     ) -> list[tuple[str, str, Path, str]]:
         scans: list[tuple[str, str, Path, str]] = []
-        for scan_name in IMAGE_REPOSITORIES:
+        for scan_name, image_repository in IMAGE_REPOSITORIES.items():
             path, outcome = overrides.get(
                 scan_name,
                 (
@@ -86,7 +85,7 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
                 ),
             )
             scans.append(
-                (scan_name, f"{IMAGE_REPOSITORIES[scan_name]}:{IMAGE_TAG}", path, outcome)
+                (scan_name, f"{image_repository}:{IMAGE_TAG}", path, outcome)
             )
         return scans
 
@@ -238,7 +237,7 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertEqual(2, result.stdout.count("ArtifactName is"))
 
-    def test_fixable_high_or_critical_findings_block(self) -> None:
+    def test_fixable_critical_blocks_and_fixable_high_is_reported_separately(self) -> None:
         path = self.write_json(
             "fixed.json",
             report(
@@ -252,9 +251,26 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
 
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("Result: BLOCKED", result.stdout)
-        self.assertIn("Fixable HIGH/CRITICAL findings (blocking) (2)", result.stdout)
+        self.assertIn("Fixable CRITICAL findings (blocking) (1)", result.stdout)
+        self.assertIn("Fixable HIGH findings (non-blocking) (1)", result.stdout)
         self.assertIn("CVE-2026-0001", result.stdout)
         self.assertIn("CVE-2026-0002", result.stdout)
+
+    def test_fixable_high_findings_pass_for_every_image_and_remain_visible(self) -> None:
+        for scan_name in IMAGE_REPOSITORIES:
+            with self.subTest(scan_name=scan_name):
+                path = self.write_json(
+                    f"{scan_name}-high.json",
+                    report(scan_name, vulnerability("CVE-HIGH", fixed_version="1.0.1")),
+                )
+                result = self.run_evaluator(
+                    *self.complete_scans(**{scan_name: (path, "success")})
+                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertIn("Result: PASSED", result.stdout)
+                self.assertIn("Fixable CRITICAL findings (blocking) (0)", result.stdout)
+                self.assertIn("Fixable HIGH findings (non-blocking) (1)", result.stdout)
+                self.assertIn("CVE-HIGH", result.stdout)
 
     def test_unfixed_findings_are_reported_as_non_blocking_residual_risk(self) -> None:
         path = self.write_json(
@@ -275,22 +291,41 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         )
         self.assertIn("CVE-2026-1001", result.stdout)
 
+    def test_malformed_fixable_high_finding_still_blocks(self) -> None:
+        malformed = vulnerability("CVE-HIGH")
+        malformed["FixedVersion"] = 123
+        path = self.write_json("malformed-high.json", report("web", malformed))
+
+        result = self.run_evaluator(*self.complete_scans(web=(path, "success")))
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("FixedVersion must be a string, null, or omitted", result.stdout)
+
     def test_mixed_reports_are_all_aggregated_before_blocking(self) -> None:
         web = self.write_json(
-            "web.json", report("web", vulnerability("CVE-WEB", fixed_version="1.1.0"))
+            "web.json",
+            report("web", vulnerability("CVE-WEB", severity="CRITICAL", fixed_version="1.1.0")),
         )
         core = self.write_json(
             "core.json", report("core-api", vulnerability("CVE-CORE"))
         )
+        ai = self.write_json(
+            "ai.json", report("ai-service", vulnerability("CVE-AI", fixed_version="1.1.0"))
+        )
 
         result = self.run_evaluator(
-            *self.complete_scans(web=(web, "success"), **{"core-api": (core, "success")})
+            *self.complete_scans(
+                web=(web, "success"),
+                **{"core-api": (core, "success"), "ai-service": (ai, "success")},
+            )
         )
 
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("CVE-WEB", result.stdout)
         self.assertIn("CVE-CORE", result.stdout)
-        self.assertIn("Fixable HIGH/CRITICAL findings (blocking) (1)", result.stdout)
+        self.assertIn("CVE-AI", result.stdout)
+        self.assertIn("Fixable CRITICAL findings (blocking) (1)", result.stdout)
+        self.assertIn("Fixable HIGH findings (non-blocking) (1)", result.stdout)
         self.assertIn(
             "Unfixed HIGH/CRITICAL findings (non-blocking residual risk) (1)", result.stdout
         )
@@ -404,7 +439,7 @@ class EvaluateTrivyResultsTest(unittest.TestCase):
         self.assertEqual(result.stdout, summary_path.read_text(encoding="utf-8"))
 
     def test_summary_sanitizes_untrusted_finding_fields(self) -> None:
-        unsafe = vulnerability("CVE-2026-2001", fixed_version="1.0.1")
+        unsafe = vulnerability("CVE-2026-2001", severity="CRITICAL", fixed_version="1.0.1")
         unsafe["PkgName"] = "<script>|package\nnext-line ![probe](https://example.invalid/x)"
         path = self.write_json(
             "unsafe-display.json",
